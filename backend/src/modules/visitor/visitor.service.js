@@ -1,0 +1,344 @@
+const bcrypt = require('bcryptjs');
+const model = require('./visitor.model');
+const { signToken } = require('../../middleware/auth');
+
+function httpError(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+function required(payload, fields) {
+  const missing = fields.filter((field) => payload[field] === undefined || payload[field] === null || payload[field] === '');
+  if (missing.length) {
+    throw httpError(422, `Missing required field(s): ${missing.join(', ')}`);
+  }
+}
+
+function normalizeType(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function classifyVisitor(payload) {
+  if (payload.visitor_type) return normalizeType(payload.visitor_type);
+
+  const nationality = normalizeType(payload.nationality || 'Filipino');
+  const address = normalizeType(payload.address);
+  const province = normalizeType(payload.province);
+  const country = normalizeType(payload.country);
+
+  if (nationality && nationality !== 'filipino') return 'international';
+  if (country && country !== 'philippines') return 'international';
+  if (address.includes('calabanga') || province.includes('camarines sur')) return 'local';
+  return 'domestic';
+}
+
+function scopedFilters(filters, user) {
+  const next = { ...filters };
+  const assignedId = user.assigned_establishment_id || user.assigned_resort_id;
+  if (user.role === 'receptionist') {
+    if (assignedId) {
+      next.establishment_id = assignedId;
+    } else {
+      delete next.establishment_id;
+    }
+    next.source_type = 'resort';
+  }
+  return next;
+}
+
+function normalizeRole(value) {
+  const role = String(value || '').trim().toLowerCase();
+  if (role === 'system administrator') return 'admin';
+  if (role === 'tourism staff') return 'tourism_staff';
+  if (role === 'receptionist desk') return 'receptionist';
+  return role || 'tourism_staff';
+}
+
+async function login(payload) {
+  required(payload, ['username', 'password']);
+
+  const username = String(payload.username || '').trim();
+  const loginAliases = {
+    staff: 'tourism_staff',
+    tourismstaff: 'tourism_staff',
+    tourism_staff: 'tourism_staff',
+    beachreceptionist: 'beach_reception',
+    beach_receptionist: 'beach_reception',
+    beach_reception: 'beach_reception',
+    ecoreceptionist: 'ecopark_reception',
+    eco_receptionist: 'ecopark_reception',
+    ecopark_reception: 'ecopark_reception',
+  };
+  const lookupUsername = loginAliases[username.toLowerCase().replace(/\s+/g, '_')] || username;
+
+  const user = await model.findUserByUsername(lookupUsername);
+  if (!user) {
+    throw httpError(401, 'Invalid username or password.');
+  }
+
+  const passwordOk = user.password_hash
+    ? await bcrypt.compare(payload.password, user.password_hash)
+    : payload.password === user.password;
+
+  if (!passwordOk) {
+    throw httpError(401, 'Invalid username or password.');
+  }
+
+  const safeUser = model.safeUser(user);
+  const token = signToken(safeUser);
+  return { token, user: safeUser };
+}
+
+async function dashboardSummary(user) {
+  return model.dashboardSummary(user);
+}
+
+async function receptionistSummary(user) {
+  const assignedId = user.assigned_establishment_id || user.assigned_resort_id;
+  if (!assignedId && user.role === 'receptionist') {
+    throw httpError(403, 'Receptionist account has no assigned establishment.');
+  }
+  return model.receptionistSummary({ ...user, assigned_establishment_id: assignedId });
+}
+
+async function createVisitor(payload, user) {
+  required(payload, ['full_name', 'visit_date']);
+
+  const visitor = {
+    ...payload,
+    visitor_type: classifyVisitor(payload),
+    status: normalizeType(payload.status || 'checked_in'),
+    source_type: normalizeType(payload.source_type || 'tourism_office'),
+    recorded_by_user_id: user.id,
+  };
+
+  if (user.role === 'receptionist') {
+    const assignedId = user.assigned_establishment_id || user.assigned_resort_id || payload.establishment_id;
+    if (assignedId) {
+      visitor.establishment_id = assignedId;
+    } else {
+      const resort = await model.findFirstEstablishmentByType('resort');
+      visitor.establishment_id = resort?.id || null;
+    }
+    visitor.source_type = 'resort';
+  }
+
+  if (visitor.source_type === 'museum' && !visitor.establishment_id) {
+    const museum = await model.findFirstEstablishmentByType('museum');
+    visitor.establishment_id = museum?.id || visitor.establishment_id;
+  }
+
+  return model.createVisitor(visitor);
+}
+
+async function listVisitors(filters, user) {
+  return model.listVisitors(scopedFilters(filters, user));
+}
+
+async function getVisitor(id, user) {
+  const visitor = await model.getVisitor(id);
+  if (!visitor) throw httpError(404, 'Visitor record not found.');
+  const assignedId = user.assigned_establishment_id || user.assigned_resort_id;
+  if (user.role === 'receptionist' && Number(visitor.establishment_id) !== Number(assignedId)) {
+    throw httpError(404, 'Visitor record not found.');
+  }
+  return visitor;
+}
+
+async function updateVisitor(id, payload, user) {
+  await getVisitor(id, user);
+  const next = {
+    ...payload,
+    visitor_type: payload.visitor_type ? normalizeType(payload.visitor_type) : undefined,
+    status: payload.status ? normalizeType(payload.status) : undefined,
+    source_type: payload.source_type ? normalizeType(payload.source_type) : undefined,
+  };
+  if (user.role === 'receptionist') {
+    delete next.establishment_id;
+    delete next.source_type;
+  }
+  return model.updateVisitor(id, next);
+}
+
+async function updateVisitorStatus(id, status, user) {
+  required({ status }, ['status']);
+  await getVisitor(id, user);
+  return model.updateVisitorStatus(id, normalizeType(status));
+}
+
+async function deleteVisitor(id) {
+  const deleted = await model.deleteVisitor(id);
+  if (!deleted) throw httpError(404, 'Visitor record not found.');
+  return { message: 'Visitor record deleted.' };
+}
+
+async function createInquiry(payload) {
+  required(payload, ['full_name', 'email', 'contact_number', 'subject', 'message']);
+  return model.createInquiry(payload);
+}
+
+async function listInquiries(filters) {
+  return model.listInquiries(filters);
+}
+
+async function getInquiry(id) {
+  const inquiry = await model.getInquiry(id);
+  if (!inquiry) throw httpError(404, 'Inquiry not found.');
+  return inquiry;
+}
+
+async function respondInquiry(id, payload, user) {
+  required(payload, ['response_message']);
+  await getInquiry(id);
+  return model.respondInquiry(id, payload.response_message, user.id);
+}
+
+async function updateInquiryStatus(id, status) {
+  required({ status }, ['status']);
+  await getInquiry(id);
+  return model.updateInquiryStatus(id, normalizeType(status));
+}
+
+async function visitorSummary(filters, user) {
+  return model.visitorSummary(scopedFilters(filters, user));
+}
+
+async function visitorTrend(filters, user) {
+  return model.visitorTrend(scopedFilters(filters, user));
+}
+
+async function classification(filters, user) {
+  return model.classification(scopedFilters(filters, user));
+}
+
+async function exportVisitorSummary(filters, user) {
+  const rows = await model.listVisitors(scopedFilters(filters, user));
+  const headers = ['ID', 'Full Name', 'Visitor Type', 'Nationality', 'Establishment', 'Visit Date', 'Status', 'Source Type'];
+  const body = rows.map((row) =>
+    [
+      row.id,
+      row.full_name,
+      row.visitor_type,
+      row.nationality,
+      row.establishment_name,
+      row.visit_date,
+      row.status,
+      row.source_type,
+    ]
+      .map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`)
+      .join(',')
+  );
+  return [headers.join(','), ...body].join('\n');
+}
+
+async function listEstablishments() {
+  return model.listEstablishments();
+}
+
+async function createEstablishment(payload) {
+  required(payload, ['name', 'type']);
+  const duplicate = await model.findEstablishmentByName(payload.name);
+  if (duplicate) {
+    throw httpError(409, 'Establishment name already exists.');
+  }
+  return model.createEstablishment(payload);
+}
+
+async function updateEstablishment(id, payload) {
+  const establishment = await model.updateEstablishment(id, payload);
+  if (!establishment) throw httpError(404, 'Establishment not found.');
+  return establishment;
+}
+
+async function deactivateEstablishment(id) {
+  const establishment = await model.updateEstablishment(id, { is_active: 0 });
+  if (!establishment) throw httpError(404, 'Establishment not found.');
+  return establishment;
+}
+
+async function listUsers() {
+  return model.listUsers();
+}
+
+async function createUser(payload) {
+  required(payload, ['full_name', 'username', 'role']);
+  const role = normalizeRole(payload.role);
+  if (role === 'receptionist' && !payload.assigned_establishment_id && !payload.assigned_resort_id) {
+    throw httpError(422, 'Receptionist accounts must be assigned to a resort or establishment.');
+  }
+
+  const existing = await model.findUserByUsername(payload.username);
+  if (existing) {
+    throw httpError(409, 'Username already exists.');
+  }
+
+  const password = payload.password || 'password123';
+  const password_hash = await bcrypt.hash(password, 10);
+  return model.createUser({
+    ...payload,
+    role,
+    password,
+    password_hash,
+    assigned_establishment_id: payload.assigned_establishment_id || payload.assigned_resort_id || null,
+    status: payload.status || 'active',
+  });
+}
+
+async function updateUser(id, payload) {
+  const role = payload.role ? normalizeRole(payload.role) : undefined;
+  const assigned_establishment_id = payload.assigned_establishment_id || payload.assigned_resort_id;
+  if (role === 'receptionist' && !assigned_establishment_id) {
+    throw httpError(422, 'Receptionist accounts must be assigned to a resort or establishment.');
+  }
+
+  const next = {
+    ...payload,
+    role,
+    assigned_establishment_id,
+  };
+
+  if (payload.password) {
+    next.password = payload.password;
+    next.password_hash = await bcrypt.hash(payload.password, 10);
+  }
+
+  const user = await model.updateUser(id, next);
+  if (!user) throw httpError(404, 'User not found.');
+  return user;
+}
+
+async function deactivateUser(id) {
+  const user = await model.updateUser(id, { status: 'inactive', is_active: 0 });
+  if (!user) throw httpError(404, 'User not found.');
+  return user;
+}
+
+module.exports = {
+  login,
+  dashboardSummary,
+  receptionistSummary,
+  createVisitor,
+  listVisitors,
+  getVisitor,
+  updateVisitor,
+  updateVisitorStatus,
+  deleteVisitor,
+  createInquiry,
+  listInquiries,
+  getInquiry,
+  respondInquiry,
+  updateInquiryStatus,
+  visitorSummary,
+  visitorTrend,
+  classification,
+  exportVisitorSummary,
+  listEstablishments,
+  createEstablishment,
+  updateEstablishment,
+  deactivateEstablishment,
+  listUsers,
+  createUser,
+  updateUser,
+  deactivateUser,
+};
