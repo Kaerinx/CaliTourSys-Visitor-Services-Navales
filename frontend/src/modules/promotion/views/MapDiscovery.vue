@@ -1,9 +1,9 @@
 <template>
   <main class="promotion-placeholder">
-    <p class="promotion-placeholder__caption">OTOP · One Town, One Product</p>
-    <h1>OTOP Products</h1>
+    <p class="promotion-placeholder__caption">Map · Discovery</p>
+    <h1>Discover</h1>
     <p class="promotion-placeholder__note">
-      OTOP products page skeleton. Final implementation must follow the locked header, sticky chips, product grid, and pagination.
+      Map discovery page skeleton. Final implementation must use the locked 360px sidebar and full-viewport map layout.
     </p>
   </main>
 </template>

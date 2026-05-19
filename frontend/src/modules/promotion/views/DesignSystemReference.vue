@@ -1,9 +1,9 @@
 <template>
   <main class="promotion-placeholder">
-    <p class="promotion-placeholder__caption">OTOP · One Town, One Product</p>
-    <h1>OTOP Products</h1>
+    <p class="promotion-placeholder__caption">Design System · v1.0</p>
+    <h1>TWBIS Design Language</h1>
     <p class="promotion-placeholder__note">
-      OTOP products page skeleton. Final implementation must follow the locked header, sticky chips, product grid, and pagination.
+      Design reference page skeleton. Final implementation must mirror the Figmake component notes if this route remains enabled.
     </p>
   </main>
 </template>
