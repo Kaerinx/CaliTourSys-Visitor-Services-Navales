@@ -100,7 +100,7 @@ async function shareEvent(event) {
         <nav class="site-nav__links" aria-label="Primary navigation">
           <RouterLink to="/promotion" class="site-nav__link">Home</RouterLink>
           <RouterLink to="/promotion/map" class="site-nav__link">Map</RouterLink>
-          <RouterLink to="/promotion/products" class="site-nav__link">OTOP</RouterLink>
+          <RouterLink to="/promotion/products" class="site-nav__link">Products</RouterLink>
           <RouterLink to="/promotion/events" class="site-nav__link site-nav__link--active">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
         </nav>
@@ -279,7 +279,7 @@ async function shareEvent(event) {
         <div>
           <h4>Explore</h4>
           <RouterLink to="/promotion/map">Map &amp; Discovery</RouterLink>
-          <RouterLink to="/promotion/products">OTOP Products</RouterLink>
+          <RouterLink to="/promotion/products">Products</RouterLink>
           <RouterLink to="/promotion/events">Events</RouterLink>
           <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
         </div>

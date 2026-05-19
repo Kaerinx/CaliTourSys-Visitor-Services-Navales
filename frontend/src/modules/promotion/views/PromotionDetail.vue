@@ -92,7 +92,7 @@ onMounted(loadProduct)
           <RouterLink to="/promotion" class="site-nav__link">Home</RouterLink>
           <RouterLink to="/promotion/map" class="site-nav__link">Map</RouterLink>
           <RouterLink to="/promotion/products" class="site-nav__link site-nav__link--active">
-            OTOP
+            Products
           </RouterLink>
           <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
@@ -114,7 +114,7 @@ onMounted(loadProduct)
       <div class="page-shell">
         <RouterLink to="/promotion">Home</RouterLink>
         <span>/</span>
-        <RouterLink to="/promotion/products">OTOP Products</RouterLink>
+        <RouterLink to="/promotion/products">Products</RouterLink>
         <span>/</span>
         <span>{{ product?.name || 'Product Detail' }}</span>
       </div>
@@ -129,7 +129,7 @@ onMounted(loadProduct)
       <div></div>
       <h1>Product not found</h1>
       <p>{{ errorMessage }}</p>
-      <RouterLink to="/promotion/products">Back to OTOP Products</RouterLink>
+      <RouterLink to="/promotion/products">Back to Products</RouterLink>
     </section>
 
     <section v-else class="page-shell detail-layout">

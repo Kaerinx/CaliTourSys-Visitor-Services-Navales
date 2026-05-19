@@ -1,9 +1,9 @@
 <template>
   <main class="promotion-placeholder">
-    <p class="promotion-placeholder__caption">OTOP · One Town, One Product</p>
-    <h1>OTOP Products</h1>
+    <p class="promotion-placeholder__caption">Products · Local Producers</p>
+    <h1>Products</h1>
     <p class="promotion-placeholder__note">
-      OTOP products page skeleton. Final implementation must follow the locked header, sticky chips, product grid, and pagination.
+      Products page skeleton. Final implementation must follow the locked header, sticky chips, product grid, and pagination.
     </p>
   </main>
 </template>

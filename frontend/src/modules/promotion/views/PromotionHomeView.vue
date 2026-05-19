@@ -109,7 +109,7 @@ const filters = [
         <nav class="site-nav__links" aria-label="Primary navigation">
           <RouterLink to="/promotion" class="site-nav__link site-nav__link--active">Home</RouterLink>
           <RouterLink to="/promotion/map" class="site-nav__link">Map</RouterLink>
-          <RouterLink to="/promotion/products" class="site-nav__link">OTOP</RouterLink>
+          <RouterLink to="/promotion/products" class="site-nav__link">Products</RouterLink>
           <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
         </nav>
@@ -139,7 +139,7 @@ const filters = [
             <h1>Discover the Heart of Bicol</h1>
             <p>
               Explore Calabanga's coastal wonders, centuries-old churches, and the local treasures
-              of its OTOP producers.
+              of its local producers.
             </p>
             <div class="hero-copy__actions">
               <RouterLink to="/promotion/map" class="button button--white">
@@ -149,7 +149,7 @@ const filters = [
                 </svg>
                 Start exploring
               </RouterLink>
-              <RouterLink to="/promotion/products" class="button button--white-ghost">Shop OTOP</RouterLink>
+              <RouterLink to="/promotion/products" class="button button--white-ghost">Shop Products</RouterLink>
             </div>
           </div>
         </div>
@@ -290,9 +290,9 @@ const filters = [
           <div class="section-heading">
             <div>
               <h2>Calabanga's Finest</h2>
-              <p>Hand-picked products from our OTOP (One Town, One Product) accredited producers.</p>
+              <p>Hand-picked products from Calabanga's accredited producers.</p>
             </div>
-            <RouterLink to="/promotion/products">Shop all OTOP -></RouterLink>
+            <RouterLink to="/promotion/products">Shop all Products -></RouterLink>
           </div>
 
           <div class="chip-row">
@@ -407,7 +407,7 @@ const filters = [
         <div>
           <h4>Explore</h4>
           <RouterLink to="/promotion/map">Map &amp; Discovery</RouterLink>
-          <RouterLink to="/promotion/products">OTOP Products</RouterLink>
+          <RouterLink to="/promotion/products">Products</RouterLink>
           <RouterLink to="/promotion/events">Events</RouterLink>
           <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
         </div>

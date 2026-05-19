@@ -86,7 +86,7 @@ async function shareArtifact(artifact) {
         <nav class="site-nav__links" aria-label="Primary navigation">
           <RouterLink to="/promotion" class="site-nav__link">Home</RouterLink>
           <RouterLink to="/promotion/map" class="site-nav__link">Map</RouterLink>
-          <RouterLink to="/promotion/products" class="site-nav__link">OTOP</RouterLink>
+          <RouterLink to="/promotion/products" class="site-nav__link">Products</RouterLink>
           <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link site-nav__link--active">
             Museum
@@ -234,7 +234,7 @@ async function shareArtifact(artifact) {
         <div>
           <h4>Explore</h4>
           <RouterLink to="/promotion/map">Map &amp; Discovery</RouterLink>
-          <RouterLink to="/promotion/products">OTOP Products</RouterLink>
+          <RouterLink to="/promotion/products">Products</RouterLink>
           <RouterLink to="/promotion/events">Events</RouterLink>
           <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
         </div>

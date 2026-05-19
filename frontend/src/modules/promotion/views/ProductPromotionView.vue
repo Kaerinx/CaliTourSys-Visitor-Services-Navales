@@ -139,7 +139,7 @@ function clearFilters() {
           <RouterLink to="/promotion" class="site-nav__link">Home</RouterLink>
           <RouterLink to="/promotion/map" class="site-nav__link">Map</RouterLink>
           <RouterLink to="/promotion/products" class="site-nav__link site-nav__link--active">
-            OTOP
+            Products
           </RouterLink>
           <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
@@ -166,8 +166,8 @@ function clearFilters() {
       <section class="products-hero">
         <div class="page-shell products-hero__inner">
           <div class="products-hero__copy">
-            <p class="eyebrow">OTOP · One Town, One Product</p>
-            <h1>OTOP Products</h1>
+            <p class="eyebrow">Products · Local Producers</p>
+            <h1>Products</h1>
             <p>
               Explore locally-made products from Calabanga's accredited producers - every item is
               vetted by the LGU for quality and authenticity.
@@ -316,7 +316,7 @@ function clearFilters() {
         <div>
           <h4>Explore</h4>
           <RouterLink to="/promotion/map">Map &amp; Discovery</RouterLink>
-          <RouterLink to="/promotion/products">OTOP Products</RouterLink>
+          <RouterLink to="/promotion/products">Products</RouterLink>
           <RouterLink to="/promotion/events">Events</RouterLink>
           <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
         </div>

@@ -179,7 +179,7 @@ async function shareLocation(location) {
         <nav class="site-nav__links" aria-label="Primary navigation">
           <RouterLink to="/promotion" class="site-nav__link">Home</RouterLink>
           <RouterLink to="/promotion/map" class="site-nav__link site-nav__link--active">Map</RouterLink>
-          <RouterLink to="/promotion/products" class="site-nav__link">OTOP</RouterLink>
+          <RouterLink to="/promotion/products" class="site-nav__link">Products</RouterLink>
           <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
         </nav>
@@ -298,7 +298,7 @@ async function shareLocation(location) {
             </svg>
             Layers
           </button>
-          <RouterLink to="/promotion/products">Browse OTOP</RouterLink>
+          <RouterLink to="/promotion/products">Browse Products</RouterLink>
         </div>
 
         <button
