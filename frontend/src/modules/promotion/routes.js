@@ -44,6 +44,11 @@ const promotionRoutes = [
     name: 'promotion-museum',
     component: () => import('./views/InteractiveMuseumView.vue'),
   },
+  {
+    path: '/promotion/inquiry',
+    name: 'promotion-inquiry',
+    component: () => import('./views/TourismInquiryView.vue'),
+  },
 ]
 
 export default promotionRoutes

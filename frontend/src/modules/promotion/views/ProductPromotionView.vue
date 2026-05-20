@@ -137,12 +137,13 @@ function clearFilters() {
 
         <nav class="site-nav__links" aria-label="Primary navigation">
           <RouterLink to="/promotion" class="site-nav__link">Home</RouterLink>
-          <RouterLink to="/promotion/map" class="site-nav__link">Map</RouterLink>
+          <RouterLink to="/promotion/map" class="site-nav__link">Destination</RouterLink>
           <RouterLink to="/promotion/products" class="site-nav__link site-nav__link--active">
             Products
           </RouterLink>
           <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
+          <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
 
         <div class="site-nav__actions">
@@ -344,7 +345,7 @@ function clearFilters() {
           <span>
             <a href="#">Privacy</a>
             <a href="#">Accessibility</a>
-            <a href="#">Contact</a>
+            <RouterLink to="/promotion/inquiry">Contact</RouterLink>
           </span>
         </div>
       </div>

@@ -16,7 +16,10 @@ const locations = [
     category: 'Beach',
     color: '#1565C0',
     distance: '4.2 km',
-    rating: '4.7',
+    address: 'Poblacion, Calabanga, Camarines Sur',
+    hours: 'Open daily • 8:00 AM - 5:00 PM',
+    description:
+      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
     x: 30,
     y: 34,
   },
@@ -26,7 +29,10 @@ const locations = [
     category: 'Cultural',
     color: '#7B341E',
     distance: '2.1 km',
-    rating: '4.9',
+    address: 'Quipayo, Calabanga, Camarines Sur',
+    hours: 'Open daily • 8:00 AM - 5:00 PM',
+    description:
+      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
     x: 58,
     y: 31,
     selected: true,
@@ -37,7 +43,10 @@ const locations = [
     category: 'Cultural',
     color: '#7B341E',
     distance: '6.8 km',
-    rating: '4.6',
+    address: 'Belen, Calabanga, Camarines Sur',
+    hours: 'Open daily • 8:00 AM - 5:00 PM',
+    description:
+      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
     x: 72,
     y: 55,
   },
@@ -47,7 +56,10 @@ const locations = [
     category: 'Nature',
     color: '#1B7A4A',
     distance: '9.4 km',
-    rating: '4.8',
+    address: 'Mt. Isarog Foothills, Calabanga, Camarines Sur',
+    hours: 'Open daily • 8:00 AM - 5:00 PM',
+    description:
+      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
     x: 83,
     y: 21,
   },
@@ -57,7 +69,10 @@ const locations = [
     category: 'Food',
     color: '#B5451B',
     distance: '0.6 km',
-    rating: '4.4',
+    address: 'Calabanga Public Market, Camarines Sur',
+    hours: 'Open daily • 8:00 AM - 5:00 PM',
+    description:
+      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
     x: 43,
     y: 72,
   },
@@ -67,7 +82,10 @@ const locations = [
     category: 'Nature',
     color: '#1B7A4A',
     distance: '1.3 km',
-    rating: '4.5',
+    address: 'Bicol River Boardwalk, Calabanga, Camarines Sur',
+    hours: 'Open daily • 8:00 AM - 5:00 PM',
+    description:
+      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
     x: 24,
     y: 59,
   },
@@ -162,6 +180,12 @@ async function shareLocation(location) {
   feedbackMessage.value =
     result.method === 'clipboard' ? 'Share link copied' : 'Share action ready'
 }
+
+function getDirections(location) {
+  if (!location) return
+
+  feedbackMessage.value = `Directions ready for ${location.name}`
+}
 </script>
 
 <template>
@@ -178,10 +202,11 @@ async function shareLocation(location) {
 
         <nav class="site-nav__links" aria-label="Primary navigation">
           <RouterLink to="/promotion" class="site-nav__link">Home</RouterLink>
-          <RouterLink to="/promotion/map" class="site-nav__link site-nav__link--active">Map</RouterLink>
+          <RouterLink to="/promotion/map" class="site-nav__link site-nav__link--active">Destination</RouterLink>
           <RouterLink to="/promotion/products" class="site-nav__link">Products</RouterLink>
           <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
+          <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
 
         <div class="site-nav__actions">
@@ -272,12 +297,6 @@ async function shareLocation(location) {
                 <span class="category-badge">{{ location.category }}</span>
                 <span class="result-meta">
                   <span>{{ location.distance }}</span>
-                  <span class="rating">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z" />
-                    </svg>
-                    {{ location.rating }}
-                  </span>
                 </span>
               </span>
             </button>
@@ -337,13 +356,6 @@ async function shareLocation(location) {
               <span class="category-badge">{{ selectedLocation.category }}</span>
               <span>{{ selectedLocation.distance }}</span>
             </div>
-            <div class="popup-rating">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z" />
-              </svg>
-              <strong>{{ selectedLocation.rating }}</strong>
-              <span>(284)</span>
-            </div>
             <div class="popup-actions">
               <button @click="showDetail = true">View details -&gt;</button>
               <button @click="toggleItinerary(selectedLocation)">
@@ -364,6 +376,8 @@ async function shareLocation(location) {
         <div v-if="feedbackMessage" class="feedback-toast">{{ feedbackMessage }}</div>
       </section>
 
+      <div v-if="showDetail && selectedLocation" class="detail-backdrop" @click="showDetail = false"></div>
+
       <aside v-if="showDetail && selectedLocation" class="detail-drawer">
         <div class="detail-drawer__hero" :style="{ '--drawer-color': selectedLocation.color }">
           <button aria-label="Close details" @click="showDetail = false">
@@ -374,23 +388,48 @@ async function shareLocation(location) {
           <span class="accreditation-badge"><span></span>LGU Accredited</span>
         </div>
         <div class="detail-drawer__body">
-          <span class="category-badge">{{ selectedLocation.category }}</span>
+          <div class="detail-drawer__meta">
+            <span class="category-badge">{{ selectedLocation.category }}</span>
+            <span>{{ selectedLocation.distance }}</span>
+          </div>
           <h2>{{ selectedLocation.name }}</h2>
-          <p>
-            Experience this Calabanga highlight as part of your public tourism itinerary. Details
-            are mock data and ready for future backend integration.
-          </p>
+          <p>{{ selectedLocation.description }}</p>
+          <div class="detail-drawer__facts">
+            <p>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 21s7-6.3 7-12A7 7 0 0 0 5 9c0 5.7 7 12 7 12Z" />
+                <circle cx="12" cy="9" r="2.3" />
+              </svg>
+              {{ selectedLocation.address }}
+            </p>
+            <p>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+              {{ selectedLocation.hours }}
+            </p>
+          </div>
           <div class="detail-drawer__actions">
-            <button @click="toggleItinerary(selectedLocation)">
+            <button class="detail-drawer__primary-action" @click="getDirections(selectedLocation)">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 18 3 15V5l6 3 6-3 6 3v10l-6-3-6 3Z" />
+                <path d="M9 8v10M15 5v10" />
+              </svg>
+              Get directions
+            </button>
+            <button class="detail-drawer__secondary-action" @click="toggleItinerary(selectedLocation)">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 4h12v17l-6-3-6 3V4Z" />
+              </svg>
               {{
                 isSaving
                   ? 'Saving...'
                   : savedIds.has(selectedLocation.id)
-                    ? 'Remove from itinerary'
+                    ? 'Saved to itinerary'
                     : 'Save to itinerary'
               }}
             </button>
-            <button @click="shareLocation(selectedLocation)">Share</button>
           </div>
         </div>
       </aside>
@@ -867,20 +906,6 @@ h1 {
   font-size: 12px;
 }
 
-.rating {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.rating svg,
-.popup-rating svg {
-  width: 13px;
-  height: 13px;
-  fill: #d4ac0d;
-  stroke: #d4ac0d;
-}
-
 .map-area {
   position: relative;
   flex: 1;
@@ -1101,23 +1126,6 @@ h1 {
   font-size: 12px;
 }
 
-.popup-rating {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 9px;
-  color: #1a1a1a;
-  font-size: 13px;
-}
-
-.popup-rating strong {
-  font-weight: 500;
-}
-
-.popup-rating span {
-  color: #5c5c5c;
-}
-
 .location-popup__body button {
   margin-top: 9px;
   border: 0;
@@ -1178,13 +1186,22 @@ h1 {
   font-size: 14px;
 }
 
+.detail-backdrop {
+  position: fixed;
+  z-index: 65;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+}
+
 .detail-drawer {
   position: fixed;
   z-index: 70;
-  top: 64px;
+  top: 0;
   right: 0;
   bottom: 0;
   width: min(600px, 100%);
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   background: #ffffff;
   box-shadow: -10px 0 30px rgba(0, 0, 0, 0.18);
@@ -1209,7 +1226,7 @@ h1 {
   place-items: center;
   border: 0;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(27, 67, 50, 0.22);
   color: #ffffff;
   cursor: pointer;
 }
@@ -1224,7 +1241,22 @@ h1 {
 }
 
 .detail-drawer__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   padding: 32px;
+}
+
+.detail-drawer__meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #5c5c5c;
+  font-size: 14px;
+}
+
+.detail-drawer__body .category-badge {
+  align-self: flex-start;
 }
 
 .detail-drawer__body h2 {
@@ -1232,25 +1264,62 @@ h1 {
   color: #1a1a1a;
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   font-size: 32px;
+  font-weight: 600;
 }
 
 .detail-drawer__body p {
-  margin: 16px 0 0;
+  margin: 28px 0 0;
   color: #5c5c5c;
   font-size: 16px;
+  line-height: 1.6;
+}
+
+.detail-drawer__facts {
+  display: grid;
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.detail-drawer__facts p {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 16px;
+}
+
+.detail-drawer__facts svg,
+.detail-drawer__actions svg {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.detail-drawer__facts svg {
+  color: #1b4332;
 }
 
 .detail-drawer__actions {
   display: flex;
   gap: 12px;
-  margin-top: 32px;
-  padding-top: 24px;
+  margin-top: auto;
+  padding-top: 32px;
   border-top: 1px solid #e8e4dc;
 }
 
 .detail-drawer__actions button {
   height: 48px;
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
   border: 1.5px solid #1b4332;
   border-radius: 8px;
   background: #1b4332;
@@ -1260,7 +1329,7 @@ h1 {
   cursor: pointer;
 }
 
-.detail-drawer__actions button:last-child {
+.detail-drawer__actions .detail-drawer__secondary-action {
   background: transparent;
   color: #1b4332;
 }
@@ -1358,6 +1427,18 @@ h1 {
 
   .map-legend {
     display: none;
+  }
+
+  .detail-drawer {
+    width: 100%;
+  }
+
+  .detail-drawer__body {
+    padding: 28px 20px;
+  }
+
+  .detail-drawer__actions {
+    flex-direction: column;
   }
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { removeFromItinerary, saveToItinerary, sharePublicItem } from '../services/promotionService'
 
 const events = [
@@ -19,7 +19,7 @@ const events = [
     id: 'regatta',
     title: 'San Miguel Bay Regatta',
     day: '08',
-    month: 'JUN',
+    month: 'MAY',
     location: 'Sabang Beach Front',
     category: 'Sports',
     accent: '#1565C0',
@@ -29,7 +29,7 @@ const events = [
     id: 'art-walk',
     title: 'Quipayo Heritage Art Walk',
     day: '15',
-    month: 'JUN',
+    month: 'MAY',
     location: 'Quipayo Old Stone Church',
     category: 'Culture',
     accent: '#7B341E',
@@ -39,7 +39,7 @@ const events = [
     id: 'harvest',
     title: 'Rice Harvest Thanksgiving',
     day: '02',
-    month: 'JUL',
+    month: 'MAY',
     location: 'Belen Barangay Rice Fields',
     category: 'Culture',
     accent: '#1B7A4A',
@@ -49,10 +49,46 @@ const events = [
 
 const featuredEvent = events[0]
 const eventCards = events.slice(1)
+const viewMode = ref('list')
 const selectedEvent = ref(null)
 const savedEventIds = ref(new Set())
 const feedbackMessage = ref('')
 const isSaving = ref(false)
+
+const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const calendarEvents = [
+  { day: 2, title: 'Rice Harvest Thanksgiving', highlighted: false },
+  { day: 8, title: 'San Miguel Bay Regatta', highlighted: true },
+  { day: 15, title: 'Quipayo Heritage Art Walk', highlighted: false },
+  { day: 24, title: 'Pili Festival 2026', highlighted: true },
+]
+
+const calendarCells = computed(() => {
+  const leadingCells = Array.from({ length: 5 }, (_, index) => ({
+    key: `blank-${index}`,
+    blank: true,
+  }))
+
+  const dayCells = Array.from({ length: 30 }, (_, index) => {
+    const day = index + 1
+    const event = calendarEvents.find((item) => item.day === day)
+
+    return {
+      key: `day-${day}`,
+      day,
+      event,
+    }
+  })
+
+  return [...leadingCells, ...dayCells]
+})
+
+function openCalendarEvent(cell) {
+  if (!cell.event) return
+
+  const event = events.find((item) => item.title === cell.event.title)
+  if (event) selectedEvent.value = event
+}
 
 async function toggleEventItinerary(event) {
   isSaving.value = true
@@ -99,10 +135,11 @@ async function shareEvent(event) {
 
         <nav class="site-nav__links" aria-label="Primary navigation">
           <RouterLink to="/promotion" class="site-nav__link">Home</RouterLink>
-          <RouterLink to="/promotion/map" class="site-nav__link">Map</RouterLink>
+          <RouterLink to="/promotion/map" class="site-nav__link">Destination</RouterLink>
           <RouterLink to="/promotion/products" class="site-nav__link">Products</RouterLink>
           <RouterLink to="/promotion/events" class="site-nav__link site-nav__link--active">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
+          <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
 
         <div class="site-nav__actions">
@@ -135,14 +172,22 @@ async function shareEvent(event) {
           </div>
 
           <div class="view-toggle" aria-label="Event view">
-            <button class="view-toggle__active">
+            <button
+              :class="{ 'view-toggle__active': viewMode === 'list' }"
+              type="button"
+              @click="viewMode = 'list'"
+            >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M8 6h12M8 12h12M8 18h12" />
                 <path d="M4 6h0M4 12h0M4 18h0" />
               </svg>
               List
             </button>
-            <button>
+            <button
+              :class="{ 'view-toggle__active': viewMode === 'calendar' }"
+              type="button"
+              @click="viewMode = 'calendar'"
+            >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M7 3v4M17 3v4M4 8h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2Z" />
               </svg>
@@ -187,7 +232,40 @@ async function shareEvent(event) {
             </div>
           </article>
 
-          <div class="event-grid">
+          <section v-if="viewMode === 'calendar'" class="calendar-panel" aria-label="May 2026 events calendar">
+            <header class="calendar-panel__header">
+              <h2>May 2026</h2>
+              <div class="calendar-panel__nav" aria-label="Calendar navigation">
+                <button type="button" aria-label="Previous month">&lsaquo;</button>
+                <button type="button" aria-label="Next month">&rsaquo;</button>
+              </div>
+            </header>
+
+            <div class="calendar-weekdays" aria-hidden="true">
+              <span v-for="weekday in weekdays" :key="weekday">{{ weekday }}</span>
+            </div>
+
+            <div class="calendar-grid">
+              <button
+                v-for="cell in calendarCells"
+                :key="cell.key"
+                class="calendar-cell"
+                :class="{
+                  'calendar-cell--blank': cell.blank,
+                  'calendar-cell--event': cell.event,
+                  'calendar-cell--highlight': cell.event?.highlighted,
+                }"
+                type="button"
+                :disabled="cell.blank"
+                @click="openCalendarEvent(cell)"
+              >
+                <span v-if="!cell.blank" class="calendar-cell__day">{{ cell.day }}</span>
+                <strong v-if="cell.event">{{ cell.event.title }}</strong>
+              </button>
+            </div>
+          </section>
+
+          <div v-else class="event-grid">
             <article v-for="event in eventCards" :key="event.id" class="event-card">
               <div class="event-card__image" :style="{ '--card-accent': event.accent }">
                 <span class="date-badge">
@@ -232,22 +310,43 @@ async function shareEvent(event) {
         <div class="event-modal__body">
           <span class="category-badge">{{ selectedEvent.category }}</span>
           <h2>{{ selectedEvent.title }}</h2>
-          <p class="event-modal__meta">
-            {{ selectedEvent.month }} {{ selectedEvent.day }}, 2026 · {{ selectedEvent.location }}
-          </p>
+          <div class="event-modal__meta">
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 3v4M17 3v4M4 8h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2Z" />
+              </svg>
+              {{ selectedEvent.month }} {{ selectedEvent.day }}, 2026
+            </span>
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 21s7-6.3 7-12A7 7 0 0 0 5 9c0 5.7 7 12 7 12Z" />
+                <circle cx="12" cy="9" r="2.3" />
+              </svg>
+              {{ selectedEvent.location }}
+            </span>
+          </div>
+          <div class="event-modal__divider"></div>
           <p>{{ selectedEvent.desc }}</p>
+          <p>
+            Join us for a spectacular event in Calabanga. Whether you're coming with family or
+            friends, there's something for everyone. Experience local food, performances, and the
+            hospitality of our community.
+          </p>
           <div class="event-modal__actions">
-            <button @click="selectedEvent = null">Close</button>
-            <button @click="toggleEventItinerary(selectedEvent)">
+            <button class="event-modal__close-action" @click="selectedEvent = null">Close</button>
+            <button class="event-modal__calendar-action" @click="toggleEventItinerary(selectedEvent)">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 3v4M17 3v4M4 8h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2Z" />
+                <path d="M12 12v5M9.5 14.5h5" />
+              </svg>
               {{
                 isSaving
                   ? 'Saving...'
                   : savedEventIds.has(selectedEvent.id)
-                    ? 'Remove from itinerary'
-                    : 'Add to itinerary'
+                    ? 'Added to calendar'
+                    : 'Add to calendar'
               }}
             </button>
-            <button @click="shareEvent(selectedEvent)">Share</button>
           </div>
         </div>
       </article>
@@ -307,7 +406,7 @@ async function shareEvent(event) {
           <span>
             <a href="#">Privacy</a>
             <a href="#">Accessibility</a>
-            <a href="#">Contact</a>
+            <RouterLink to="/promotion/inquiry">Contact</RouterLink>
           </span>
         </div>
       </div>
@@ -725,6 +824,115 @@ h1 {
   font-size: 11px;
 }
 
+.calendar-panel {
+  margin-top: 40px;
+  padding: 28px 24px 24px;
+  border: 1px solid #e8e4dc;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.calendar-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.calendar-panel__header h2 {
+  color: #1a1a1a;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.calendar-panel__nav {
+  display: flex;
+  gap: 8px;
+}
+
+.calendar-panel__nav button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e8e4dc;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #5c5c5c;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.calendar-panel__nav button:hover {
+  border-color: #1b4332;
+  color: #1b4332;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin-bottom: 12px;
+  color: #5c5c5c;
+  font-size: 12px;
+}
+
+.calendar-weekdays span {
+  text-align: center;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.calendar-cell {
+  min-height: 132px;
+  padding: 10px;
+  border: 1px solid #e8e4dc;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #5c5c5c;
+  text-align: left;
+  vertical-align: top;
+  cursor: pointer;
+}
+
+.calendar-cell:hover:not(:disabled) {
+  border-color: #1b4332;
+}
+
+.calendar-cell:disabled {
+  cursor: default;
+}
+
+.calendar-cell--blank {
+  border-color: transparent;
+  background: transparent;
+}
+
+.calendar-cell--event strong {
+  display: block;
+  margin-top: 14px;
+  color: #1b4332;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.calendar-cell--highlight {
+  border-color: #1b4332;
+  background: #d8f3dc;
+}
+
+.calendar-cell__day {
+  color: #5c5c5c;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .event-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -791,10 +999,11 @@ h1 {
 }
 
 .category-badge {
-  align-self: stretch;
+  align-self: flex-start;
   min-height: 22px;
   display: inline-flex;
   align-items: center;
+  width: fit-content;
   padding: 0 10px;
   border-radius: 999px;
   background: #ffe8de;
@@ -856,13 +1065,13 @@ h1 {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.48);
 }
 
 .event-modal__panel {
-  width: min(700px, 100%);
+  width: min(512px, 100%);
   max-height: 90vh;
-  overflow: hidden;
+  overflow: auto;
   border-radius: 16px;
   background: #ffffff;
   animation: fadeUp 200ms ease-out both;
@@ -871,6 +1080,7 @@ h1 {
 .event-modal__image {
   position: relative;
   height: 240px;
+  overflow: hidden;
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.3), transparent 50%),
     linear-gradient(135deg, var(--modal-accent), color-mix(in srgb, var(--modal-accent) 65%, white));
@@ -886,7 +1096,7 @@ h1 {
   place-items: center;
   border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.28);
   color: #ffffff;
   cursor: pointer;
 }
@@ -904,33 +1114,73 @@ h1 {
   padding: 32px;
 }
 
+.event-modal__body .category-badge {
+  align-self: flex-start;
+  min-height: 24px;
+  padding: 0 10px;
+}
+
 .event-modal__body h2 {
-  margin-top: 12px;
+  margin-top: 14px;
   color: #1a1a1a;
   font-size: 32px;
+  font-weight: 600;
 }
 
 .event-modal__body p {
-  margin: 16px 0 0;
-  color: #5c5c5c;
-  font-size: 15px;
+  margin: 20px 0 0;
+  color: #1a1a1a;
+  font-size: 16px;
+  line-height: 1.55;
 }
 
 .event-modal__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
   color: #5c5c5c;
   font-size: 14px;
+}
+
+.event-modal__meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.event-modal__meta svg,
+.event-modal__calendar-action svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.event-modal__divider {
+  height: 1px;
+  margin-top: 28px;
+  background: #e8e4dc;
 }
 
 .event-modal__actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 28px;
+  margin-top: 32px;
 }
 
 .event-modal__actions button {
-  height: 40px;
-  padding: 0 16px;
+  min-width: 92px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 22px;
   border: 1.5px solid #1b4332;
   border-radius: 8px;
   background: #1b4332;
@@ -940,10 +1190,13 @@ h1 {
   cursor: pointer;
 }
 
-.event-modal__actions button:first-child,
-.event-modal__actions button:last-child {
+.event-modal__actions .event-modal__close-action {
   background: transparent;
-  color: #1b4332;
+  color: #1b4332 !important;
+}
+
+.event-modal__actions .event-modal__calendar-action {
+  color: #ffffff;
 }
 
 .feedback-toast {
@@ -1140,6 +1393,16 @@ h1 {
   .event-grid,
   .site-footer__main {
     grid-template-columns: 1fr;
+  }
+
+  .calendar-panel {
+    overflow-x: auto;
+    padding: 20px 14px;
+  }
+
+  .calendar-weekdays,
+  .calendar-grid {
+    min-width: 760px;
   }
 
   .site-footer__main {
