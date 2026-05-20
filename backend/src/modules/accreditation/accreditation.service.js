@@ -1,0 +1,460 @@
+const bcrypt = require("bcrypt");
+const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
+const model = require("./accreditation.model");
+
+const REQUIRED_DOCUMENTS = ["Business Permit", "DTI/SEC Registration"];
+
+function publicUser(user) {
+  return {
+    id: user.id,
+    firstName: user.first_name,
+    first_name: user.first_name,
+    middleName: user.middle_name,
+    middle_name: user.middle_name,
+    lastName: user.last_name,
+    last_name: user.last_name,
+    sex: user.sex,
+    email: user.email,
+    phone: user.phone,
+    telephone: user.telephone,
+    role: user.role,
+    status: user.status,
+  };
+}
+
+function signToken(user) {
+  return jwt.sign(
+    { id: user.id, email: user.email, role: user.role },
+    process.env.JWT_SECRET || "dev-secret",
+    { expiresIn: process.env.JWT_EXPIRES_IN || "1d" }
+  );
+}
+
+async function sendVerificationEmail(email, token) {
+  const verifyUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/accreditation/verify-email?token=${token}`;
+
+  if (!process.env.SMTP_HOST) {
+    console.log(`Email verification link for ${email}: ${verifyUrl}`);
+    return { verifyUrl, sent: false };
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: process.env.SMTP_USER
+      ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+      : undefined,
+  });
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || "LGU Tourism Accreditation <no-reply@calitoursys.local>",
+    to: email,
+    subject: "Verify your CaliTourSys business account",
+    html: `<p>Please verify your business account by opening this link:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p>`,
+  });
+
+  return { verifyUrl, sent: true };
+}
+
+async function registerBusinessOwner(payload) {
+  const requiredFields = [
+    ["firstName", "First name"],
+    ["lastName", "Last name"],
+    ["email", "Email address"],
+    ["password", "Password"],
+    ["phone", "Mobile number"],
+  ];
+  const requiredBusinessFields = [
+    ["businessName", "Business name"],
+    ["region", "Region"],
+    ["province", "Province"],
+    ["cityMunicipality", "City / Municipality"],
+    ["barangay", "Barangay"],
+    ["streetAddress", "Business address"],
+  ];
+
+  const missing = requiredFields
+    .filter(([key]) => !payload[key])
+    .map(([, label]) => label);
+
+  const business = payload.business || {};
+  const missingBusiness = requiredBusinessFields
+    .filter(([key]) => !business[key])
+    .map(([, label]) => label);
+
+  if (missing.length || missingBusiness.length) {
+    const error = new Error(`Please complete required fields: ${[...missing, ...missingBusiness].join(", ")}.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (payload.password.length < 8) {
+    const error = new Error("Password must be at least 8 characters.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const existing = await model.findUserByEmail(payload.email.toLowerCase());
+  if (existing) {
+    const error = new Error("A user with this email already exists.");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const passwordHash = await bcrypt.hash(payload.password, 10);
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+
+  const user = await model.createBusinessOwnerWithProfile({
+    ...payload,
+    email: payload.email.toLowerCase(),
+    passwordHash,
+    status: "pending_verification",
+    verificationToken,
+  }, business);
+  const verification = await sendVerificationEmail(user.email, verificationToken);
+
+  return {
+    user,
+    message: "Account created. Please check your email for verification.",
+    verificationUrl: verification.sent ? undefined : verification.verifyUrl,
+  };
+}
+
+async function verifyEmail(token) {
+  const user = await model.findUserByVerificationToken(token);
+  if (!user) {
+    const error = new Error("Invalid or expired verification token.");
+    error.statusCode = 400;
+    throw error;
+  }
+  return model.verifyUserEmail(user.id);
+}
+
+async function login(email, password) {
+  const user = await model.findUserByEmail(email.toLowerCase());
+  if (!user) {
+    const error = new Error("Invalid email or password.");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const validPassword = await bcrypt.compare(password, user.password_hash);
+  if (!validPassword) {
+    const error = new Error("Invalid email or password.");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  if (user.status === "pending_verification") {
+    if (!process.env.SMTP_HOST) {
+      const verifiedUser = await model.verifyUserEmail(user.id);
+      return { token: signToken(verifiedUser), user: publicUser(verifiedUser) };
+    }
+
+    const error = new Error("Please verify your email before logging in.");
+    error.statusCode = 403;
+    if (!process.env.SMTP_HOST && user.verification_token) {
+      error.verificationUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/accreditation/verify-email?token=${user.verification_token}`;
+    }
+    throw error;
+  }
+
+  if (user.status === "inactive") {
+    const error = new Error("This account is inactive. Contact the system administrator.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  await model.updateLastLogin(user.id);
+  return { token: signToken(user), user: publicUser(user) };
+}
+
+async function createApplication(ownerId, payload) {
+  return saveApplicationDraft(ownerId, payload);
+}
+
+async function saveApplicationDraft(ownerId, payload) {
+  const profile = await model.getBusinessProfile(ownerId);
+  if (!profile) {
+    const error = new Error("Business profile is required before applying for accreditation.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const draft = {
+    businessProfileId: profile.id,
+    accreditationType: payload.accreditationType || "New Accreditation",
+    businessType: payload.businessType || profile.business_type,
+    businessPermitNumber: payload.businessPermitNumber || profile.business_permit_number,
+    dtiSecRegistrationNumber:
+      payload.dtiSecRegistrationNumber || profile.dti_sec_registration_number,
+    remarks: payload.remarks,
+    status: "draft",
+  };
+
+  if (payload.applicationId) {
+    const updated = await model.updateApplicationDraft(payload.applicationId, ownerId, draft);
+    if (!updated) {
+      const error = new Error("Draft application not found or already submitted.");
+      error.statusCode = 404;
+      throw error;
+    }
+    return updated;
+  }
+
+  const applicationNumber = `APP-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+  return model.createApplication(ownerId, {
+    applicationNumber,
+    ...draft,
+  });
+}
+
+async function addDocument(applicationId, file, body, userId) {
+  const application = await model.getApplicationById(applicationId);
+  if (!application) {
+    const error = new Error("Application not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (application.owner_id !== userId) {
+    const error = new Error("You do not have permission to upload documents for this application.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (application.status !== "draft" && application.status !== "for_revision") {
+    const error = new Error("Documents can only be uploaded while the application is a draft or for revision.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!REQUIRED_DOCUMENTS.includes(body.documentType)) {
+    const error = new Error("Invalid document type.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return model.addApplicationDocument(application.id, {
+    documentType: body.documentType,
+    originalName: file.originalname,
+    filePath: file.path,
+    mimeType: file.mimetype,
+    fileSize: file.size,
+    uploadedBy: userId,
+  });
+}
+
+async function submitApplication(ownerId, applicationId) {
+  const application = await model.getApplicationById(applicationId);
+  if (!application) {
+    const error = new Error("Application not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (application.owner_id !== ownerId) {
+    const error = new Error("You do not have permission to submit this application.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (application.status !== "draft" && application.status !== "for_revision") {
+    const error = new Error("Only draft or revision applications can be submitted.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const documents = await model.listDocuments(application.id);
+  const uploadedTypes = new Set(documents.map((document) => document.document_type));
+  const missing = REQUIRED_DOCUMENTS.filter((document) => !uploadedTypes.has(document));
+
+  if (missing.length) {
+    const error = new Error(`Please upload required documents: ${missing.join(", ")}.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const submitted = await model.submitApplication(application.id, ownerId);
+
+  await model.createNotification({
+    roleTarget: "tourism_staff",
+    title: "New Application Submitted",
+    message: `${submitted.application_number} is ready for review.`,
+    type: "action_needed",
+    referenceId: submitted.application_number,
+    actionPath: `/accreditation/app/review?application=${submitted.application_number}`,
+    details: "A business owner submitted an accreditation application with required documents.",
+  });
+
+  return submitted;
+}
+
+async function updateAccountProfile(userId, payload) {
+  if (!payload.firstName || !payload.lastName || !payload.email) {
+    const error = new Error("First name, last name, and email are required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const email = payload.email.toLowerCase();
+  const existing = await model.findUserByEmail(email);
+  if (existing && existing.id !== userId) {
+    const error = new Error("A user with this email already exists.");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const user = await model.updateAccountProfile(userId, {
+    firstName: payload.firstName,
+    middleName: payload.middleName,
+    lastName: payload.lastName,
+    sex: payload.sex,
+    email,
+    phone: payload.phone,
+    telephone: payload.telephone,
+  });
+
+  return publicUser(user);
+}
+
+async function reviewApplication(reviewerId, applicationId, payload) {
+  const allowedStatuses = ["under_review", "for_revision", "rejected", "approved"];
+  if (!allowedStatuses.includes(payload.status)) {
+    const error = new Error("Invalid review status.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const application = await model.updateApplicationReview(applicationId, reviewerId, payload);
+  if (!application) return null;
+
+  if (payload.status === "approved") {
+    await model.createAccreditationRecord(application, reviewerId);
+  }
+
+  const notificationMap = {
+    under_review: {
+      title: "Application Under Review",
+      type: "info",
+      message: `Your application ${application.application_number} is now under review.`,
+    },
+    for_revision: {
+      title: "Revision Needed",
+      type: "action_needed",
+      message: `Please revise your application ${application.application_number}.`,
+    },
+    rejected: {
+      title: "Application Rejected",
+      type: "urgent",
+      message: `Your application ${application.application_number} was rejected.`,
+    },
+    approved: {
+      title: "Application Approved",
+      type: "info",
+      message: `Your application ${application.application_number} was approved.`,
+    },
+  };
+
+  const notification = notificationMap[payload.status];
+  await model.createNotification({
+    userId: application.owner_id,
+    title: notification.title,
+    message: notification.message,
+    type: notification.type,
+    referenceId: application.application_number,
+    actionPath: `/accreditation/app/applications?application=${application.application_number}`,
+    details: payload.remarks || "The tourism office updated your application status.",
+  });
+
+  return application;
+}
+
+async function changePassword(userId, payload) {
+  if (!payload.currentPassword || !payload.newPassword) {
+    const error = new Error("Current password and new password are required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (payload.newPassword.length < 8) {
+    const error = new Error("New password must be at least 8 characters.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const user = await model.findUserById(userId);
+  if (!user) {
+    const error = new Error("Account not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const validPassword = await bcrypt.compare(payload.currentPassword, user.password_hash);
+  if (!validPassword) {
+    const error = new Error("Current password is incorrect.");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const passwordHash = await bcrypt.hash(payload.newPassword, 10);
+  const updatedUser = await model.updatePasswordHash(userId, passwordHash);
+  return publicUser(updatedUser);
+}
+
+async function createManagedUser(payload) {
+  if (!payload.firstName || !payload.lastName || !payload.email || !payload.role) {
+    const error = new Error("First name, last name, email, and role are required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const allowedRoles = ["business_owner", "tourism_staff", "tourism_officer", "admin"];
+  if (!allowedRoles.includes(payload.role)) {
+    const error = new Error("Invalid role.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const email = payload.email.toLowerCase();
+  const existing = await model.findUserByEmail(email);
+  if (existing) {
+    const error = new Error("A user with this email already exists.");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const temporaryPassword = payload.password || "password123";
+  const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+  const user = await model.createUser({
+    firstName: payload.firstName,
+    middleName: payload.middleName,
+    lastName: payload.lastName,
+    sex: payload.sex,
+    email,
+    phone: payload.phone,
+    telephone: payload.telephone,
+    passwordHash,
+    role: payload.role,
+    status: payload.status || "active",
+  });
+
+  return { user: publicUser(user), temporaryPassword };
+}
+
+module.exports = {
+  addDocument,
+  changePassword,
+  createManagedUser,
+  createApplication,
+  login,
+  registerBusinessOwner,
+  reviewApplication,
+  saveApplicationDraft,
+  submitApplication,
+  updateAccountProfile,
+  verifyEmail,
+};
