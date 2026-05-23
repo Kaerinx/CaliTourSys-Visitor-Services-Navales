@@ -1,49 +1,80 @@
 <template>
-  <main class="public-section">
-    <div class="section-title">
-      <h1>Events & Activities</h1>
-      <p>Join us in celebrating Calabanga's culture, community, and traditions through various events and activities</p>
-    </div>
+  <main>
+    <section
+      class="page-hero photo-hero"
+      :style="{ '--hero-image': `url(${tourismImages.eventsCover})` }"
+    >
+      <span class="hero-kicker">Events and Activities</span>
+      <h1>Celebrate Calabanga's culture and community</h1>
+      <p>
+        Discover upcoming local events, cultural festivals, environmental programs, and tourism
+        activities.
+      </p>
+    </section>
 
-    <h2>Upcoming Events</h2>
-    <div class="public-grid">
-      <article v-for="event in events" :key="event.name" class="public-card public-card-body">
-        <small>Upcoming</small>
-        <h3>{{ event.name }}</h3>
-        <p>{{ event.category }}</p>
-        <p>{{ event.date }} · {{ event.time }}</p>
-        <p>{{ event.location }}</p>
-        <p>{{ event.description }}</p>
-      </article>
-    </div>
+    <section class="public-section">
+      <div class="section-title">
+        <h2>Upcoming Events</h2>
+        <p>Join activities that connect visitors with local traditions, nature, and community life.</p>
+      </div>
+
+      <div class="public-grid">
+        <article v-for="event in events" :key="event.name" class="public-card public-card-body event-card">
+          <div class="event-header">
+            <span class="pill">{{ event.category }}</span>
+            <span class="event-status">Upcoming</span>
+          </div>
+          <h3>{{ event.name }}</h3>
+          <ul>
+            <li><strong>Date:</strong> {{ event.date }}</li>
+            <li><strong>Time:</strong> {{ event.time }}</li>
+            <li><strong>Location:</strong> {{ event.location }}</li>
+            <li><strong>Organizer:</strong> {{ event.organizer }}</li>
+          </ul>
+          <p>{{ event.description }}</p>
+        </article>
+      </div>
+    </section>
   </main>
 </template>
 
 <script setup>
-const events = [
-  {
-    name: 'Calabanga Town Fiesta',
-    category: 'Cultural Festival',
-    date: 'June 24, 2026',
-    time: '08:00 - 22:00',
-    location: 'Calabanga Town Plaza',
-    description: 'Annual town celebration featuring cultural shows, trade fair, and community activities.',
-  },
-  {
-    name: 'Mangrove Planting Activity',
-    category: 'Environmental',
-    date: 'June 08, 2026',
-    time: '07:00 - 11:00',
-    location: 'Mangrove Eco-Tourism Park, Sabang',
-    description: 'Community-based environmental activity promoting coastal conservation.',
-  },
-  {
-    name: 'Farm Tourism Caravan',
-    category: 'Agri-Tourism',
-    date: 'May 20, 2026',
-    time: '09:00 - 15:00',
-    location: 'Various Farm Destinations',
-    description: 'Guided tour of local farms showcasing agricultural products and opportunities.',
-  },
-]
+import { events } from '../publicData'
+import { tourismImages } from '../../../data/tourismImages'
 </script>
+
+<style scoped>
+.event-card {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.event-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.event-status {
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  background: var(--primary-green);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.event-card ul {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+}
+
+.event-card strong {
+  color: var(--ink);
+}
+</style>

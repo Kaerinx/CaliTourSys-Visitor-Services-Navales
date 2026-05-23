@@ -63,7 +63,7 @@
           <input v-model="form.visit_date" required type="date" />
         </label>
         <label>
-          Check-in Time
+          Recording Time
           <input v-model="form.check_in_time" type="time" />
         </label>
         <label>
@@ -170,7 +170,7 @@ async function saveRecord() {
     await visitorApi.createVisitor({
       ...form,
       source_type: 'museum',
-      status: 'checked_in',
+      status: 'recorded',
       establishment_id: null,
       companions: companions.value.filter((item) => item.full_name),
     })

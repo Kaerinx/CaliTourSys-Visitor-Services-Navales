@@ -23,6 +23,14 @@ const visitorApi = {
     return http.get('/auth/me')
   },
 
+  updateProfile(payload) {
+    return http.patch('/auth/profile', payload)
+  },
+
+  changePassword(payload) {
+    return http.patch('/auth/password', payload)
+  },
+
   dashboardSummary(params) {
     return http.get('/dashboard/summary', params)
   },
@@ -135,6 +143,13 @@ const visitorApi = {
 visitorApi.auth = {
   login: visitorApi.login,
   me: visitorApi.me,
+  updateProfile: visitorApi.updateProfile,
+  changePassword: visitorApi.changePassword,
+}
+
+visitorApi.profile = {
+  update: visitorApi.updateProfile,
+  changePassword: visitorApi.changePassword,
 }
 
 visitorApi.dashboard = {

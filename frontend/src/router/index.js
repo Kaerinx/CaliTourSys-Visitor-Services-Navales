@@ -5,6 +5,7 @@ const PublicLayout = () => import('../modules/visitor/views/PublicLayout.vue')
 const HomeView = () => import('../modules/visitor/views/HomeView.vue')
 const AboutView = () => import('../modules/visitor/views/AboutView.vue')
 const DestinationsView = () => import('../modules/visitor/views/DestinationsView.vue')
+const DestinationDetailView = () => import('../modules/visitor/views/DestinationDetailView.vue')
 const EventsView = () => import('../modules/visitor/views/EventsView.vue')
 const PublicInquiryView = () => import('../modules/visitor/views/PublicInquiryView.vue')
 const LoginView = () => import('../modules/visitor/views/LoginView.vue')
@@ -19,7 +20,9 @@ const MuseumRecords = () => import('../modules/visitor/views/MuseumRecords.vue')
 const StaffInquiries = () => import('../modules/visitor/views/StaffInquiries.vue')
 const ReportsAnalytics = () => import('../modules/visitor/views/ReportsAnalytics.vue')
 const UserManagement = () => import('../modules/visitor/views/UserManagement.vue')
+const Administration = () => import('../modules/visitor/views/Administration.vue')
 const EstablishmentManagement = () => import('../modules/visitor/views/EstablishmentManagement.vue')
+const ProfileView = () => import('../modules/visitor/views/ProfileView.vue')
 const PlaceholderManagement = () => import('../modules/visitor/views/PlaceholderManagement.vue')
 
 const routes = [
@@ -30,6 +33,7 @@ const routes = [
       { path: '', name: 'home', component: HomeView },
       { path: 'about', name: 'about', component: AboutView },
       { path: 'destinations', name: 'destinations', component: DestinationsView },
+      { path: 'destinations/:slug', name: 'destination-detail', component: DestinationDetailView },
       { path: 'events', name: 'events', component: EventsView },
       { path: 'inquiries', name: 'public-inquiries', component: PublicInquiryView },
     ],
@@ -80,16 +84,18 @@ const routes = [
     meta: { requiresAuth: true, roles: ['admin'] },
   },
   {
-    path: '/admin/users',
+    path: '/admin/administration',
+    name: 'admin-administration',
+    component: Administration,
+    meta: { requiresAuth: true, roles: ['admin'] },
+  },
+  { path: '/admin/users', redirect: '/admin/administration' },
+  { path: '/admin/settings', redirect: '/admin/administration' },
+  {
+    path: '/admin/user-management',
     name: 'admin-users',
     component: UserManagement,
     meta: { requiresAuth: true, roles: ['admin'] },
-  },
-  {
-    path: '/admin/settings',
-    name: 'admin-settings',
-    component: PlaceholderManagement,
-    meta: { requiresAuth: true, roles: ['admin'], title: 'Settings' },
   },
 
   {
@@ -145,7 +151,7 @@ const routes = [
     path: '/receptionist/guest-registration',
     name: 'receptionist-guest-registration',
     component: VisitorRegistration,
-    meta: { requiresAuth: true, roles: ['admin', 'receptionist'] },
+    meta: { requiresAuth: true, roles: ['admin', 'receptionist'], sourceType: 'resort' },
   },
   {
     path: '/receptionist/arrival-monitoring',
@@ -155,12 +161,12 @@ const routes = [
     path: '/receptionist/records',
     name: 'receptionist-records',
     component: VisitorRecords,
-    meta: { requiresAuth: true, roles: ['admin', 'receptionist'] },
+    meta: { requiresAuth: true, roles: ['admin', 'receptionist'], sourceType: 'resort' },
   },
   {
     path: '/profile',
     name: 'profile',
-    component: PlaceholderManagement,
+    component: ProfileView,
     meta: { requiresAuth: true, title: 'Profile' },
   },
 

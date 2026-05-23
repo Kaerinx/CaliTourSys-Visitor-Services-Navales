@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS inquiries (
   contact_number VARCHAR(40) NOT NULL,
   subject VARCHAR(150) NOT NULL,
   message TEXT NOT NULL,
-  status ENUM('pending', 'responded', 'archived') NOT NULL DEFAULT 'pending',
+  status ENUM('pending', 'reviewed', 'responded', 'archived') NOT NULL DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
 );

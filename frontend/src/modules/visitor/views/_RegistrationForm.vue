@@ -1,5 +1,12 @@
 <template>
-  <section class="panel">
+  <section class="panel registration-card">
+    <div class="form-heading">
+      <div>
+        <h2>Record Visitor Information</h2>
+        <p>Encode visitor details for tourism monitoring and reporting.</p>
+      </div>
+      <span v-if="isReceptionist" class="assigned-chip">{{ assignedEstablishmentName }}</span>
+    </div>
     <form class="form-grid" @submit.prevent="submit">
       <div class="field"><label>Group ID</label><input v-model="form.group_id" readonly /></div>
       <div class="field"><label>Full Name *</label><input v-model="form.full_name" required /></div>
@@ -13,8 +20,12 @@
       <div class="field span-2"><label>Address</label><input v-model="form.address" /></div>
       <div class="field"><label>Purpose of Visit</label><input v-model="form.purpose_of_visit" /></div>
       <div class="field"><label>Visit Date *</label><input v-model="form.visit_date" type="date" required /></div>
-      <div class="field"><label>Check-in Time</label><input v-model="form.check_in_time" type="time" /></div>
-      <div class="field"><label>Number of Guests</label><input v-model.number="guestCount" type="number" min="1" /></div>
+      <div class="field"><label>Recording Time</label><input v-model="form.check_in_time" type="time" /></div>
+      <div class="field"><label>Number of Visitors</label><input v-model.number="guestCount" type="number" min="1" /></div>
+      <div v-if="isReceptionist" class="field">
+        <label>Assigned Resort/Establishment</label>
+        <input :value="assignedEstablishmentName" readonly />
+      </div>
       <div v-if="!isReceptionist" class="field">
         <label>Establishment</label>
         <select v-model="form.establishment_id">
@@ -34,7 +45,10 @@
       </div>
 
       <p v-if="error" class="error span-3">{{ error }}</p>
-      <button class="btn span-3" type="submit" :disabled="loading">{{ loading ? 'Saving...' : 'Save Record' }}</button>
+      <div class="form-actions span-3">
+        <button class="btn ghost" type="button" :disabled="loading" @click="clearForm">Clear Form</button>
+        <button class="btn" type="submit" :disabled="loading">{{ loading ? 'Saving...' : 'Save Visitor Record' }}</button>
+      </div>
     </form>
   </section>
 </template>
@@ -55,6 +69,7 @@ const establishments = ref([])
 const guestCount = ref(1)
 const companions = ref([])
 const isReceptionist = computed(() => auth.user?.role === 'receptionist')
+const assignedEstablishmentName = computed(() => auth.user?.assigned_establishment_name || 'Assigned Establishment')
 const form = reactive(defaultForm())
 
 function defaultForm() {
@@ -96,9 +111,7 @@ async function submit() {
       payload.source_type = 'resort'
     }
     await visitorApi.createVisitor(payload)
-    Object.assign(form, defaultForm())
-    guestCount.value = 1
-    companions.value = []
+    clearForm()
     emit('saved')
   } catch (err) {
     error.value = err.message
@@ -107,7 +120,70 @@ async function submit() {
   }
 }
 
+function clearForm() {
+  Object.assign(form, defaultForm())
+  guestCount.value = 1
+  companions.value = []
+}
+
 onMounted(async () => {
   establishments.value = await visitorApi.establishments().catch(() => [])
 })
 </script>
+
+<style scoped>
+.registration-card {
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.03);
+}
+
+.form-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1.2rem;
+}
+
+.form-heading h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.form-heading p {
+  margin: 0.25rem 0 0;
+  color: #475569;
+}
+
+.assigned-chip {
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  padding: 0.4rem 0.8rem;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.form-actions .btn {
+  width: auto;
+  min-width: 170px;
+}
+
+@media (max-width: 760px) {
+  .form-heading,
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+  }
+}
+</style>

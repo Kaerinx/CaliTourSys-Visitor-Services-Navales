@@ -6,6 +6,8 @@ const router = express.Router();
 
 router.post('/auth/login', controller.login);
 router.get('/auth/me', authenticate, controller.me);
+router.patch('/auth/profile', authenticate, controller.updateProfile);
+router.patch('/auth/password', authenticate, controller.changePassword);
 
 router.get('/dashboard/summary', authenticate, authorize('admin', 'tourism_staff'), controller.dashboardSummary);
 router.get(

@@ -174,7 +174,7 @@ async function createVisitor(payload) {
         visit_date: payload.visit_date,
         check_in_time: payload.check_in_time || null,
         check_out_time: payload.check_out_time || null,
-        status: payload.status || 'checked_in',
+        status: payload.status || 'recorded',
         source_type: payload.source_type || 'tourism_office',
       }
     );

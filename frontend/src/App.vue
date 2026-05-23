@@ -21,7 +21,7 @@ const route = useRoute()
 
     <section class="fallback-hero">
       <h1>Explore Calabanga Tourism</h1>
-      <p>Discover local destinations, resorts, cultural sites, events, and visitor services in Calabanga</p>
+      <p>Discover local destinations, resorts, cultural sites, events, and visitor services in Calabanga.</p>
       <div>
         <a class="fallback-button" href="/destinations">Explore Destinations</a>
         <a class="fallback-button secondary" href="/inquiries">Submit Inquiry</a>
@@ -54,7 +54,7 @@ body {
 }
 
 .fallback-nav {
-  height: 78px;
+  min-height: 78px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -83,14 +83,14 @@ body {
   height: 50px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
-  background: #2563eb;
+  border-radius: 14px;
+  background: #174933;
   color: white;
 }
 
 .fallback-nav a {
-  color: #075cff;
-  font-weight: 700;
+  color: #174933;
+  font-weight: 800;
   text-decoration: none;
 }
 
@@ -102,8 +102,7 @@ body {
   padding: 3rem;
   text-align: center;
   color: white;
-  background: linear-gradient(120deg, #2563eb 0%, #0ea5e9 45%, #00a84f 100%);
-  box-shadow: inset 0 -80px 55px rgba(255, 255, 255, 0.65);
+  background: linear-gradient(120deg, #174933 0%, #216746 48%, #0f3625 100%);
 }
 
 .fallback-hero h1 {
@@ -122,10 +121,10 @@ body {
   display: inline-flex;
   margin: 0.4rem;
   border: 1px solid white;
-  border-radius: 8px;
+  border-radius: 999px;
   padding: 0.9rem 1.3rem;
   background: white;
-  color: #075cff;
+  color: #174933;
   font-weight: 800;
   text-decoration: none;
 }

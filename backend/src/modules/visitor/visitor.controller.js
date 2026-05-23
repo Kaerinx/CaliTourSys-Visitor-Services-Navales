@@ -13,6 +13,14 @@ exports.me = asyncHandler(async (req, res) => {
   res.json({ user: req.user });
 });
 
+exports.updateProfile = asyncHandler(async (req, res) => {
+  res.json({ user: await service.updateProfile(req.body, req.user) });
+});
+
+exports.changePassword = asyncHandler(async (req, res) => {
+  res.json(await service.changePassword(req.body, req.user));
+});
+
 exports.dashboardSummary = asyncHandler(async (req, res) => {
   res.json(await service.dashboardSummary(req.user));
 });

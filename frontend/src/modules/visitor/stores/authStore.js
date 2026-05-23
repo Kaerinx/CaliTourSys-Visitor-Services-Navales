@@ -80,6 +80,7 @@ export const useAuthStore = defineStore('visitor-auth', () => {
     user,
     isAuthenticated,
     dashboardRoute,
+    setSession,
     login,
     fetchMe,
     logout,

@@ -85,9 +85,73 @@ async function login(payload) {
     throw httpError(401, 'Invalid username or password.');
   }
 
+  const inactive = user.status === 'inactive' || Number(user.is_active) === 0;
+  if (inactive) {
+    throw httpError(403, 'Your account has been deactivated. Please contact the system administrator.');
+  }
+
   const safeUser = model.safeUser(user);
   const token = signToken(safeUser);
   return { token, user: safeUser };
+}
+
+async function updateProfile(payload, currentUser) {
+  const id = currentUser?.id;
+  if (!id) throw httpError(401, 'Authentication required.');
+
+  const allowed = {
+    full_name: payload.full_name,
+    email: payload.email || payload.email_address,
+    contact_number: payload.contact_number,
+  };
+
+  Object.keys(allowed).forEach((key) => {
+    if (allowed[key] === undefined) {
+      delete allowed[key];
+    } else if (typeof allowed[key] === 'string') {
+      allowed[key] = allowed[key].trim();
+    }
+  });
+
+  if (!Object.keys(allowed).length) {
+    throw httpError(422, 'No editable profile fields were provided.');
+  }
+
+  const user = await model.updateUser(id, allowed);
+  if (!user) throw httpError(404, 'User not found.');
+  return user;
+}
+
+async function changePassword(payload, currentUser) {
+  const id = currentUser?.id;
+  if (!id) throw httpError(401, 'Authentication required.');
+
+  const currentPassword = payload.current_password || payload.currentPassword;
+  const newPassword = payload.new_password || payload.newPassword;
+  required({ current_password: currentPassword, new_password: newPassword }, ['current_password', 'new_password']);
+
+  if (String(newPassword).length < 6) {
+    throw httpError(422, 'New password must be at least 6 characters long.');
+  }
+
+  const storedUser = await model.findUserById(id);
+  if (!storedUser) throw httpError(404, 'User not found.');
+
+  const passwordHash = storedUser.password_hash;
+  const passwordMatches = passwordHash
+    ? await bcrypt.compare(String(currentPassword), passwordHash)
+    : String(currentPassword) === String(storedUser.password || '');
+
+  if (!passwordMatches) {
+    throw httpError(401, 'Current password is incorrect.');
+  }
+
+  await model.updateUser(id, {
+    password: newPassword,
+    password_hash: await bcrypt.hash(String(newPassword), 10),
+  });
+
+  return { message: 'Password changed successfully.' };
 }
 
 async function dashboardSummary(user) {
@@ -108,7 +172,7 @@ async function createVisitor(payload, user) {
   const visitor = {
     ...payload,
     visitor_type: classifyVisitor(payload),
-    status: normalizeType(payload.status || 'checked_in'),
+    status: normalizeType(payload.status || 'recorded'),
     source_type: normalizeType(payload.source_type || 'tourism_office'),
     recorded_by_user_id: user.id,
   };
@@ -282,6 +346,7 @@ async function createUser(payload) {
     password_hash,
     assigned_establishment_id: payload.assigned_establishment_id || payload.assigned_resort_id || null,
     status: payload.status || 'active',
+    is_active: payload.is_active ?? (payload.status === 'inactive' ? 0 : 1),
   });
 }
 
@@ -297,6 +362,14 @@ async function updateUser(id, payload) {
     role,
     assigned_establishment_id,
   };
+
+  if (payload.status) {
+    next.is_active = payload.status === 'inactive' ? 0 : 1;
+  }
+
+  if (payload.is_active !== undefined) {
+    next.is_active = payload.is_active ? 1 : 0;
+  }
 
   if (payload.password) {
     next.password = payload.password;
@@ -316,6 +389,8 @@ async function deactivateUser(id) {
 
 module.exports = {
   login,
+  updateProfile,
+  changePassword,
   dashboardSummary,
   receptionistSummary,
   createVisitor,
