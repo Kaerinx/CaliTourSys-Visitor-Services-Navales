@@ -876,6 +876,417 @@ async function getHome() {
   }
 }
 
+function mapItineraryItem(row) {
+  return {
+    id: row.id,
+    itemType: row.item_type,
+    targetId: row.target_id,
+    titleSnapshot: row.title_snapshot,
+    savedAt: row.saved_at,
+    summary: {
+      slug: row.slug,
+      title: row.title,
+      primaryImage: row.primary_image_url,
+    },
+  }
+}
+
+async function createItinerarySession({ sessionToken, visitorLabel }) {
+  const result = await query(
+    `
+      INSERT INTO itinerary_sessions (session_token, visitor_label, expires_at)
+      VALUES ($1, $2, now() + interval '90 days')
+      RETURNING session_token, created_at
+    `,
+    [sessionToken, visitorLabel || null],
+  )
+
+  return {
+    sessionToken: result.rows[0].session_token,
+    itemCount: 0,
+    items: [],
+  }
+}
+
+async function getItineraryByToken(sessionToken) {
+  const sessionResult = await query(
+    `
+      SELECT id, session_token
+      FROM itinerary_sessions
+      WHERE session_token = $1
+        AND (expires_at IS NULL OR expires_at > now())
+      LIMIT 1
+    `,
+    [sessionToken],
+  )
+  const session = sessionResult.rows[0]
+  if (!session) return null
+
+  const itemsResult = await query(
+    `
+      SELECT
+        ii.id,
+        ii.item_type,
+        COALESCE(p.id, e.id, d.id, ma.id) AS target_id,
+        ii.title_snapshot,
+        ii.saved_at,
+        COALESCE(p.slug, e.slug, d.slug, ma.slug) AS slug,
+        COALESCE(p.name, e.title, d.name, ma.name) AS title,
+        COALESCE(pimg.image_url, eimg.image_url, dimg.image_url, aimg.image_url) AS primary_image_url
+      FROM itinerary_items ii
+      LEFT JOIN products p ON p.id = ii.product_id AND p.status = 'published'
+      LEFT JOIN events e ON e.id = ii.event_id AND e.status = 'published'
+      LEFT JOIN destinations d ON d.id = ii.destination_id AND d.status = 'published'
+      LEFT JOIN museum_artifacts ma ON ma.id = ii.artifact_id AND ma.status = 'published'
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(pi.image_url, media.file_url) AS image_url
+        FROM product_images pi
+        LEFT JOIN media_assets media ON media.id = pi.media_asset_id AND media.status = 'active'
+        WHERE pi.product_id = p.id
+        ORDER BY pi.is_primary DESC, pi.display_order ASC
+        LIMIT 1
+      ) pimg ON true
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(ei.image_url, media.file_url) AS image_url
+        FROM event_images ei
+        LEFT JOIN media_assets media ON media.id = ei.media_asset_id AND media.status = 'active'
+        WHERE ei.event_id = e.id
+        ORDER BY ei.is_primary DESC, ei.display_order ASC
+        LIMIT 1
+      ) eimg ON true
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(di.image_url, media.file_url) AS image_url
+        FROM destination_images di
+        LEFT JOIN media_assets media ON media.id = di.media_asset_id AND media.status = 'active'
+        WHERE di.destination_id = d.id
+        ORDER BY di.is_primary DESC, di.display_order ASC
+        LIMIT 1
+      ) dimg ON true
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(ai.image_url, media.file_url) AS image_url
+        FROM artifact_images ai
+        LEFT JOIN media_assets media ON media.id = ai.media_asset_id AND media.status = 'active'
+        WHERE ai.artifact_id = ma.id
+        ORDER BY ai.is_primary DESC, ai.display_order ASC
+        LIMIT 1
+      ) aimg ON true
+      WHERE ii.itinerary_session_id = $1
+        AND (
+          (ii.item_type = 'product' AND p.id IS NOT NULL)
+          OR (ii.item_type = 'event' AND e.id IS NOT NULL)
+          OR (ii.item_type = 'destination' AND d.id IS NOT NULL)
+          OR (ii.item_type = 'artifact' AND ma.id IS NOT NULL)
+        )
+      ORDER BY ii.saved_at ASC, ii.created_at ASC
+    `,
+    [session.id],
+  )
+
+  const items = itemsResult.rows.map(mapItineraryItem)
+
+  return {
+    sessionToken: session.session_token,
+    itemCount: items.length,
+    items,
+  }
+}
+
+async function getPublicTarget(itemType, targetId) {
+  const queries = {
+    product: {
+      sql: `
+        SELECT id, slug, name AS title
+        FROM products
+        WHERE id = $1 AND status = 'published'
+          AND (published_at IS NULL OR published_at <= now())
+        LIMIT 1
+      `,
+    },
+    event: {
+      sql: `
+        SELECT id, slug, title
+        FROM events
+        WHERE id = $1 AND status = 'published'
+          AND (published_at IS NULL OR published_at <= now())
+        LIMIT 1
+      `,
+    },
+    destination: {
+      sql: `
+        SELECT id, slug, name AS title
+        FROM destinations
+        WHERE id = $1 AND status = 'published'
+          AND (published_at IS NULL OR published_at <= now())
+        LIMIT 1
+      `,
+    },
+    artifact: {
+      sql: `
+        SELECT id, slug, name AS title
+        FROM museum_artifacts
+        WHERE id = $1 AND status = 'published'
+          AND (published_at IS NULL OR published_at <= now())
+        LIMIT 1
+      `,
+    },
+  }
+
+  const config = queries[itemType]
+  if (!config) return null
+
+  const result = await query(config.sql, [targetId])
+  return result.rows[0] || null
+}
+
+async function getExistingItineraryItem(sessionToken, itemType, targetId) {
+  const result = await query(
+    `
+      SELECT ii.id
+      FROM itinerary_items ii
+      JOIN itinerary_sessions s ON s.id = ii.itinerary_session_id
+      WHERE s.session_token = $1
+        AND (s.expires_at IS NULL OR s.expires_at > now())
+        AND ii.item_type = $2
+        AND (
+          ($2 = 'product' AND ii.product_id = $3::uuid)
+          OR ($2 = 'event' AND ii.event_id = $3::uuid)
+          OR ($2 = 'destination' AND ii.destination_id = $3::uuid)
+          OR ($2 = 'artifact' AND ii.artifact_id = $3::uuid)
+        )
+      LIMIT 1
+    `,
+    [sessionToken, itemType, targetId],
+  )
+
+  return result.rows[0] || null
+}
+
+async function getItineraryItemById(sessionToken, itemId) {
+  const result = await query(
+    `
+      SELECT
+        ii.id,
+        ii.item_type,
+        COALESCE(p.id, e.id, d.id, ma.id) AS target_id,
+        ii.title_snapshot,
+        ii.saved_at,
+        COALESCE(p.slug, e.slug, d.slug, ma.slug) AS slug,
+        COALESCE(p.name, e.title, d.name, ma.name) AS title,
+        COALESCE(pimg.image_url, eimg.image_url, dimg.image_url, aimg.image_url) AS primary_image_url
+      FROM itinerary_items ii
+      JOIN itinerary_sessions s ON s.id = ii.itinerary_session_id
+      LEFT JOIN products p ON p.id = ii.product_id AND p.status = 'published'
+      LEFT JOIN events e ON e.id = ii.event_id AND e.status = 'published'
+      LEFT JOIN destinations d ON d.id = ii.destination_id AND d.status = 'published'
+      LEFT JOIN museum_artifacts ma ON ma.id = ii.artifact_id AND ma.status = 'published'
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(pi.image_url, media.file_url) AS image_url
+        FROM product_images pi
+        LEFT JOIN media_assets media ON media.id = pi.media_asset_id AND media.status = 'active'
+        WHERE pi.product_id = p.id
+        ORDER BY pi.is_primary DESC, pi.display_order ASC
+        LIMIT 1
+      ) pimg ON true
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(ei.image_url, media.file_url) AS image_url
+        FROM event_images ei
+        LEFT JOIN media_assets media ON media.id = ei.media_asset_id AND media.status = 'active'
+        WHERE ei.event_id = e.id
+        ORDER BY ei.is_primary DESC, ei.display_order ASC
+        LIMIT 1
+      ) eimg ON true
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(di.image_url, media.file_url) AS image_url
+        FROM destination_images di
+        LEFT JOIN media_assets media ON media.id = di.media_asset_id AND media.status = 'active'
+        WHERE di.destination_id = d.id
+        ORDER BY di.is_primary DESC, di.display_order ASC
+        LIMIT 1
+      ) dimg ON true
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(ai.image_url, media.file_url) AS image_url
+        FROM artifact_images ai
+        LEFT JOIN media_assets media ON media.id = ai.media_asset_id AND media.status = 'active'
+        WHERE ai.artifact_id = ma.id
+        ORDER BY ai.is_primary DESC, ai.display_order ASC
+        LIMIT 1
+      ) aimg ON true
+      WHERE s.session_token = $1
+        AND (s.expires_at IS NULL OR s.expires_at > now())
+        AND ii.id = $2
+      LIMIT 1
+    `,
+    [sessionToken, itemId],
+  )
+
+  return result.rows[0] ? mapItineraryItem(result.rows[0]) : null
+}
+
+async function createItineraryItem({ sessionToken, itemType, targetId, titleSnapshot }) {
+  const sessionResult = await query(
+    `
+      SELECT id
+      FROM itinerary_sessions
+      WHERE session_token = $1
+        AND (expires_at IS NULL OR expires_at > now())
+      LIMIT 1
+    `,
+    [sessionToken],
+  )
+  const session = sessionResult.rows[0]
+  if (!session) return null
+
+  const columns = {
+    product: ['product_id', targetId, null, null, null],
+    event: ['event_id', null, targetId, null, null],
+    destination: ['destination_id', null, null, targetId, null],
+    artifact: ['artifact_id', null, null, null, targetId],
+  }
+  const columnValues = columns[itemType]
+  if (!columnValues) return null
+
+  const result = await query(
+    `
+      INSERT INTO itinerary_items (
+        itinerary_session_id,
+        item_type,
+        product_id,
+        event_id,
+        destination_id,
+        artifact_id,
+        title_snapshot
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id
+    `,
+    [session.id, itemType, columnValues[1], columnValues[2], columnValues[3], columnValues[4], titleSnapshot],
+  )
+
+  return getItineraryItemById(sessionToken, result.rows[0].id)
+}
+
+async function deleteItineraryItem({ sessionToken, itemId }) {
+  const result = await query(
+    `
+      DELETE FROM itinerary_items ii
+      USING itinerary_sessions s
+      WHERE ii.itinerary_session_id = s.id
+        AND s.session_token = $1
+        AND (s.expires_at IS NULL OR s.expires_at > now())
+        AND ii.id = $2
+      RETURNING ii.id
+    `,
+    [sessionToken, itemId],
+  )
+
+  return result.rowCount > 0
+}
+
+async function createInquiry({ fullName, email, contactNumber, subject, message, sourcePage }) {
+  const result = await query(
+    `
+      INSERT INTO tourism_inquiries (
+        full_name,
+        email,
+        contact_number,
+        subject,
+        message,
+        source_page,
+        status
+      )
+      VALUES ($1, lower($2), $3, $4, $5, $6, 'new')
+      RETURNING id, status, created_at AS received_at
+    `,
+    [fullName, email, contactNumber || null, subject, message, sourcePage || null],
+  )
+
+  return {
+    id: result.rows[0].id,
+    status: result.rows[0].status,
+    receivedAt: result.rows[0].received_at,
+  }
+}
+
+async function getNewsletterSubscriberByEmail(email) {
+  const result = await query(
+    `
+      SELECT id, email, status, subscribed_at
+      FROM newsletter_subscribers
+      WHERE lower(email) = lower($1)
+      LIMIT 1
+    `,
+    [email],
+  )
+
+  return result.rows[0] || null
+}
+
+async function createNewsletterSubscription({ email, fullName }) {
+  const normalizedEmail = email.toLowerCase()
+  const existing = await getNewsletterSubscriberByEmail(normalizedEmail)
+
+  if (existing) {
+    if (existing.status === 'subscribed') {
+      return {
+        email: existing.email,
+        status: existing.status,
+        subscribedAt: existing.subscribed_at,
+        wasExisting: true,
+      }
+    }
+
+    const updated = await query(
+      `
+        UPDATE newsletter_subscribers
+        SET status = 'subscribed',
+            full_name = COALESCE($2, full_name),
+            subscribed_at = now(),
+            unsubscribed_at = NULL
+        WHERE id = $1
+        RETURNING email, status, subscribed_at
+      `,
+      [existing.id, fullName || null],
+    )
+
+    return {
+      email: updated.rows[0].email,
+      status: updated.rows[0].status,
+      subscribedAt: updated.rows[0].subscribed_at,
+      wasExisting: true,
+    }
+  }
+
+  let inserted
+
+  try {
+    inserted = await query(
+      `
+        INSERT INTO newsletter_subscribers (email, full_name, status)
+        VALUES ($1, $2, 'subscribed')
+        RETURNING email, status, subscribed_at
+      `,
+      [normalizedEmail, fullName || null],
+    )
+  } catch (error) {
+    if (error.code !== '23505') throw error
+
+    const duplicate = await getNewsletterSubscriberByEmail(normalizedEmail)
+    return {
+      email: duplicate.email,
+      status: duplicate.status,
+      subscribedAt: duplicate.subscribed_at,
+      wasExisting: true,
+    }
+  }
+
+  return {
+    email: inserted.rows[0].email,
+    status: inserted.rows[0].status,
+    subscribedAt: inserted.rows[0].subscribed_at,
+    wasExisting: false,
+  }
+}
+
 module.exports = {
   listProducts,
   getProductBySlug,
@@ -891,4 +1302,13 @@ module.exports = {
   listMapLocations,
   listCategories,
   getHome,
+  createItinerarySession,
+  getItineraryByToken,
+  getPublicTarget,
+  getExistingItineraryItem,
+  createItineraryItem,
+  getItineraryItemById,
+  deleteItineraryItem,
+  createInquiry,
+  createNewsletterSubscription,
 }

@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: CaliTourSys Public Website API
   version: 1.0.0
-  description: Public Facing Website API contract for CaliTourSys / CallTourSys. Runtime backend implementation is postponed to Phase 03B.
+  description: Public Facing Website API contract for CaliTourSys / CallTourSys public endpoints.
 x-future-optional-endpoints:
   - POST /api/v1/public/share-events
   - POST /api/v1/public/analytics/page-view
@@ -416,6 +416,12 @@ paths:
     post:
       tags: [Itinerary]
       summary: Create anonymous itinerary session
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateItinerarySessionRequest"
       responses:
         "201":
           description: Created itinerary session
@@ -477,6 +483,17 @@ paths:
       responses:
         "201":
           description: Added itinerary item
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ItineraryItem"
+        "200":
+          description: Item was already saved; idempotent success returns the existing itinerary item.
           content:
             application/json:
               schema:
@@ -550,6 +567,17 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateNewsletterSubscriptionRequest"
       responses:
+        "200":
+          description: Email was already subscribed or was safely resubscribed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NewsletterSubscriptionReceipt"
         "201":
           description: Subscription created
           content:
@@ -563,12 +591,6 @@ paths:
                         $ref: "#/components/schemas/NewsletterSubscriptionReceipt"
         "400":
           $ref: "#/components/responses/ValidationError"
-        "409":
-          description: Already subscribed or conflicting subscription state
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
         "429":
           $ref: "#/components/responses/RateLimited"
 components:
@@ -1185,6 +1207,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ItineraryItem"
+    CreateItinerarySessionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        visitorLabel:
+          type: string
+          maxLength: 120
     ItineraryItem:
       type: object
       properties:

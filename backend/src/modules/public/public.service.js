@@ -1,10 +1,19 @@
 const repository = require('./public.repository')
 const { getPagination, buildPaginationMeta } = require('../../utils/pagination')
+const { createPublicSessionToken } = require('../../utils/token')
 
 function createNotFoundError(message) {
   const error = new Error(message)
   error.statusCode = 404
   error.code = 'NOT_FOUND'
+  error.publicMessage = message
+  return error
+}
+
+function createConflictError(message) {
+  const error = new Error(message)
+  error.statusCode = 409
+  error.code = 'CONFLICT'
   error.publicMessage = message
   return error
 }
@@ -145,6 +154,96 @@ function listMuseumCategories() {
   return repository.listCategories('artifact_categories')
 }
 
+async function createItinerarySession(body) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await repository.createItinerarySession({
+        sessionToken: createPublicSessionToken(),
+        visitorLabel: body.visitorLabel,
+      })
+    } catch (error) {
+      if (error.code !== '23505') throw error
+    }
+  }
+
+  throw createConflictError('Unable to create itinerary session. Please try again.')
+}
+
+async function getItineraryByToken(sessionToken) {
+  const itinerary = await repository.getItineraryByToken(sessionToken)
+  if (!itinerary) throw createNotFoundError('Itinerary session not found.')
+  return itinerary
+}
+
+async function addItineraryItem(sessionToken, body) {
+  const target = await repository.getPublicTarget(body.itemType, body.targetId)
+  if (!target) throw createNotFoundError('Public itinerary target not found.')
+
+  const existing = await repository.getExistingItineraryItem(sessionToken, body.itemType, body.targetId)
+  if (existing) {
+    const item = await repository.getItineraryItemById(sessionToken, existing.id)
+    if (!item) throw createNotFoundError('Itinerary session not found.')
+
+    return {
+      data: item,
+      statusCode: 200,
+      duplicateBehavior: 'idempotent',
+    }
+  }
+
+  try {
+    const item = await repository.createItineraryItem({
+      sessionToken,
+      itemType: body.itemType,
+      targetId: body.targetId,
+      titleSnapshot: target.title,
+    })
+
+    if (!item) throw createNotFoundError('Itinerary session not found.')
+
+    return {
+      data: item,
+      statusCode: 201,
+      duplicateBehavior: 'created',
+    }
+  } catch (error) {
+    if (error.code === '23505') {
+      const duplicate = await repository.getExistingItineraryItem(sessionToken, body.itemType, body.targetId)
+      if (duplicate) {
+        return {
+          data: await repository.getItineraryItemById(sessionToken, duplicate.id),
+          statusCode: 200,
+          duplicateBehavior: 'idempotent',
+        }
+      }
+    }
+
+    throw error
+  }
+}
+
+async function deleteItineraryItem(sessionToken, itemId) {
+  const wasDeleted = await repository.deleteItineraryItem({ sessionToken, itemId })
+  if (!wasDeleted) throw createNotFoundError('Itinerary item not found.')
+}
+
+async function createInquiry(body) {
+  return repository.createInquiry(body)
+}
+
+async function createNewsletterSubscription(body) {
+  const result = await repository.createNewsletterSubscription(body)
+
+  return {
+    data: {
+      email: result.email,
+      status: result.status,
+      subscribedAt: result.subscribedAt,
+    },
+    statusCode: result.wasExisting ? 200 : 201,
+  }
+}
+
 module.exports = {
   getHome,
   listProducts,
@@ -163,4 +262,10 @@ module.exports = {
   listEventCategories,
   listDestinationCategories,
   listMuseumCategories,
+  createItinerarySession,
+  getItineraryByToken,
+  addItineraryItem,
+  deleteItineraryItem,
+  createInquiry,
+  createNewsletterSubscription,
 }

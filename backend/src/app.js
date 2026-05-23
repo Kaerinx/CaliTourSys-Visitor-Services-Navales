@@ -2,14 +2,12 @@ const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
 const compression = require('compression')
-const rateLimit = require('express-rate-limit')
 const pinoHttp = require('pino-http')
 const { env } = require('./config/env')
 const routes = require('./routes')
 const { requestId } = require('./middleware/requestId')
 const { notFound } = require('./middleware/notFound')
 const { errorHandler } = require('./middleware/errorHandler')
-const { errorResponse } = require('./utils/apiResponse')
 
 const app = express()
 
@@ -29,22 +27,6 @@ const corsOptions = {
   credentials: true,
 }
 
-const publicWriteLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (req, res) => {
-    return errorResponse(
-      req,
-      res,
-      429,
-      'RATE_LIMITED',
-      'Too many requests. Please try again later.',
-    )
-  },
-})
-
 app.disable('x-powered-by')
 app.set('trust proxy', env.IS_PRODUCTION ? 1 : false)
 
@@ -60,12 +42,6 @@ app.use(cors(corsOptions))
 app.use(compression())
 app.use(express.json({ limit: env.REQUEST_BODY_LIMIT }))
 app.use(express.urlencoded({ extended: false, limit: env.REQUEST_BODY_LIMIT }))
-
-app.post('/api/v1/public/inquiries', publicWriteLimiter)
-app.post('/api/v1/public/newsletter-subscriptions', publicWriteLimiter)
-app.post('/api/v1/public/itinerary/sessions', publicWriteLimiter)
-app.post('/api/v1/public/itinerary/:sessionToken/items', publicWriteLimiter)
-app.delete('/api/v1/public/itinerary/:sessionToken/items/:itemId', publicWriteLimiter)
 
 app.use('/api/v1', routes)
 

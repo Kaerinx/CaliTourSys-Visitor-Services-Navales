@@ -37,6 +37,49 @@ const slugParamsSchema = z.object({
   slug: slugSchema,
 })
 
+const sessionTokenParamsSchema = z.object({
+  sessionToken: z
+    .string()
+    .min(16)
+    .max(128)
+    .regex(/^[A-Za-z0-9_-]+$/, 'sessionToken must be a safe opaque token string.'),
+})
+
+const itineraryItemParamsSchema = sessionTokenParamsSchema.extend({
+  itemId: z.uuid('itemId must be a valid UUID.'),
+})
+
+const createItinerarySessionBodySchema = z
+  .object({
+    visitorLabel: z.string().trim().min(1).max(120).optional(),
+  })
+  .strict()
+
+const createItineraryItemBodySchema = z
+  .object({
+    itemType: z.enum(['product', 'event', 'destination', 'artifact']),
+    targetId: z.uuid('targetId must be a valid UUID.'),
+  })
+  .strict()
+
+const createInquiryBodySchema = z
+  .object({
+    fullName: z.string().trim().min(1).max(255),
+    email: z.email().max(255),
+    contactNumber: z.string().trim().max(80).optional(),
+    subject: z.string().trim().min(1).max(255),
+    message: z.string().trim().min(1).max(5000),
+    sourcePage: z.string().trim().max(255).optional(),
+  })
+  .strict()
+
+const createNewsletterSubscriptionBodySchema = z
+  .object({
+    email: z.email().max(255),
+    fullName: z.string().trim().min(1).max(255).optional(),
+  })
+  .strict()
+
 const productListQuerySchema = listQuery([
   'name',
   '-name',
@@ -98,4 +141,10 @@ module.exports = {
   destinationListQuerySchema,
   museumArtifactListQuerySchema,
   mapLocationsQuerySchema,
+  sessionTokenParamsSchema,
+  itineraryItemParamsSchema,
+  createItinerarySessionBodySchema,
+  createItineraryItemBodySchema,
+  createInquiryBodySchema,
+  createNewsletterSubscriptionBodySchema,
 }

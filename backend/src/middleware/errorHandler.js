@@ -21,6 +21,15 @@ function normalizeError(error) {
     }
   }
 
+  if (error?.type === 'entity.parse.failed') {
+    return {
+      statusCode: 400,
+      code: 'VALIDATION_ERROR',
+      message: 'Request body must be valid JSON.',
+      details: [],
+    }
+  }
+
   const statusCode = Number(error?.statusCode || error?.status || 500)
 
   return {
