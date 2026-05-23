@@ -1,0 +1,1277 @@
+openapi: 3.0.3
+info:
+  title: CaliTourSys Public Website API
+  version: 1.0.0
+  description: Public Facing Website API contract for CaliTourSys / CallTourSys. Runtime backend implementation is postponed to Phase 03B.
+x-future-optional-endpoints:
+  - POST /api/v1/public/share-events
+  - POST /api/v1/public/analytics/page-view
+  - POST /api/v1/public/analytics/interaction
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Local development
+  - url: https://example.gov.ph/api/v1
+    description: Production placeholder
+tags:
+  - name: Health
+  - name: Home
+  - name: Promotions
+  - name: Events
+  - name: Products
+  - name: Businesses
+  - name: Destinations
+  - name: Map
+  - name: Museum
+  - name: Itinerary
+  - name: Inquiry
+  - name: Newsletter
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        "200":
+          description: API health status
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Health"
+  /public/home:
+    get:
+      tags: [Home]
+      summary: Get home page public content
+      responses:
+        "200":
+          description: Home page content blocks
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/HomeResponse"
+  /public/promotions:
+    get:
+      tags: [Promotions]
+      summary: List public promotions
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/PublicContentStatus"
+        - $ref: "#/components/parameters/Featured"
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [startsAt, -startsAt, title, -title, featured]
+      responses:
+        "200":
+          description: Paginated promotions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedSuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PromotionListItem"
+  /public/promotions/{slug}:
+    get:
+      tags: [Promotions]
+      summary: Get public promotion detail
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Promotion detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PromotionDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /public/events:
+    get:
+      tags: [Events]
+      summary: List public events
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Category"
+        - $ref: "#/components/parameters/PublicContentStatus"
+        - $ref: "#/components/parameters/Featured"
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [startsAt, -startsAt, title, -title, featured]
+      responses:
+        "200":
+          description: Paginated events
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedSuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/EventListItem"
+  /public/events/{slug}:
+    get:
+      tags: [Events]
+      summary: Get public event detail
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Event detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EventDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /public/event-categories:
+    get:
+      tags: [Events]
+      summary: List public event categories
+      responses:
+        "200":
+          $ref: "#/components/responses/CategoryList"
+  /public/products:
+    get:
+      tags: [Products]
+      summary: List public products
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Category"
+        - $ref: "#/components/parameters/PublicContentStatus"
+        - $ref: "#/components/parameters/Featured"
+        - name: business
+          in: query
+          schema:
+            type: string
+          description: Business slug.
+        - name: tag
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [name, -name, publishedAt, -publishedAt, price, -price, featured]
+      responses:
+        "200":
+          description: Paginated products
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedSuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ProductListItem"
+  /public/products/{slug}:
+    get:
+      tags: [Products]
+      summary: Get public product detail
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Product detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ProductDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /public/product-categories:
+    get:
+      tags: [Products]
+      summary: List public product categories
+      responses:
+        "200":
+          $ref: "#/components/responses/CategoryList"
+  /public/businesses/{slug}:
+    get:
+      tags: [Businesses]
+      summary: Get public business or producer profile
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Business profile
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BusinessDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /public/destinations:
+    get:
+      tags: [Destinations]
+      summary: List public destinations
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Category"
+        - $ref: "#/components/parameters/PublicContentStatus"
+        - $ref: "#/components/parameters/Featured"
+        - name: barangay
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [name, -name, publishedAt, -publishedAt, featured]
+      responses:
+        "200":
+          description: Paginated destinations
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedSuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/DestinationListItem"
+  /public/destinations/{slug}:
+    get:
+      tags: [Destinations]
+      summary: Get public destination detail
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Destination detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DestinationDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /public/destination-categories:
+    get:
+      tags: [Destinations]
+      summary: List public destination categories
+      responses:
+        "200":
+          $ref: "#/components/responses/CategoryList"
+  /public/map/locations:
+    get:
+      tags: [Map]
+      summary: List public map locations
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [destination, business, event]
+        - $ref: "#/components/parameters/Category"
+        - $ref: "#/components/parameters/Featured"
+        - name: bounds
+          in: query
+          description: Reserved for later. Format minLng,minLat,maxLng,maxLat.
+          schema:
+            type: string
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [list, geojson]
+            default: list
+      responses:
+        "200":
+          description: List or GeoJSON FeatureCollection
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        oneOf:
+                          - type: array
+                            items:
+                              $ref: "#/components/schemas/MapLocationListItem"
+                          - $ref: "#/components/schemas/GeoJsonFeatureCollection"
+  /public/museum/artifacts:
+    get:
+      tags: [Museum]
+      summary: List public museum artifacts
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Category"
+        - $ref: "#/components/parameters/PublicContentStatus"
+        - $ref: "#/components/parameters/Featured"
+      responses:
+        "200":
+          description: Paginated museum artifacts
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedSuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/MuseumArtifactListItem"
+  /public/museum/artifacts/{slug}:
+    get:
+      tags: [Museum]
+      summary: Get public museum artifact detail
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: Museum artifact detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MuseumArtifactDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /public/museum/categories:
+    get:
+      tags: [Museum]
+      summary: List public museum categories
+      responses:
+        "200":
+          $ref: "#/components/responses/CategoryList"
+  /public/itinerary/sessions:
+    post:
+      tags: [Itinerary]
+      summary: Create anonymous itinerary session
+      responses:
+        "201":
+          description: Created itinerary session
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Itinerary"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /public/itinerary/{sessionToken}:
+    get:
+      tags: [Itinerary]
+      summary: Get anonymous itinerary
+      description: sessionToken is an anonymous itinerary lookup token only. It is not a login token and must not contain personal data.
+      parameters:
+        - name: sessionToken
+          in: path
+          required: true
+          description: Anonymous itinerary lookup token. Not an authentication token and not personal data.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Itinerary
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Itinerary"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /public/itinerary/{sessionToken}/items:
+    post:
+      tags: [Itinerary]
+      summary: Add item to anonymous itinerary
+      description: sessionToken is an anonymous itinerary lookup token only. It is not a login token and must not contain personal data.
+      parameters:
+        - name: sessionToken
+          in: path
+          required: true
+          description: Anonymous itinerary lookup token. Not an authentication token and not personal data.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateItineraryItemRequest"
+      responses:
+        "201":
+          description: Added itinerary item
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ItineraryItem"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /public/itinerary/{sessionToken}/items/{itemId}:
+    delete:
+      tags: [Itinerary]
+      summary: Remove item from anonymous itinerary
+      description: sessionToken is an anonymous itinerary lookup token only. It is not a login token and must not contain personal data.
+      parameters:
+        - name: sessionToken
+          in: path
+          required: true
+          description: Anonymous itinerary lookup token. Not an authentication token and not personal data.
+          schema:
+            type: string
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /public/inquiries:
+    post:
+      tags: [Inquiry]
+      summary: Submit public inquiry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInquiryRequest"
+      responses:
+        "201":
+          description: Inquiry received
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/InquiryReceipt"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /public/newsletter-subscriptions:
+    post:
+      tags: [Newsletter]
+      summary: Subscribe to public newsletter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNewsletterSubscriptionRequest"
+      responses:
+        "201":
+          description: Subscription created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NewsletterSubscriptionReceipt"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          description: Already subscribed or conflicting subscription state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+components:
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 12
+    Search:
+      name: search
+      in: query
+      schema:
+        type: string
+        maxLength: 120
+    Category:
+      name: category
+      in: query
+      description: Category slug.
+      schema:
+        type: string
+        pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+    Featured:
+      name: featured
+      in: query
+      schema:
+        type: boolean
+    PublicContentStatus:
+      name: status
+      in: query
+      description: Public-safe status filter. Public endpoints default to published content and must not expose draft or private workflow records.
+      schema:
+        type: string
+        enum: [published]
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+  responses:
+    NotFound:
+      description: Resource not found or not public
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    CategoryList:
+      description: Public categories
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/SuccessEnvelope"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Category"
+  schemas:
+    SuccessEnvelope:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          description: Endpoint-specific response payload.
+        meta:
+          $ref: "#/components/schemas/Meta"
+    PaginatedSuccessEnvelope:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items: {}
+        meta:
+          allOf:
+            - $ref: "#/components/schemas/Meta"
+            - type: object
+              required: [pagination]
+              properties:
+                pagination:
+                  $ref: "#/components/schemas/Pagination"
+    ErrorEnvelope:
+      type: object
+      required: [success, error, meta]
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          required: [code, message, details]
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+        meta:
+          $ref: "#/components/schemas/Meta"
+    Meta:
+      type: object
+      required: [requestId, timestamp]
+      properties:
+        requestId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    Pagination:
+      type: object
+      required: [page, limit, totalItems, totalPages, hasNextPage, hasPreviousPage]
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalItems:
+          type: integer
+        totalPages:
+          type: integer
+        hasNextPage:
+          type: boolean
+        hasPreviousPage:
+          type: boolean
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: CaliTourSys API
+        version:
+          type: string
+          example: v1
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        color:
+          type: string
+          nullable: true
+        displayOrder:
+          type: integer
+    Image:
+      type: object
+      properties:
+        url:
+          type: string
+          nullable: true
+        altText:
+          type: string
+          nullable: true
+    Price:
+      type: object
+      properties:
+        amount:
+          type: number
+          nullable: true
+        currency:
+          type: string
+          example: PHP
+        unitLabel:
+          type: string
+          nullable: true
+    BusinessSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        businessType:
+          type: string
+    BusinessContact:
+      type: object
+      description: Public business contact record. API responses must include only contacts where is_public = true.
+      properties:
+        contactType:
+          type: string
+          enum: [email, phone, website, facebook, instagram, youtube, other]
+        contactValue:
+          type: string
+        label:
+          type: string
+          nullable: true
+        isPrimary:
+          type: boolean
+    Accreditation:
+      type: object
+      description: Public accreditation display record. API responses should prioritize the latest verified accreditation record.
+      properties:
+        status:
+          type: string
+          enum: [accredited, pending, expired, revoked]
+        accreditationNumber:
+          type: string
+          nullable: true
+        issuedAt:
+          type: string
+          format: date
+          nullable: true
+        expiresAt:
+          type: string
+          format: date
+          nullable: true
+    ProductListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        shortDescription:
+          type: string
+          nullable: true
+        price:
+          $ref: "#/components/schemas/Price"
+        category:
+          $ref: "#/components/schemas/Category"
+        business:
+          $ref: "#/components/schemas/BusinessSummary"
+        accreditationStatus:
+          type: string
+          nullable: true
+        primaryImage:
+          $ref: "#/components/schemas/Image"
+        tags:
+          type: array
+          items:
+            type: string
+        isFeatured:
+          type: boolean
+    ProductDetail:
+      type: object
+      properties:
+        product:
+          $ref: "#/components/schemas/ProductListItem"
+        description:
+          type: string
+          nullable: true
+        business:
+          $ref: "#/components/schemas/BusinessDetail"
+        accreditation:
+          $ref: "#/components/schemas/Accreditation"
+        gallery:
+          type: array
+          items:
+            $ref: "#/components/schemas/Image"
+        relatedProducts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductListItem"
+    EventListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        title:
+          type: string
+        shortDescription:
+          type: string
+          nullable: true
+        category:
+          $ref: "#/components/schemas/Category"
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        venueName:
+          type: string
+          nullable: true
+        primaryImage:
+          $ref: "#/components/schemas/Image"
+        isFeatured:
+          type: boolean
+    EventDetail:
+      allOf:
+        - $ref: "#/components/schemas/EventListItem"
+        - type: object
+          properties:
+            description:
+              type: string
+              nullable: true
+            organizerName:
+              type: string
+              nullable: true
+            contactInfo:
+              type: string
+              nullable: true
+            addressLine:
+              type: string
+              nullable: true
+            barangay:
+              type: string
+              nullable: true
+            gallery:
+              type: array
+              items:
+                $ref: "#/components/schemas/Image"
+    DestinationListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        shortDescription:
+          type: string
+          nullable: true
+        category:
+          $ref: "#/components/schemas/Category"
+        barangay:
+          type: string
+          nullable: true
+        primaryImage:
+          $ref: "#/components/schemas/Image"
+        hasMapLocation:
+          type: boolean
+        isFeatured:
+          type: boolean
+    DestinationDetail:
+      allOf:
+        - $ref: "#/components/schemas/DestinationListItem"
+        - type: object
+          properties:
+            description:
+              type: string
+              nullable: true
+            openingHoursText:
+              type: string
+              nullable: true
+            entranceFeeText:
+              type: string
+              nullable: true
+            bestTimeToVisit:
+              type: string
+              nullable: true
+            accessibilityNotes:
+              type: string
+              nullable: true
+            gallery:
+              type: array
+              items:
+                $ref: "#/components/schemas/Image"
+            mapLocation:
+              $ref: "#/components/schemas/MapLocationListItem"
+    BusinessDetail:
+      allOf:
+        - $ref: "#/components/schemas/BusinessSummary"
+        - type: object
+          properties:
+            description:
+              type: string
+              nullable: true
+            barangay:
+              type: string
+              nullable: true
+            municipality:
+              type: string
+            province:
+              type: string
+            contacts:
+              type: array
+              description: Public contacts only; filter source records to is_public = true.
+              items:
+                $ref: "#/components/schemas/BusinessContact"
+            accreditation:
+              description: Latest verified public accreditation record for display.
+              $ref: "#/components/schemas/Accreditation"
+            featuredProducts:
+              type: array
+              items:
+                $ref: "#/components/schemas/ProductListItem"
+    PromotionListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        title:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        promotionType:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        isFeatured:
+          type: boolean
+    PromotionDetail:
+      allOf:
+        - $ref: "#/components/schemas/PromotionListItem"
+        - type: object
+          properties:
+            description:
+              type: string
+              nullable: true
+            items:
+              type: array
+              items:
+                type: object
+                properties:
+                  itemType:
+                    type: string
+                    enum: [product, event, destination, business]
+                  displayOrder:
+                    type: integer
+                  item:
+                    type: object
+    MapLocationListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        locationType:
+          type: string
+          enum: [destination, business, event]
+        slug:
+          type: string
+        label:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        category:
+          type: string
+          nullable: true
+        markerColor:
+          type: string
+          nullable: true
+        markerIcon:
+          type: string
+          nullable: true
+        primaryImage:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+    GeoJsonFeatureCollection:
+      type: object
+      required: [type, features]
+      properties:
+        type:
+          type: string
+          enum: [FeatureCollection]
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeoJsonFeature"
+    GeoJsonFeature:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [Feature]
+        geometry:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [Point]
+            coordinates:
+              type: array
+              items:
+                type: number
+              minItems: 2
+              maxItems: 2
+        properties:
+          type: object
+    MuseumArtifactListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        eraLabel:
+          type: string
+          nullable: true
+        shortDescription:
+          type: string
+          nullable: true
+        category:
+          $ref: "#/components/schemas/Category"
+        primaryImage:
+          $ref: "#/components/schemas/Image"
+        isFeatured:
+          type: boolean
+    MuseumArtifactDetail:
+      allOf:
+        - $ref: "#/components/schemas/MuseumArtifactListItem"
+        - type: object
+          properties:
+            description:
+              type: string
+              nullable: true
+            historicalNotes:
+              type: string
+              nullable: true
+            gallery:
+              type: array
+              items:
+                $ref: "#/components/schemas/Image"
+    HomeResponse:
+      type: object
+      properties:
+        featuredPromotions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PromotionListItem"
+        featuredProducts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductListItem"
+        featuredDestinations:
+          type: array
+          items:
+            $ref: "#/components/schemas/DestinationListItem"
+        upcomingEvents:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventListItem"
+        featuredMuseumArtifacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/MuseumArtifactListItem"
+        publicStats:
+          type: object
+          additionalProperties:
+            type: integer
+    Itinerary:
+      type: object
+      properties:
+        sessionToken:
+          type: string
+          description: Anonymous itinerary lookup token. Not a login token and must not contain personal data.
+        itemCount:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItineraryItem"
+    ItineraryItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        itemType:
+          type: string
+          enum: [product, event, destination, artifact]
+        targetId:
+          type: string
+          format: uuid
+        titleSnapshot:
+          type: string
+          nullable: true
+        savedAt:
+          type: string
+          format: date-time
+        summary:
+          type: object
+          nullable: true
+    CreateItineraryItemRequest:
+      type: object
+      required: [itemType, targetId]
+      properties:
+        itemType:
+          type: string
+          enum: [product, event, destination, artifact]
+        targetId:
+          type: string
+          format: uuid
+    CreateInquiryRequest:
+      type: object
+      required: [fullName, email, subject, message]
+      properties:
+        fullName:
+          type: string
+          maxLength: 255
+        email:
+          type: string
+          format: email
+        contactNumber:
+          type: string
+          maxLength: 80
+          nullable: true
+        subject:
+          type: string
+          maxLength: 255
+        message:
+          type: string
+          maxLength: 5000
+        sourcePage:
+          type: string
+          maxLength: 255
+          nullable: true
+    InquiryReceipt:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          example: new
+        receivedAt:
+          type: string
+          format: date-time
+    CreateNewsletterSubscriptionRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+          maxLength: 255
+          nullable: true
+    NewsletterSubscriptionReceipt:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        status:
+          type: string
+          example: subscribed
+        subscribedAt:
+          type: string
+          format: date-time
