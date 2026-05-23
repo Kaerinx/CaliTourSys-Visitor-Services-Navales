@@ -1,0 +1,75 @@
+const express = require('express')
+const cors = require('cors')
+const helmet = require('helmet')
+const compression = require('compression')
+const rateLimit = require('express-rate-limit')
+const pinoHttp = require('pino-http')
+const { env } = require('./config/env')
+const routes = require('./routes')
+const { requestId } = require('./middleware/requestId')
+const { notFound } = require('./middleware/notFound')
+const { errorHandler } = require('./middleware/errorHandler')
+const { errorResponse } = require('./utils/apiResponse')
+
+const app = express()
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin || env.CORS_ORIGINS.includes(origin)) {
+      return callback(null, true)
+    }
+
+    const error = new Error('CORS origin is not allowed')
+    error.statusCode = 403
+    error.code = 'CORS_NOT_ALLOWED'
+    error.publicMessage = 'CORS origin is not allowed.'
+
+    return callback(error)
+  },
+  credentials: true,
+}
+
+const publicWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    return errorResponse(
+      req,
+      res,
+      429,
+      'RATE_LIMITED',
+      'Too many requests. Please try again later.',
+    )
+  },
+})
+
+app.disable('x-powered-by')
+app.set('trust proxy', env.IS_PRODUCTION ? 1 : false)
+
+app.use(requestId)
+app.use(
+  pinoHttp({
+    genReqId: (req) => req.id,
+    redact: ['req.headers.authorization', 'req.headers.cookie'],
+  }),
+)
+app.use(helmet())
+app.use(cors(corsOptions))
+app.use(compression())
+app.use(express.json({ limit: env.REQUEST_BODY_LIMIT }))
+app.use(express.urlencoded({ extended: false, limit: env.REQUEST_BODY_LIMIT }))
+
+app.post('/api/v1/public/inquiries', publicWriteLimiter)
+app.post('/api/v1/public/newsletter-subscriptions', publicWriteLimiter)
+app.post('/api/v1/public/itinerary/sessions', publicWriteLimiter)
+app.post('/api/v1/public/itinerary/:sessionToken/items', publicWriteLimiter)
+app.delete('/api/v1/public/itinerary/:sessionToken/items/:itemId', publicWriteLimiter)
+
+app.use('/api/v1', routes)
+
+app.use(notFound)
+app.use(errorHandler)
+
+module.exports = app
