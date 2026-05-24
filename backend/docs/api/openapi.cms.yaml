@@ -1,0 +1,387 @@
+openapi: 3.0.3
+info:
+  title: CaliTourSys CMS API
+  version: 1.0.0
+  description: Protected CMS API contract for Phase 07D foundation endpoints.
+servers:
+  - url: http://localhost:5000/api/v1
+security:
+  - BearerAuth: []
+tags:
+  - name: CMS Foundation
+  - name: CMS Audit Logs
+paths:
+  /cms/health:
+    get:
+      tags:
+        - CMS Foundation
+      summary: Protected CMS health check
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: CMS health response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CmsHealth"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /cms/dashboard:
+    get:
+      tags:
+        - CMS Foundation
+      summary: CMS dashboard summary
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Dashboard summary counts and recent audit logs
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CmsDashboardSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /cms/navigation:
+    get:
+      tags:
+        - CMS Foundation
+      summary: Permission-filtered CMS navigation
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Navigation items allowed for the authenticated user
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/CmsNavigationItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /cms/audit-logs:
+    get:
+      tags:
+        - CMS Audit Logs
+      summary: Safe paginated audit log list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: action
+          in: query
+          schema:
+            $ref: "#/components/schemas/AuditActionType"
+        - name: entityType
+          in: query
+          schema:
+            $ref: "#/components/schemas/CmsEntityType"
+      responses:
+        "200":
+          description: Paginated safe audit log list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CmsAuditLogItem"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Unauthorized:
+      description: Authentication required or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: Missing required permission
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    SuccessEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        meta:
+          $ref: "#/components/schemas/Meta"
+    PaginatedEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items: {}
+        meta:
+          allOf:
+            - $ref: "#/components/schemas/Meta"
+            - type: object
+              properties:
+                pagination:
+                  $ref: "#/components/schemas/Pagination"
+    ErrorEnvelope:
+      type: object
+      required:
+        - success
+        - error
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          required:
+            - code
+            - message
+            - details
+          properties:
+            code:
+              type: string
+              example: UNAUTHENTICATED
+            message:
+              type: string
+            details:
+              type: array
+              items: {}
+        meta:
+          $ref: "#/components/schemas/Meta"
+    Meta:
+      type: object
+      required:
+        - requestId
+        - timestamp
+      properties:
+        requestId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    Pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - totalItems
+        - totalPages
+        - hasNextPage
+        - hasPreviousPage
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalItems:
+          type: integer
+        totalPages:
+          type: integer
+        hasNextPage:
+          type: boolean
+        hasPreviousPage:
+          type: boolean
+    CmsHealth:
+      type: object
+      required:
+        - status
+        - service
+        - version
+        - authenticated
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: CaliTourSys CMS API
+        version:
+          type: string
+          example: v1
+        authenticated:
+          type: boolean
+    CmsDashboardSummary:
+      type: object
+      properties:
+        totalProducts:
+          type: integer
+        publishedProducts:
+          type: integer
+        draftProducts:
+          type: integer
+        totalEvents:
+          type: integer
+        publishedEvents:
+          type: integer
+        totalDestinations:
+          type: integer
+        publishedDestinations:
+          type: integer
+        totalBusinesses:
+          type: integer
+        activeBusinesses:
+          type: integer
+        totalMuseumArtifacts:
+          type: integer
+        publishedMuseumArtifacts:
+          type: integer
+        pendingInquiries:
+          type: integer
+        newsletterSubscribers:
+          type: integer
+        recentAuditLogs:
+          type: array
+          items:
+            $ref: "#/components/schemas/CmsAuditLogItem"
+    CmsNavigationItem:
+      type: object
+      required:
+        - key
+        - label
+        - path
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        path:
+          type: string
+    CmsAuditLogItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          $ref: "#/components/schemas/AuditActionType"
+        entityType:
+          $ref: "#/components/schemas/CmsEntityType"
+        entityId:
+          type: string
+          format: uuid
+          nullable: true
+        entityLabel:
+          type: string
+          nullable: true
+        actor:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            displayName:
+              type: string
+        requestId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    AuditActionType:
+      type: string
+      enum:
+        - create
+        - update
+        - publish
+        - archive
+        - delete
+        - restore
+        - login
+        - logout
+        - failed_login
+        - password_change
+        - permission_change
+    CmsEntityType:
+      type: string
+      enum:
+        - product
+        - promotion
+        - event
+        - destination
+        - business
+        - map_location
+        - museum_artifact
+        - media_asset
+        - inquiry
+        - newsletter_subscriber
+        - user
+        - role
+        - permission
+
