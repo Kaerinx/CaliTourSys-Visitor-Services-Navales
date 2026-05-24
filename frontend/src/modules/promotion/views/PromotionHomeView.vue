@@ -1,5 +1,13 @@
 <script setup>
-const products = [
+import { onMounted, ref } from 'vue'
+import {
+  getEvents,
+  getMapLocations,
+  getPromotionalProducts,
+} from '../services/promotionService'
+import { useNewsletterForm } from '../composables/useNewsletterForm'
+
+const products = ref([
   {
     id: 'pili-candy',
     name: 'Pili Nut Brittle (Glazed)',
@@ -36,9 +44,9 @@ const products = [
     accent: '#D4711B',
     accredited: true,
   },
-]
+])
 
-const events = [
+const events = ref([
   {
     id: 'pili-fest',
     title: 'Pili Festival 2026',
@@ -69,15 +77,19 @@ const events = [
     accent: '#7B341E',
     desc: 'Walking tour of murals, weaving demos, and the 18th-century Quipayo church bell tower.',
   },
-]
+])
 
-const locations = [
+const locations = ref([
   { id: 'sabang', name: 'Sabang Beach', color: '#1565C0', distance: '4.2 km', x: 42, y: 40 },
   { id: 'quipayo', name: 'Quipayo Old Church', color: '#7B341E', distance: '2.1 km', x: 56, y: 30 },
   { id: 'belen', name: 'Belen Pottery Village', color: '#7B341E', distance: '6.8 km', x: 70, y: 60 },
   { id: 'isarog', name: 'Mt. Isarog Foothills', color: '#1B7A4A', distance: '9.4 km', x: 82, y: 20 },
   { id: 'market', name: 'Calabanga Public Market', color: '#B5451B', distance: '0.6 km', x: 58, y: 72 },
-]
+])
+
+const isLoading = ref(true)
+const errorMessage = ref('')
+const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
 
 const quickCategories = [
   { label: 'Nature', helper: 'Browse nature', icon: 'leaf' },
@@ -92,6 +104,29 @@ const filters = [
   { label: 'Cultural Sites', count: 12, active: false, color: '#7B341E' },
   { label: 'Food & Markets', count: 9, active: true, color: '#B5451B' },
 ]
+
+async function loadHomeData() {
+  isLoading.value = true
+  errorMessage.value = ''
+
+  try {
+    const [productData, eventData, locationData] = await Promise.all([
+      getPromotionalProducts({ featured: true, limit: 8 }),
+      getEvents({ featured: true, limit: 4 }),
+      getMapLocations({ format: 'list' }),
+    ])
+
+    products.value = productData
+    events.value = eventData
+    locations.value = locationData.slice(0, 5)
+  } catch (error) {
+    errorMessage.value = error.message || 'Unable to load public tourism content.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(loadHomeData)
 </script>
 
 <template>
@@ -116,13 +151,15 @@ const filters = [
         </nav>
 
         <div class="site-nav__actions">
-          <button class="icon-button" aria-label="Search">
+          <button class="icon-button" type="button" aria-label="Search planned for later" disabled>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="11" cy="11" r="7" />
               <path d="m20 20-3.2-3.2" />
             </svg>
           </button>
-          <button class="login-button">Login</button>
+          <button class="login-button" type="button" disabled title="Public login is planned for a later phase">
+            Public Site
+          </button>
           <button class="icon-button icon-button--menu" aria-label="Menu">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
@@ -154,6 +191,11 @@ const filters = [
             </div>
           </div>
         </div>
+      </section>
+
+      <section v-if="isLoading || errorMessage" class="api-status page-shell">
+        <p v-if="isLoading">Loading the latest public tourism content...</p>
+        <p v-else>{{ errorMessage }}</p>
       </section>
 
       <section class="quick-strip" aria-label="Quick discovery categories">
@@ -200,13 +242,20 @@ const filters = [
           </div>
 
           <div class="product-grid product-grid--three">
+            <p v-if="!isLoading && products.length === 0" class="empty-copy">No featured products are available yet.</p>
             <RouterLink
               v-for="product in products.slice(0, 3)"
               :key="product.id"
               :to="`/promotion/products/${product.id}`"
               class="product-card"
             >
-              <span class="product-card__image" :style="{ '--card-accent': product.accent }">
+              <span
+                class="product-card__image"
+                :style="{
+                  '--card-accent': product.accent,
+                  backgroundImage: product.imageUrl ? `url(${product.imageUrl})` : undefined,
+                }"
+              >
                 <span v-if="product.accredited" class="accreditation-badge">
                   <span></span>
                   LGU Accredited
@@ -311,7 +360,13 @@ const filters = [
               :to="`/promotion/products/${product.id}`"
               class="product-card"
             >
-              <span class="product-card__image" :style="{ '--card-accent': product.accent }">
+              <span
+                class="product-card__image"
+                :style="{
+                  '--card-accent': product.accent,
+                  backgroundImage: product.imageUrl ? `url(${product.imageUrl})` : undefined,
+                }"
+              >
                 <span v-if="product.accredited" class="accreditation-badge">
                   <span></span>
                   LGU Accredited
@@ -345,8 +400,15 @@ const filters = [
           </div>
 
           <div class="event-grid">
+            <p v-if="!isLoading && events.length === 0" class="empty-copy">No upcoming events are available yet.</p>
             <RouterLink v-for="event in events" :key="event.id" to="/promotion/events" class="event-card">
-              <span class="event-card__image" :style="{ '--event-accent': event.accent }">
+              <span
+                class="event-card__image"
+                :style="{
+                  '--event-accent': event.accent,
+                  backgroundImage: event.imageUrl ? `url(${event.imageUrl})` : undefined,
+                }"
+              >
                 <span class="date-badge">
                   <strong>{{ event.day }}</strong>
                   <small>{{ event.month }}</small>
@@ -423,10 +485,13 @@ const filters = [
         <div>
           <h4>Stay updated</h4>
           <p>Festival dates, new producers, and seasonal guides - once a month.</p>
-          <form class="subscribe-form">
-            <input aria-label="Email address" placeholder="you@email.com" />
-            <button type="button">Join</button>
+          <form class="subscribe-form" @submit.prevent="submitNewsletter">
+            <input v-model="newsletterEmail" aria-label="Email address" placeholder="you@email.com" />
+            <button type="submit" :disabled="isSubscribing">
+              {{ isSubscribing ? 'Joining...' : 'Join' }}
+            </button>
           </form>
+          <p v-if="newsletterMessage" class="footer-message">{{ newsletterMessage }}</p>
         </div>
       </div>
 
@@ -592,6 +657,11 @@ input {
   background: #f2f0eb;
 }
 
+.icon-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .icon-button svg {
   width: 22px;
   height: 22px;
@@ -618,6 +688,11 @@ input {
 
 .login-button:hover {
   background: #d8f3dc;
+}
+
+.login-button:disabled {
+  cursor: default;
+  opacity: 0.72;
 }
 
 .hero-section {
@@ -818,6 +893,21 @@ h1 {
   padding: 80px 0;
 }
 
+.api-status,
+.empty-copy {
+  color: #5c5c5c;
+  font-size: 14px;
+}
+
+.api-status {
+  padding: 18px 0 0;
+}
+
+.empty-copy {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 .content-section--white {
   background: #ffffff;
 }
@@ -900,6 +990,8 @@ h1 {
 
 .product-card__image {
   aspect-ratio: 4 / 3;
+  background-position: center;
+  background-size: cover;
 }
 
 .accreditation-badge {
@@ -1186,6 +1278,8 @@ h1 {
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.3), transparent 50%),
     linear-gradient(135deg, var(--event-accent), color-mix(in srgb, var(--event-accent) 65%, white));
+  background-position: center;
+  background-size: cover;
 }
 
 .date-badge {
@@ -1388,6 +1482,17 @@ h1 {
   color: #1b4332;
   font-size: 13px;
   font-weight: 500;
+}
+
+.subscribe-form button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.footer-message {
+  margin-top: 10px !important;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px !important;
 }
 
 .site-footer__bottom {

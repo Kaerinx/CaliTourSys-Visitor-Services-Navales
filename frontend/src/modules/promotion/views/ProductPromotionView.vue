@@ -1,9 +1,11 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { getPromotionalProducts } from '../services/promotionService'
+import { useNewsletterForm } from '../composables/useNewsletterForm'
 
 const chips = ['All', 'Sweets', 'Crafts', 'Pantry', 'Textiles', 'Beverages', 'Skincare']
 
-const products = [
+const products = ref([
   {
     id: 'pili-candy',
     name: 'Pili Nut Brittle (Glazed)',
@@ -85,20 +87,21 @@ const products = [
     accent: '#D4AC0D',
     accredited: true,
   },
-]
+])
 
 const searchQuery = ref('')
 const activeChip = ref('All')
 const isLoading = ref(false)
 const errorMessage = ref('')
 const showEmptyPreview = ref(false)
+const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
 
 const filteredProducts = computed(() => {
   if (showEmptyPreview.value) return []
 
   const query = searchQuery.value.trim().toLowerCase()
 
-  return products.filter((product) => {
+  return products.value.filter((product) => {
     const matchesCategory = activeChip.value === 'All' || product.category === activeChip.value
     const matchesQuery =
       !query ||
@@ -121,6 +124,21 @@ function clearFilters() {
   activeChip.value = 'All'
   showEmptyPreview.value = false
 }
+
+async function loadProducts() {
+  isLoading.value = true
+  errorMessage.value = ''
+
+  try {
+    products.value = await getPromotionalProducts({ limit: 50, sort: 'featured' })
+  } catch (error) {
+    errorMessage.value = error.message || 'Unable to load public products.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(loadProducts)
 </script>
 
 <template>
@@ -147,13 +165,15 @@ function clearFilters() {
         </nav>
 
         <div class="site-nav__actions">
-          <button class="icon-button" aria-label="Search">
+          <button class="icon-button" type="button" aria-label="Search planned for later" disabled>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="11" cy="11" r="7" />
               <path d="m20 20-3.2-3.2" />
             </svg>
           </button>
-          <button class="login-button">Login</button>
+          <button class="login-button" type="button" disabled title="Public login is planned for a later phase">
+            Public Site
+          </button>
           <button class="icon-button icon-button--menu" aria-label="Menu">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
@@ -183,13 +203,13 @@ function clearFilters() {
               </svg>
               <input v-model="searchQuery" placeholder="Search products..." />
             </label>
-            <button class="toolbar-button">
+            <button class="toolbar-button" type="button" disabled title="Sorting will be connected in a later phase">
               Sort: Featured
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m6 9 6 6 6-6" />
               </svg>
             </button>
-            <button class="toolbar-button">
+            <button class="toolbar-button" type="button" disabled title="Advanced filters will be connected in a later phase">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" />
                 <path d="M14 4v4M8 10v4M16 16v4" />
@@ -212,9 +232,6 @@ function clearFilters() {
                 {{ chip }}
               </button>
             </div>
-            <button class="empty-preview" @click="showEmptyPreview = !showEmptyPreview">
-              {{ showEmptyPreview ? 'Show results' : 'Preview empty state' }}
-            </button>
           </div>
         </div>
       </section>
@@ -258,7 +275,13 @@ function clearFilters() {
               :to="`/promotion/products/${product.id}`"
               class="product-card"
             >
-              <span class="product-card__image" :style="{ '--card-accent': product.accent }">
+              <span
+                class="product-card__image"
+                :style="{
+                  '--card-accent': product.accent,
+                  backgroundImage: product.imageUrl ? `url(${product.imageUrl})` : undefined,
+                }"
+              >
                 <span v-if="product.accredited" class="accreditation-badge">
                   <span></span>
                   LGU Accredited
@@ -332,10 +355,13 @@ function clearFilters() {
         <div>
           <h4>Stay updated</h4>
           <p>Festival dates, new producers, and seasonal guides - once a month.</p>
-          <form class="subscribe-form">
-            <input aria-label="Email address" placeholder="you@email.com" />
-            <button type="button">Join</button>
+          <form class="subscribe-form" @submit.prevent="submitNewsletter">
+            <input v-model="newsletterEmail" aria-label="Email address" placeholder="you@email.com" />
+            <button type="submit" :disabled="isSubscribing">
+              {{ isSubscribing ? 'Joining...' : 'Join' }}
+            </button>
           </form>
+          <p v-if="newsletterMessage" class="footer-message">{{ newsletterMessage }}</p>
         </div>
       </div>
 
@@ -501,6 +527,11 @@ input {
   background: #f2f0eb;
 }
 
+.icon-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .icon-button svg,
 .toolbar-button svg,
 .search-field svg {
@@ -632,6 +663,12 @@ h1 {
   border-color: #1b4332;
 }
 
+.toolbar-button:disabled,
+.login-button:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
 .toolbar-button svg {
   width: 16px;
   height: 16px;
@@ -744,6 +781,8 @@ h1 {
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.26), transparent 40%),
     radial-gradient(circle at 70% 70%, rgba(0, 0, 0, 0.18), transparent 50%),
     linear-gradient(135deg, var(--card-accent), color-mix(in srgb, var(--card-accent) 62%, white));
+  background-position: center;
+  background-size: cover;
 }
 
 .product-card--loading .product-card__image {
@@ -1054,6 +1093,17 @@ h1 {
   color: #1b4332;
   font-size: 13px;
   font-weight: 500;
+}
+
+.subscribe-form button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.footer-message {
+  margin-top: 10px !important;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px !important;
 }
 
 .site-footer__bottom {

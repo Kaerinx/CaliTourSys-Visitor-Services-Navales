@@ -1,8 +1,15 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { removeFromItinerary, saveToItinerary, sharePublicItem } from '../services/promotionService'
+import { computed, onMounted, ref } from 'vue'
+import {
+  getEvents,
+  loadItinerary,
+  removeFromItinerary,
+  saveToItinerary,
+  sharePublicItem,
+} from '../services/promotionService'
+import { useNewsletterForm } from '../composables/useNewsletterForm'
 
-const events = [
+const events = ref([
   {
     id: 'pili-fest',
     title: 'Pili Festival 2026',
@@ -45,23 +52,27 @@ const events = [
     accent: '#1B7A4A',
     desc: 'Join farmers in the planting season ritual followed by a community feast in the rice paddies of Belen.',
   },
-]
+])
 
-const featuredEvent = events[0]
-const eventCards = events.slice(1)
+const featuredEvent = computed(() => events.value[0] || null)
+const eventCards = computed(() => events.value.slice(1))
 const viewMode = ref('list')
 const selectedEvent = ref(null)
 const savedEventIds = ref(new Set())
 const feedbackMessage = ref('')
 const isSaving = ref(false)
+const isLoading = ref(true)
+const errorMessage = ref('')
+const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const calendarEvents = [
-  { day: 2, title: 'Rice Harvest Thanksgiving', highlighted: false },
-  { day: 8, title: 'San Miguel Bay Regatta', highlighted: true },
-  { day: 15, title: 'Quipayo Heritage Art Walk', highlighted: false },
-  { day: 24, title: 'Pili Festival 2026', highlighted: true },
-]
+const calendarEvents = computed(() =>
+  events.value.map((event) => ({
+    day: Number(event.day),
+    title: event.title,
+    highlighted: Boolean(event.featured),
+  })),
+)
 
 const calendarCells = computed(() => {
   const leadingCells = Array.from({ length: 5 }, (_, index) => ({
@@ -71,7 +82,7 @@ const calendarCells = computed(() => {
 
   const dayCells = Array.from({ length: 30 }, (_, index) => {
     const day = index + 1
-    const event = calendarEvents.find((item) => item.day === day)
+    const event = calendarEvents.value.find((item) => item.day === day)
 
     return {
       key: `day-${day}`,
@@ -86,27 +97,50 @@ const calendarCells = computed(() => {
 function openCalendarEvent(cell) {
   if (!cell.event) return
 
-  const event = events.find((item) => item.title === cell.event.title)
+  const event = events.value.find((item) => item.title === cell.event.title)
   if (event) selectedEvent.value = event
+}
+
+async function loadEvents() {
+  isLoading.value = true
+  errorMessage.value = ''
+
+  try {
+    events.value = await getEvents({ limit: 12, sort: 'startsAt' })
+    const itinerary = await loadItinerary()
+    savedEventIds.value = new Set(
+      itinerary.items
+        .filter((item) => item.itemType === 'event')
+        .map((item) => item.summary?.slug || item.itemId || item.targetId),
+    )
+  } catch (error) {
+    errorMessage.value = error.message || 'Unable to load public events.'
+  } finally {
+    isLoading.value = false
+  }
 }
 
 async function toggleEventItinerary(event) {
   isSaving.value = true
   feedbackMessage.value = ''
 
-  if (savedEventIds.value.has(event.id)) {
-    await removeFromItinerary({ id: event.id, type: 'event' })
-    const next = new Set(savedEventIds.value)
-    next.delete(event.id)
-    savedEventIds.value = next
-    feedbackMessage.value = 'Removed from itinerary'
-  } else {
-    await saveToItinerary({ id: event.id, type: 'event', title: event.title })
-    savedEventIds.value = new Set([...savedEventIds.value, event.id])
-    feedbackMessage.value = 'Saved to itinerary'
+  try {
+    if (savedEventIds.value.has(event.id)) {
+      await removeFromItinerary({ id: event.id, apiId: event.apiId, type: 'event' })
+      const next = new Set(savedEventIds.value)
+      next.delete(event.id)
+      savedEventIds.value = next
+      feedbackMessage.value = 'Removed from itinerary'
+    } else {
+      await saveToItinerary({ id: event.id, apiId: event.apiId, type: 'event', title: event.title })
+      savedEventIds.value = new Set([...savedEventIds.value, event.id])
+      feedbackMessage.value = 'Saved to itinerary'
+    }
+  } catch (error) {
+    feedbackMessage.value = error.message || 'Unable to update itinerary'
+  } finally {
+    isSaving.value = false
   }
-
-  isSaving.value = false
 }
 
 async function shareEvent(event) {
@@ -119,6 +153,8 @@ async function shareEvent(event) {
   feedbackMessage.value =
     result.method === 'clipboard' ? 'Event link copied' : 'Share action ready'
 }
+
+onMounted(loadEvents)
 </script>
 
 <template>
@@ -143,13 +179,15 @@ async function shareEvent(event) {
         </nav>
 
         <div class="site-nav__actions">
-          <button class="icon-button" aria-label="Search">
+          <button class="icon-button" type="button" aria-label="Search planned for later" disabled>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="11" cy="11" r="7" />
               <path d="m20 20-3.2-3.2" />
             </svg>
           </button>
-          <button class="login-button">Login</button>
+          <button class="login-button" type="button" disabled title="Public login is planned for a later phase">
+            Public Site
+          </button>
           <button class="icon-button icon-button--menu" aria-label="Menu">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
@@ -199,7 +237,11 @@ async function shareEvent(event) {
 
       <section class="events-content">
         <div class="page-shell">
-          <article class="featured-event" :style="{ '--event-accent': featuredEvent.accent }">
+          <div v-if="isLoading" class="event-state">Loading public events...</div>
+          <div v-else-if="errorMessage" class="event-state">{{ errorMessage }}</div>
+          <div v-else-if="events.length === 0" class="event-state">No public events are available yet.</div>
+
+          <article v-else class="featured-event" :style="{ '--event-accent': featuredEvent.accent }">
             <div class="featured-event__copy">
               <span class="featured-badge"><i></i>Featured</span>
               <h2>{{ featuredEvent.title }}</h2>
@@ -219,7 +261,7 @@ async function shareEvent(event) {
                 <button class="button button--white" @click="selectedEvent = featuredEvent">
                   View event details
                 </button>
-                <button class="button button--ghost-white" @click="toggleEventItinerary(featuredEvent)">
+                <button class="button button--ghost-white" :disabled="isSaving" @click="toggleEventItinerary(featuredEvent)">
                   {{ savedEventIds.has(featuredEvent.id) ? 'Saved' : 'Add to itinerary' }}
                 </button>
               </div>
@@ -267,7 +309,13 @@ async function shareEvent(event) {
 
           <div v-else class="event-grid">
             <article v-for="event in eventCards" :key="event.id" class="event-card">
-              <div class="event-card__image" :style="{ '--card-accent': event.accent }">
+              <div
+                class="event-card__image"
+                :style="{
+                  '--card-accent': event.accent,
+                  backgroundImage: event.imageUrl ? `url(${event.imageUrl})` : undefined,
+                }"
+              >
                 <span class="date-badge">
                   <strong>{{ event.day }}</strong>
                   <small>{{ event.month }}</small>
@@ -286,7 +334,7 @@ async function shareEvent(event) {
                 <p class="event-desc">{{ event.desc }}</p>
                 <div class="event-card__actions">
                   <button @click="selectedEvent = event">View event -&gt;</button>
-                  <button @click="toggleEventItinerary(event)">
+                  <button :disabled="isSaving" @click="toggleEventItinerary(event)">
                     {{ savedEventIds.has(event.id) ? 'Saved' : 'Save' }}
                   </button>
                   <button @click="shareEvent(event)">Share</button>
@@ -334,7 +382,7 @@ async function shareEvent(event) {
           </p>
           <div class="event-modal__actions">
             <button class="event-modal__close-action" @click="selectedEvent = null">Close</button>
-            <button class="event-modal__calendar-action" @click="toggleEventItinerary(selectedEvent)">
+            <button class="event-modal__calendar-action" :disabled="isSaving" @click="toggleEventItinerary(selectedEvent)">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M7 3v4M17 3v4M4 8h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2Z" />
                 <path d="M12 12v5M9.5 14.5h5" />
@@ -393,10 +441,13 @@ async function shareEvent(event) {
         <div>
           <h4>Stay updated</h4>
           <p>Festival dates, new producers, and seasonal guides - once a month.</p>
-          <form class="subscribe-form">
-            <input aria-label="Email address" placeholder="you@email.com" />
-            <button type="button">Join</button>
+          <form class="subscribe-form" @submit.prevent="submitNewsletter">
+            <input v-model="newsletterEmail" aria-label="Email address" placeholder="you@email.com" />
+            <button type="submit" :disabled="isSubscribing">
+              {{ isSubscribing ? 'Joining...' : 'Join' }}
+            </button>
           </form>
+          <p v-if="newsletterMessage" class="footer-message">{{ newsletterMessage }}</p>
         </div>
       </div>
 
@@ -562,6 +613,11 @@ input {
   background: #f2f0eb;
 }
 
+.icon-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .icon-button svg,
 .view-toggle svg,
 .featured-event svg,
@@ -591,6 +647,11 @@ input {
 
 .login-button:hover {
   background: #d8f3dc;
+}
+
+.login-button:disabled {
+  cursor: default;
+  opacity: 0.72;
 }
 
 .events-header {
@@ -678,6 +739,15 @@ h1 {
 .events-content {
   padding: 40px 0 120px;
   background: #f2f0eb;
+}
+
+.event-state {
+  padding: 28px 24px;
+  border: 1px solid #e8e4dc;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #5c5c5c;
+  font-size: 14px;
 }
 
 .featured-event {
@@ -788,6 +858,13 @@ h1 {
   border: 1.5px solid #ffffff;
   background: transparent;
   color: #ffffff;
+}
+
+.button:disabled,
+.event-card__actions button:disabled,
+.event-modal__actions button:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .featured-date {
@@ -963,6 +1040,8 @@ h1 {
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.3), transparent 50%),
     linear-gradient(135deg, var(--card-accent), color-mix(in srgb, var(--card-accent) 65%, white));
+  background-position: center;
+  background-size: cover;
 }
 
 .date-badge {
@@ -1322,6 +1401,17 @@ h1 {
   color: #1b4332;
   font-size: 13px;
   font-weight: 500;
+}
+
+.subscribe-form button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.footer-message {
+  margin-top: 10px !important;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px !important;
 }
 
 .site-footer__bottom {

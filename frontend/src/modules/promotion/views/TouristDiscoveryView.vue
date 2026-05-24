@@ -1,15 +1,34 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { removeFromItinerary, saveToItinerary, sharePublicItem } from '../services/promotionService'
+import { computed, onMounted, ref } from 'vue'
+import {
+  getDestinations,
+  getMapLocationGeoJson,
+  loadItinerary,
+  removeFromItinerary,
+  saveToItinerary,
+  sharePublicItem,
+} from '../services/promotionService'
+import TouristMapBox from '../components/TouristMapBox.vue'
 
-const categories = [
-  { key: 'Nature', color: '#1B7A4A', count: 2 },
-  { key: 'Beach', color: '#1565C0', count: 1 },
-  { key: 'Food', color: '#B5451B', count: 1 },
-  { key: 'Cultural', color: '#7B341E', count: 2 },
-]
+const mapboxToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || ''
 
-const locations = [
+const categories = computed(() => {
+  const grouped = new Map()
+
+  locations.value.forEach((location) => {
+    const current = grouped.get(location.category) || {
+      key: location.category,
+      color: location.color,
+      count: 0,
+    }
+    current.count += 1
+    grouped.set(location.category, current)
+  })
+
+  return [...grouped.values()]
+})
+
+const locations = ref([
   {
     id: 'sabang',
     name: 'Sabang Beach',
@@ -89,7 +108,7 @@ const locations = [
     x: 24,
     y: 59,
   },
-]
+])
 
 const searchQuery = ref('')
 const selectedId = ref('quipayo')
@@ -104,11 +123,15 @@ const showDetail = ref(false)
 const savedIds = ref(new Set(['sabang']))
 const isSaving = ref(false)
 const feedbackMessage = ref('')
+const isLoading = ref(true)
+const errorMessage = ref('')
+const mapRuntimeError = ref('')
+const mapGeoJson = ref({ type: 'FeatureCollection', features: [] })
 
 const visibleLocations = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
 
-  return locations.filter((location) => {
+  return locations.value.filter((location) => {
     const matchesCategory = enabledCategories.value[location.category]
     const matchesQuery =
       !query ||
@@ -125,6 +148,60 @@ const selectedLocation = computed(
   () => visibleLocations.value.find((location) => location.id === selectedId.value) || visibleLocations.value[0],
 )
 
+const selectedCanBeSaved = computed(() => Boolean(selectedLocation.value?.apiId))
+
+const selectedLocationTypeLabel = computed(() =>
+  selectedLocation.value?.locationType
+    ? selectedLocation.value.locationType.replace('-', ' ')
+    : 'map location',
+)
+
+const visibleMapGeoJson = computed(() => {
+  const visibleIds = new Set(visibleLocations.value.map((location) => location.id))
+
+  return {
+    type: 'FeatureCollection',
+    features: (mapGeoJson.value.features || []).filter((feature) =>
+      visibleIds.has(String(feature.properties?.slug || feature.properties?.id || '')),
+    ),
+  }
+})
+
+function locationFromFeature(feature, index, destinationBySlug) {
+  const properties = feature.properties || {}
+  const coordinates = feature.geometry?.coordinates || []
+  const slug = String(properties.slug || properties.id || `map-location-${index}`)
+  const destination = destinationBySlug.get(slug)
+  const longitude = Number(coordinates[0])
+  const latitude = Number(coordinates[1])
+  const color = properties.markerColor || destination?.color || '#1b4332'
+
+  return {
+    id: slug,
+    apiId: destination?.apiId || null,
+    mapLocationId: properties.id,
+    slug,
+    name: properties.label || destination?.name || 'Tourism location',
+    category: properties.category || destination?.category || properties.locationType || 'Tourism',
+    color,
+    distance: properties.locationType ? properties.locationType.replace('-', ' ') : 'Map-ready',
+    address:
+      Number.isFinite(latitude) && Number.isFinite(longitude)
+        ? `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
+        : 'Calabanga, Camarines Sur',
+    hours: destination?.hours || 'Visiting information to be confirmed',
+    description:
+      properties.description || destination?.description || 'Public map discovery details are being prepared.',
+    x: 24 + ((index * 17) % 58),
+    y: 24 + ((index * 23) % 52),
+    latitude,
+    longitude,
+    locationType: properties.locationType,
+    imageUrl: properties.primaryImage || destination?.imageUrl,
+    accredited: true,
+  }
+}
+
 function selectLocation(id) {
   selectedId.value = id
 }
@@ -138,31 +215,77 @@ function toggleCategory(category) {
 
 function resetFilters() {
   searchQuery.value = ''
-  enabledCategories.value = {
-    Nature: true,
-    Beach: true,
-    Food: true,
-    Cultural: true,
-  }
+  enabledCategories.value = Object.fromEntries(categories.value.map((category) => [category.key, true]))
   accreditedOnly.value = true
+}
+
+async function loadLocations() {
+  isLoading.value = true
+  errorMessage.value = ''
+  mapRuntimeError.value = ''
+
+  try {
+    const [geoJsonData, destinationData] = await Promise.all([
+      getMapLocationGeoJson(),
+      getDestinations({ limit: 50 }),
+    ])
+    const destinationBySlug = new Map(destinationData.map((destination) => [destination.id, destination]))
+    const locationData = (geoJsonData.features || []).map((feature, index) =>
+      locationFromFeature(feature, index, destinationBySlug),
+    )
+
+    mapGeoJson.value = geoJsonData
+    locations.value = locationData
+    enabledCategories.value = Object.fromEntries(
+      [...new Set(locationData.map((location) => location.category))].map((category) => [category, true]),
+    )
+    selectedId.value = locationData[0]?.id || ''
+    const itinerary = await loadItinerary()
+    savedIds.value = new Set(
+      itinerary.items
+        .filter((item) => item.itemType === 'destination')
+        .map((item) => item.summary?.slug || item.itemId || item.targetId),
+    )
+  } catch (error) {
+    errorMessage.value = error.message || 'Unable to load public map locations.'
+  } finally {
+    isLoading.value = false
+  }
 }
 
 async function toggleItinerary(location) {
   if (!location) return
+  if (!location.apiId) {
+    feedbackMessage.value = 'This map location is not available for itinerary saving yet.'
+    return
+  }
 
   isSaving.value = true
   feedbackMessage.value = ''
 
   if (savedIds.value.has(location.id)) {
-    await removeFromItinerary({ id: location.id, type: 'destination' })
-    const next = new Set(savedIds.value)
-    next.delete(location.id)
-    savedIds.value = next
-    feedbackMessage.value = 'Removed from itinerary'
+    try {
+      await removeFromItinerary({ id: location.id, apiId: location.apiId, type: 'destination' })
+      const next = new Set(savedIds.value)
+      next.delete(location.id)
+      savedIds.value = next
+      feedbackMessage.value = 'Removed from itinerary'
+    } catch (error) {
+      feedbackMessage.value = error.message || 'Unable to update itinerary'
+    }
   } else {
-    await saveToItinerary({ id: location.id, type: 'destination', title: location.name })
-    savedIds.value = new Set([...savedIds.value, location.id])
-    feedbackMessage.value = 'Saved to itinerary'
+    try {
+      await saveToItinerary({
+        id: location.id,
+        apiId: location.apiId,
+        type: 'destination',
+        title: location.name,
+      })
+      savedIds.value = new Set([...savedIds.value, location.id])
+      feedbackMessage.value = 'Saved to itinerary'
+    } catch (error) {
+      feedbackMessage.value = error.message || 'Unable to update itinerary'
+    }
   }
 
   isSaving.value = false
@@ -186,6 +309,8 @@ function getDirections(location) {
 
   feedbackMessage.value = `Directions ready for ${location.name}`
 }
+
+onMounted(loadLocations)
 </script>
 
 <template>
@@ -210,13 +335,15 @@ function getDirections(location) {
         </nav>
 
         <div class="site-nav__actions">
-          <button class="icon-button" aria-label="Search">
+          <button class="icon-button" type="button" aria-label="Search planned for later" disabled>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="11" cy="11" r="7" />
               <path d="m20 20-3.2-3.2" />
             </svg>
           </button>
-          <button class="login-button">Login</button>
+          <button class="login-button" type="button" disabled title="Public login is planned for a later phase">
+            Public Site
+          </button>
           <button class="icon-button icon-button--menu" aria-label="Menu">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
@@ -246,11 +373,20 @@ function getDirections(location) {
           </div>
 
           <div class="filter-list">
-            <label v-for="category in categories" :key="category.key" class="filter-row">
+            <label
+              v-for="category in categories"
+              :key="category.key"
+              class="filter-row"
+              role="checkbox"
+              tabindex="0"
+              :aria-checked="Boolean(enabledCategories[category.key])"
+              @click="toggleCategory(category.key)"
+              @keydown.enter.prevent="toggleCategory(category.key)"
+              @keydown.space.prevent="toggleCategory(category.key)"
+            >
               <span
                 class="fake-checkbox"
                 :class="{ 'fake-checkbox--off': !enabledCategories[category.key] }"
-                @click="toggleCategory(category.key)"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m5 12 4 4L19 6" />
@@ -278,9 +414,11 @@ function getDirections(location) {
         </section>
 
         <section class="results-block">
-          <p>Showing {{ visibleLocations.length }} locations</p>
+          <p v-if="isLoading">Loading public locations...</p>
+          <p v-else-if="errorMessage">{{ errorMessage }}</p>
+          <p v-else>Showing {{ visibleLocations.length }} locations</p>
           <div class="result-list">
-            <div v-if="visibleLocations.length === 0" class="map-empty-state">
+            <div v-if="!isLoading && visibleLocations.length === 0" class="map-empty-state">
               <strong>No locations found</strong>
               <span>Try another search or reset filters.</span>
             </div>
@@ -304,64 +442,75 @@ function getDirections(location) {
         </section>
       </aside>
 
-      <section class="map-area" aria-label="Map-ready visual placeholder">
+      <section class="map-area" aria-label="Interactive tourist map">
+        <TouristMapBox
+          :access-token="mapboxToken"
+          :feature-collection="visibleMapGeoJson"
+          :selected-id="selectedLocation?.id || ''"
+          :loading="isLoading"
+          :error="errorMessage"
+          @select="selectLocation"
+          @map-error="mapRuntimeError = $event"
+        />
+
         <div class="map-badge">
           <strong>Calabanga</strong>
           <span>&middot; Camarines Sur</span>
         </div>
 
         <div class="map-actions">
-          <button>
+          <button type="button" disabled title="Map layers will be refined in a later phase">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 5h16l-6.5 7.2V18l-3 1v-6.8L4 5Z" />
             </svg>
-            Layers
+            Mapbox
           </button>
           <RouterLink to="/promotion/products">Browse Products</RouterLink>
         </div>
 
-        <button
-          v-for="location in visibleLocations"
-          :key="location.id"
-          class="map-pin"
-          :class="{ 'map-pin--selected': location.id === selectedLocation?.id }"
-          :style="{ left: `${location.x}%`, top: `${location.y}%`, '--pin-color': location.color }"
-          :aria-label="location.name"
-          @click="selectLocation(location.id)"
-        >
-          <svg viewBox="0 0 28 36" aria-hidden="true">
-            <path d="M14 0C6.27 0 0 6.27 0 14c0 9.5 14 22 14 22s14-12.5 14-22C28 6.27 21.73 0 14 0z" />
-            <circle cx="14" cy="14" r="5" />
-          </svg>
-        </button>
-
-        <div class="cluster-marker">12</div>
-
         <article
           v-if="selectedLocation"
-          class="location-popup"
-          :style="{ left: `${selectedLocation.x + 5}%`, top: `${selectedLocation.y - 2}%` }"
+          class="map-selection-panel"
+          aria-live="polite"
         >
-          <div class="location-popup__image" :style="{ '--popup-color': selectedLocation.color }">
-            <button aria-label="Close">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </button>
-            <span class="accreditation-badge"><span></span>LGU Accredited</span>
+          <div
+            class="map-selection-panel__image"
+            :style="{
+              '--popup-color': selectedLocation.color,
+              backgroundImage: selectedLocation.imageUrl ? `url(${selectedLocation.imageUrl})` : undefined,
+            }"
+          >
+            <span v-if="selectedLocation.accredited" class="accreditation-badge"><span></span>LGU Accredited</span>
           </div>
-          <div class="location-popup__body">
+          <div class="map-selection-panel__body">
             <h2>{{ selectedLocation.name }}</h2>
             <div class="popup-meta">
               <span class="category-badge">{{ selectedLocation.category }}</span>
-              <span>{{ selectedLocation.distance }}</span>
+              <span>{{ selectedLocationTypeLabel }}</span>
             </div>
-            <div class="popup-actions">
-              <button @click="showDetail = true">View details -&gt;</button>
-              <button @click="toggleItinerary(selectedLocation)">
-                {{ savedIds.has(selectedLocation.id) ? 'Saved' : 'Save' }}
+            <p>{{ selectedLocation.description }}</p>
+            <div class="map-selection-panel__actions">
+              <button type="button" class="map-selection-panel__primary" @click="showDetail = true">
+                View details
+                <span aria-hidden="true">-&gt;</span>
               </button>
-              <button @click="shareLocation(selectedLocation)">Share</button>
+              <button
+                type="button"
+                class="map-selection-panel__secondary"
+                :disabled="isSaving || !selectedCanBeSaved"
+                @click="toggleItinerary(selectedLocation)"
+              >
+                {{
+                  selectedCanBeSaved
+                    ? savedIds.has(selectedLocation.id)
+                      ? 'Saved'
+                      : 'Save'
+                    : 'Save unavailable'
+                }}
+              </button>
+              <button type="button" class="map-selection-panel__secondary" @click="shareLocation(selectedLocation)">
+                Share
+              </button>
             </div>
           </div>
         </article>
@@ -373,13 +522,20 @@ function getDirections(location) {
           </span>
         </div>
 
+        <div v-if="mapRuntimeError" class="feedback-toast feedback-toast--warning">{{ mapRuntimeError }}</div>
         <div v-if="feedbackMessage" class="feedback-toast">{{ feedbackMessage }}</div>
       </section>
 
       <div v-if="showDetail && selectedLocation" class="detail-backdrop" @click="showDetail = false"></div>
 
       <aside v-if="showDetail && selectedLocation" class="detail-drawer">
-        <div class="detail-drawer__hero" :style="{ '--drawer-color': selectedLocation.color }">
+        <div
+          class="detail-drawer__hero"
+          :style="{
+            '--drawer-color': selectedLocation.color,
+            backgroundImage: selectedLocation.imageUrl ? `url(${selectedLocation.imageUrl})` : undefined,
+          }"
+        >
           <button aria-label="Close details" @click="showDetail = false">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6 6 18" />
@@ -390,7 +546,7 @@ function getDirections(location) {
         <div class="detail-drawer__body">
           <div class="detail-drawer__meta">
             <span class="category-badge">{{ selectedLocation.category }}</span>
-            <span>{{ selectedLocation.distance }}</span>
+            <span>{{ selectedLocationTypeLabel }}</span>
           </div>
           <h2>{{ selectedLocation.name }}</h2>
           <p>{{ selectedLocation.description }}</p>
@@ -418,12 +574,14 @@ function getDirections(location) {
               </svg>
               Get directions
             </button>
-            <button class="detail-drawer__secondary-action" @click="toggleItinerary(selectedLocation)">
+            <button class="detail-drawer__secondary-action" :disabled="isSaving || !selectedCanBeSaved" @click="toggleItinerary(selectedLocation)">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M6 4h12v17l-6-3-6 3V4Z" />
               </svg>
               {{
-                isSaving
+                !selectedCanBeSaved
+                  ? 'Save unavailable'
+                  : isSaving
                   ? 'Saving...'
                   : savedIds.has(selectedLocation.id)
                     ? 'Saved to itinerary'
@@ -576,6 +734,11 @@ input {
   background: #f2f0eb;
 }
 
+.icon-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .icon-button svg,
 .search-field svg,
 .map-actions svg {
@@ -604,6 +767,12 @@ input {
 
 .login-button:hover {
   background: #d8f3dc;
+}
+
+.login-button:disabled,
+.map-actions button:disabled {
+  cursor: default;
+  opacity: 0.72;
 }
 
 .discovery-shell {
@@ -712,6 +881,13 @@ h1 {
   color: #1a1a1a;
   font-size: 14px;
   cursor: pointer;
+}
+
+.filter-row:focus-visible,
+.result-card:focus-visible,
+.map-selection-panel__actions button:focus-visible {
+  outline: 3px solid rgba(27, 67, 50, 0.22);
+  outline-offset: 2px;
 }
 
 .fake-checkbox {
@@ -910,24 +1086,11 @@ h1 {
   position: relative;
   flex: 1;
   overflow: hidden;
-  background-color: #e8e3da;
-  background-image:
-    radial-gradient(circle at 18% 30%, rgba(200, 214, 192, 0.9) 0, rgba(200, 214, 192, 0.9) 76px, rgba(0, 0, 0, 0.22) 90px, transparent 128px),
-    radial-gradient(circle at 80% 58%, rgba(200, 214, 192, 0.9) 0, rgba(200, 214, 192, 0.9) 110px, rgba(0, 0, 0, 0.2) 130px, transparent 184px),
-    radial-gradient(circle at 48% 84%, rgba(200, 214, 192, 0.9) 0, rgba(200, 214, 192, 0.9) 70px, rgba(0, 0, 0, 0.18) 88px, transparent 124px),
-    linear-gradient(115deg, transparent 47%, #f2ede3 47%, #f2ede3 52%, transparent 52%),
-    linear-gradient(35deg, transparent 59%, #f2ede3 59%, #f2ede3 63%, transparent 63%),
-    linear-gradient(205deg, transparent 35%, rgba(242, 237, 227, 0.72) 35%, rgba(242, 237, 227, 0.72) 39%, transparent 39%);
+  background: #e8e3da;
 }
 
 .map-area::before {
-  position: absolute;
-  inset: -8%;
-  background:
-    linear-gradient(24deg, transparent 0 43%, rgba(255, 255, 255, 0.28) 43% 47%, transparent 47%),
-    linear-gradient(152deg, transparent 0 50%, rgba(255, 255, 255, 0.24) 50% 55%, transparent 55%);
-  content: '';
-  pointer-events: none;
+  display: none;
 }
 
 .map-badge,
@@ -1051,6 +1214,90 @@ h1 {
   animation: fadeUp 240ms ease-out both;
 }
 
+.map-selection-panel {
+  position: absolute;
+  top: 84px;
+  right: 22px;
+  z-index: 3;
+  width: min(360px, calc(100% - 44px));
+  overflow: hidden;
+  border: 1px solid #e8e4dc;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(27, 67, 50, 0.16);
+  animation: fadeUpPanel 220ms ease-out both;
+}
+
+.map-selection-panel__image {
+  position: relative;
+  min-height: 130px;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.25), transparent 45%),
+    linear-gradient(135deg, var(--popup-color), color-mix(in srgb, var(--popup-color) 62%, white));
+  background-position: center;
+  background-size: cover;
+}
+
+.map-selection-panel__body {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.map-selection-panel__body h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.map-selection-panel__body p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: #5c5c5c;
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.map-selection-panel__actions {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.map-selection-panel__actions button {
+  min-width: 0;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1.5px solid #1b4332;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.map-selection-panel__primary {
+  background: #1b4332;
+  color: #ffffff;
+}
+
+.map-selection-panel__secondary {
+  background: #ffffff;
+  color: #1b4332;
+}
+
+.map-selection-panel__actions button:disabled {
+  cursor: default;
+  opacity: 0.56;
+}
+
 .location-popup__image {
   position: relative;
   height: 140px;
@@ -1136,22 +1383,19 @@ h1 {
   cursor: pointer;
 }
 
-.popup-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 9px;
-}
-
-.popup-actions button {
-  margin-top: 0;
+.map-selection-panel__actions button:disabled,
+.detail-drawer__actions button:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .map-legend {
   bottom: 22px;
   left: 22px;
   display: flex;
+  flex-wrap: wrap;
   gap: 14px;
+  max-width: calc(100% - 420px);
   padding: 12px 14px;
   border: 1px solid #e8e4dc;
   border-radius: 10px;
@@ -1164,6 +1408,7 @@ h1 {
   gap: 6px;
   color: #1a1a1a;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .map-legend i {
@@ -1184,6 +1429,10 @@ h1 {
   background: #ffffff;
   color: #1a1a1a;
   font-size: 14px;
+}
+
+.feedback-toast--warning {
+  border-left-color: #d4ac0d;
 }
 
 .detail-backdrop {
@@ -1214,6 +1463,8 @@ h1 {
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.25), transparent 45%),
     linear-gradient(135deg, var(--drawer-color), color-mix(in srgb, var(--drawer-color) 62%, white));
+  background-position: center;
+  background-size: cover;
 }
 
 .detail-drawer__hero button {
@@ -1369,6 +1620,14 @@ h1 {
     width: 330px;
     flex-basis: 330px;
   }
+
+  .map-selection-panel {
+    width: min(320px, calc(100% - 44px));
+  }
+
+  .map-legend {
+    max-width: calc(100% - 380px);
+  }
 }
 
 @media (max-width: 760px) {
@@ -1384,6 +1643,7 @@ h1 {
   .discovery-shell {
     position: relative;
     display: block;
+    min-height: calc(100vh - 64px);
   }
 
   .discovery-sidebar {
@@ -1393,10 +1653,11 @@ h1 {
     bottom: 12px;
     left: 12px;
     width: auto;
-    max-height: 50vh;
+    max-height: 44vh;
     overflow: hidden;
     border: 1px solid #e8e4dc;
     border-radius: 16px;
+    box-shadow: 0 18px 48px rgba(27, 67, 50, 0.16);
   }
 
   .sidebar-block:not(.sidebar-block--search) {
@@ -1404,15 +1665,38 @@ h1 {
   }
 
   .results-block {
-    display: none;
+    min-height: 0;
+    display: flex;
+  }
+
+  .results-block > p {
+    padding: 10px 16px 6px;
+  }
+
+  .result-list {
+    max-height: 28vh;
+    padding-bottom: 8px;
+  }
+
+  .result-card {
+    padding: 12px 16px;
+  }
+
+  .result-card--selected {
+    padding-left: 13px;
+  }
+
+  .result-thumb {
+    width: 44px;
+    height: 44px;
   }
 
   .map-area {
-    height: 100%;
+    height: calc(100vh - 64px);
   }
 
   .map-actions {
-    top: 74px;
+    top: 12px;
     right: 12px;
     flex-direction: column;
   }
@@ -1423,6 +1707,27 @@ h1 {
 
   .location-popup {
     display: none;
+  }
+
+  .map-selection-panel {
+    top: 72px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-height: 202px;
+  }
+
+  .map-selection-panel__image {
+    display: none;
+  }
+
+  .map-selection-panel__actions {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .map-selection-panel__actions button {
+    min-height: 38px;
+    padding: 0 8px;
   }
 
   .map-legend {
@@ -1439,6 +1744,18 @@ h1 {
 
   .detail-drawer__actions {
     flex-direction: column;
+  }
+}
+
+@keyframes fadeUpPanel {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

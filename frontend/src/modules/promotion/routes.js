@@ -19,7 +19,7 @@ const promotionRoutes = [
     component: () => import('./views/ProductPromotionView.vue'),
   },
   {
-    path: '/promotion/products/:id',
+    path: '/promotion/products/:slug',
     name: 'promotion-product-detail',
     component: () => import('./views/PromotionDetail.vue'),
     props: true,

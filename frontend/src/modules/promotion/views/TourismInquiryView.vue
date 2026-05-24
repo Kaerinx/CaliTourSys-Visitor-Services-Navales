@@ -1,5 +1,10 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
+import {
+  subscribeToNewsletter,
+  submitTourismInquiry,
+} from '../services/promotionService'
+import { validateInquiryForm, validateNewsletterEmail } from '../utils/formValidation'
 
 const form = reactive({
   fullName: '',
@@ -11,21 +16,40 @@ const form = reactive({
 
 const submitted = ref(false)
 const touched = ref(false)
+const isSubmitting = ref(false)
+const formMessage = ref('')
+const newsletterEmail = ref('')
+const newsletterMessage = ref('')
+const isSubscribing = ref(false)
 
 const isValid = computed(
   () =>
     form.fullName.trim() &&
     form.email.trim() &&
-    form.contactNumber.trim() &&
     form.subject.trim() &&
     form.message.trim(),
 )
 
-function submitInquiry() {
+async function submitInquiry() {
   touched.value = true
-  if (!isValid.value) return
+  formMessage.value = validateInquiryForm(form)
+  submitted.value = false
+  if (formMessage.value) return
 
-  submitted.value = true
+  isSubmitting.value = true
+
+  try {
+    await submitTourismInquiry({
+      ...form,
+      sourcePage: '/promotion/inquiry',
+    })
+    submitted.value = true
+    formMessage.value = ''
+  } catch (error) {
+    formMessage.value = error.message || 'Unable to submit inquiry. Please try again.'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 function resetForm() {
@@ -36,6 +60,24 @@ function resetForm() {
   form.message = ''
   touched.value = false
   submitted.value = false
+  formMessage.value = ''
+}
+
+async function submitNewsletter() {
+  newsletterMessage.value = validateNewsletterEmail(newsletterEmail.value)
+  if (newsletterMessage.value) return
+
+  isSubscribing.value = true
+
+  try {
+    await subscribeToNewsletter({ email: newsletterEmail.value })
+    newsletterMessage.value = 'Subscription confirmed. Thank you for joining.'
+    newsletterEmail.value = ''
+  } catch (error) {
+    newsletterMessage.value = error.message || 'Unable to subscribe. Please try again.'
+  } finally {
+    isSubscribing.value = false
+  }
 }
 </script>
 
@@ -63,13 +105,15 @@ function resetForm() {
         </nav>
 
         <div class="site-nav__actions">
-          <button class="icon-button" aria-label="Search">
+          <button class="icon-button" type="button" aria-label="Search planned for later" disabled>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="11" cy="11" r="7" />
               <path d="m20 20-3.2-3.2" />
             </svg>
           </button>
-          <button class="login-button">Login</button>
+          <button class="login-button" type="button" disabled title="Public login is planned for a later phase">
+            Public Site
+          </button>
           <button class="icon-button icon-button--menu" aria-label="Menu">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
@@ -112,7 +156,7 @@ function resetForm() {
             </label>
 
             <label>
-              <span>Contact Number *</span>
+              <span>Contact Number</span>
               <input v-model="form.contactNumber" placeholder="+63 or your country code" />
             </label>
 
@@ -131,15 +175,21 @@ function resetForm() {
             </label>
 
             <p v-if="touched && !isValid" class="form-message form-message--error">
-              Please complete all required fields.
+              {{ formMessage || 'Please complete all required fields.' }}
+            </p>
+
+            <p v-else-if="formMessage" class="form-message form-message--error">
+              {{ formMessage }}
             </p>
 
             <p v-if="submitted" class="form-message form-message--success">
-              Inquiry received. This is a mock submission for the public website prototype.
+              Inquiry received. Thank you for contacting the Tourism Office.
             </p>
 
             <div class="form-actions">
-              <button type="submit">Submit Inquiry</button>
+              <button type="submit" :disabled="isSubmitting">
+                {{ isSubmitting ? 'Submitting...' : 'Submit Inquiry' }}
+              </button>
               <button v-if="submitted" type="button" @click="resetForm">Send another</button>
             </div>
           </form>
@@ -194,10 +244,13 @@ function resetForm() {
         <div>
           <h4>Stay updated</h4>
           <p>Festival dates, new producers, and seasonal guides - once a month.</p>
-          <form class="subscribe-form">
-            <input aria-label="Email address" placeholder="you@email.com" />
-            <button type="button">Join</button>
+          <form class="subscribe-form" @submit.prevent="submitNewsletter">
+            <input v-model="newsletterEmail" aria-label="Email address" placeholder="you@email.com" />
+            <button type="submit" :disabled="isSubscribing">
+              {{ isSubscribing ? 'Joining...' : 'Join' }}
+            </button>
           </form>
+          <p v-if="newsletterMessage" class="footer-message">{{ newsletterMessage }}</p>
         </div>
       </div>
 
@@ -224,6 +277,13 @@ function resetForm() {
   color: #1a1a1a;
   font-family: Inter, system-ui, sans-serif;
   line-height: 1.6;
+}
+
+.inquiry-page,
+.inquiry-page *,
+.inquiry-page *::before,
+.inquiry-page *::after {
+  box-sizing: border-box;
 }
 
 a {
@@ -364,6 +424,11 @@ textarea {
   background: #f2f0eb;
 }
 
+.icon-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .icon-button svg {
   width: 20px;
   height: 20px;
@@ -386,6 +451,11 @@ textarea {
   color: #1b4332;
   font-size: 14px;
   font-weight: 500;
+}
+
+.login-button:disabled {
+  cursor: default;
+  opacity: 0.72;
 }
 
 .inquiry-header {
@@ -433,13 +503,14 @@ h1 {
 
 .inquiry-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
   align-items: start;
   gap: 24px;
 }
 
 .inquiry-form,
 .inquiry-card {
+  min-width: 0;
   border: 1px solid #e8e4dc;
   border-radius: 12px;
   background: #ffffff;
@@ -480,6 +551,8 @@ label {
 input,
 textarea {
   width: 100%;
+  max-width: 100%;
+  display: block;
   border: 1px solid transparent;
   border-radius: 8px;
   outline: 0;
@@ -540,6 +613,7 @@ textarea::placeholder {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  max-width: 100%;
   padding: 0 24px;
   border: 1.5px solid #1b4332;
   border-radius: 8px;
@@ -547,12 +621,20 @@ textarea::placeholder {
   color: #ffffff;
   font-size: 15px;
   font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
   cursor: pointer;
 }
 
 .form-actions button:last-child {
   background: transparent;
   color: #1b4332;
+}
+
+.form-actions button:disabled,
+.subscribe-form button:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .inquiry-card {
@@ -562,6 +644,9 @@ textarea::placeholder {
 .inquiry-card a {
   width: 100%;
   margin-top: 24px;
+  padding-right: 16px;
+  padding-left: 16px;
+  white-space: normal;
 }
 
 .site-footer {
@@ -657,6 +742,12 @@ textarea::placeholder {
   font-weight: 500;
 }
 
+.footer-message {
+  margin-top: 10px !important;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px !important;
+}
+
 .site-footer__bottom {
   background: #14532d;
   border-top: 1px solid rgba(255, 255, 255, 0.2);
@@ -708,6 +799,15 @@ textarea::placeholder {
 
   .inquiry-form {
     padding: 24px;
+  }
+
+  .form-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions button {
+    width: 100%;
   }
 
   .site-footer__main {

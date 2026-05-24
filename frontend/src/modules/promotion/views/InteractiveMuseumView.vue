@@ -1,10 +1,17 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { sharePublicItem } from '../services/promotionService'
+import { computed, onMounted, ref } from 'vue'
+import {
+  getMuseumItems,
+  loadItinerary,
+  removeFromItinerary,
+  saveToItinerary,
+  sharePublicItem,
+} from '../services/promotionService'
+import { useNewsletterForm } from '../composables/useNewsletterForm'
 
 const filters = ['All', 'Pre-colonial', 'Spanish-era', 'Modern']
 
-const artifacts = [
+const artifacts = ref([
   {
     id: 'burnay',
     name: 'Burnay Earthen Jar',
@@ -47,17 +54,41 @@ const artifacts = [
     accent: '#B5451B',
     desc: 'Carved wooden mask used by farmers in the annual rice harvest thanksgiving ritual.',
   },
-]
+])
 
 const activeFilter = ref('All')
 const selectedItem = ref(null)
 const feedbackMessage = ref('')
+const isLoading = ref(true)
+const errorMessage = ref('')
+const savedArtifactIds = ref(new Set())
+const isSaving = ref(false)
+const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
 
 const filteredArtifacts = computed(() => {
-  if (activeFilter.value === 'All') return artifacts
+  if (activeFilter.value === 'All') return artifacts.value
 
-  return artifacts.filter((artifact) => artifact.era.includes(activeFilter.value))
+  return artifacts.value.filter((artifact) => artifact.era.includes(activeFilter.value))
 })
+
+async function loadArtifacts() {
+  isLoading.value = true
+  errorMessage.value = ''
+
+  try {
+    artifacts.value = await getMuseumItems({ limit: 50 })
+    const itinerary = await loadItinerary()
+    savedArtifactIds.value = new Set(
+      itinerary.items
+        .filter((item) => item.itemType === 'artifact')
+        .map((item) => item.summary?.slug || item.itemId || item.targetId),
+    )
+  } catch (error) {
+    errorMessage.value = error.message || 'Unable to load public museum artifacts.'
+  } finally {
+    isLoading.value = false
+  }
+}
 
 async function shareArtifact(artifact) {
   const result = await sharePublicItem({
@@ -69,6 +100,37 @@ async function shareArtifact(artifact) {
   feedbackMessage.value =
     result.method === 'clipboard' ? 'Museum link copied' : 'Share action ready'
 }
+
+async function toggleArtifactItinerary(artifact) {
+  if (!artifact) return
+
+  isSaving.value = true
+
+  try {
+    if (savedArtifactIds.value.has(artifact.id)) {
+      await removeFromItinerary({ id: artifact.id, apiId: artifact.apiId, type: 'artifact' })
+      const next = new Set(savedArtifactIds.value)
+      next.delete(artifact.id)
+      savedArtifactIds.value = next
+      feedbackMessage.value = 'Removed from itinerary'
+    } else {
+      await saveToItinerary({
+        id: artifact.id,
+        apiId: artifact.apiId,
+        type: 'artifact',
+        title: artifact.name,
+      })
+      savedArtifactIds.value = new Set([...savedArtifactIds.value, artifact.id])
+      feedbackMessage.value = 'Saved to itinerary'
+    }
+  } catch (error) {
+    feedbackMessage.value = error.message || 'Unable to update itinerary'
+  } finally {
+    isSaving.value = false
+  }
+}
+
+onMounted(loadArtifacts)
 </script>
 
 <template>
@@ -95,13 +157,15 @@ async function shareArtifact(artifact) {
         </nav>
 
         <div class="site-nav__actions">
-          <button class="icon-button" aria-label="Search">
+          <button class="icon-button" type="button" aria-label="Search planned for later" disabled>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="11" cy="11" r="7" />
               <path d="m20 20-3.2-3.2" />
             </svg>
           </button>
-          <button class="login-button">Login</button>
+          <button class="login-button" type="button" disabled title="Public login is planned for a later phase">
+            Public Site
+          </button>
           <button class="icon-button icon-button--menu" aria-label="Menu">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
@@ -156,14 +220,23 @@ async function shareArtifact(artifact) {
             </div>
           </div>
 
-          <div class="artifact-grid">
+          <div v-if="isLoading" class="museum-state">Loading public museum records...</div>
+          <div v-else-if="errorMessage" class="museum-state">{{ errorMessage }}</div>
+
+          <div v-else class="artifact-grid">
             <button
               v-for="artifact in filteredArtifacts"
               :key="artifact.id"
               class="artifact-card"
               @click="selectedItem = artifact"
             >
-              <span class="artifact-card__image" :style="{ '--artifact-accent': artifact.accent }"></span>
+              <span
+                class="artifact-card__image"
+                :style="{
+                  '--artifact-accent': artifact.accent,
+                  backgroundImage: artifact.imageUrl ? `url(${artifact.imageUrl})` : undefined,
+                }"
+              ></span>
               <span class="artifact-card__body">
                 <span class="era-badge">{{ artifact.era }}</span>
                 <strong>{{ artifact.name }}</strong>
@@ -180,7 +253,7 @@ async function shareArtifact(artifact) {
         </div>
       </section>
 
-      <div v-if="filteredArtifacts.length === 0" class="museum-empty page-shell">
+      <div v-if="!isLoading && filteredArtifacts.length === 0" class="museum-empty page-shell">
         <div></div>
         <h2>No artifacts found</h2>
         <p>Try a different museum category.</p>
@@ -204,7 +277,18 @@ async function shareArtifact(artifact) {
             Recovered and preserved by the LGU Calabanga heritage program in collaboration with
             local cultural partners.
           </p>
-          <button class="artifact-modal__share" @click="shareArtifact(selectedItem)">Share artifact</button>
+          <div class="artifact-modal__actions">
+            <button class="artifact-modal__share" @click="shareArtifact(selectedItem)">Share artifact</button>
+            <button class="artifact-modal__share" :disabled="isSaving" @click="toggleArtifactItinerary(selectedItem)">
+              {{
+                isSaving
+                  ? 'Saving...'
+                  : savedArtifactIds.has(selectedItem.id)
+                    ? 'Remove from itinerary'
+                    : 'Save to itinerary'
+              }}
+            </button>
+          </div>
         </div>
       </article>
     </div>
@@ -250,10 +334,13 @@ async function shareArtifact(artifact) {
         <div>
           <h4>Stay updated</h4>
           <p>Festival dates, new producers, and seasonal guides - once a month.</p>
-          <form class="subscribe-form">
-            <input aria-label="Email address" placeholder="you@email.com" />
-            <button type="button">Join</button>
+          <form class="subscribe-form" @submit.prevent="submitNewsletter">
+            <input v-model="newsletterEmail" aria-label="Email address" placeholder="you@email.com" />
+            <button type="submit" :disabled="isSubscribing">
+              {{ isSubscribing ? 'Joining...' : 'Join' }}
+            </button>
           </form>
+          <p v-if="newsletterMessage" class="footer-message">{{ newsletterMessage }}</p>
         </div>
       </div>
 
@@ -419,6 +506,11 @@ input {
   background: #f2f0eb;
 }
 
+.icon-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .icon-button svg {
   width: 20px;
   height: 20px;
@@ -445,6 +537,11 @@ input {
 
 .login-button:hover {
   background: #d8f3dc;
+}
+
+.login-button:disabled {
+  cursor: default;
+  opacity: 0.72;
 }
 
 .museum-hero {
@@ -593,6 +690,15 @@ h3 {
   gap: 24px;
 }
 
+.museum-state {
+  padding: 28px 24px;
+  border: 1px solid #e8e4dc;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #5c5c5c;
+  font-size: 14px;
+}
+
 .artifact-card {
   overflow: hidden;
   display: flex;
@@ -621,6 +727,8 @@ h3 {
     radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.35), transparent 45%),
     radial-gradient(circle at 75% 75%, rgba(0, 0, 0, 0.24), transparent 55%),
     linear-gradient(135deg, var(--artifact-accent), color-mix(in srgb, var(--artifact-accent) 62%, white));
+  background-position: center;
+  background-size: cover;
 }
 
 .artifact-card__body {
@@ -800,6 +908,23 @@ h3 {
   cursor: pointer;
 }
 
+.artifact-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.artifact-modal__actions .artifact-modal__share {
+  margin-top: 0;
+}
+
+.artifact-modal__share:disabled,
+.subscribe-form button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .feedback-toast {
   position: fixed;
   right: 24px;
@@ -923,6 +1048,12 @@ h3 {
   color: #1b4332;
   font-size: 13px;
   font-weight: 500;
+}
+
+.footer-message {
+  margin-top: 10px !important;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px !important;
 }
 
 .site-footer__bottom {
