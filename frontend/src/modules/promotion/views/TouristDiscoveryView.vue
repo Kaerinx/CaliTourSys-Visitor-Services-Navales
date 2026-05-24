@@ -344,7 +344,7 @@ onMounted(loadLocations)
           <button class="login-button" type="button" disabled title="Public login is planned for a later phase">
             Public Site
           </button>
-          <button class="icon-button icon-button--menu" aria-label="Menu">
+          <button class="icon-button icon-button--menu" type="button" aria-label="Menu" disabled title="Mobile menu is planned for a later phase">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
             </svg>
@@ -369,7 +369,7 @@ onMounted(loadLocations)
         <section class="sidebar-block">
           <div class="filter-heading">
             <h2>Filter results</h2>
-            <button @click="resetFilters">Reset</button>
+            <button type="button" @click="resetFilters">Reset</button>
           </div>
 
           <div class="filter-list">
@@ -404,6 +404,7 @@ onMounted(loadLocations)
               <small>Vetted producers &amp; sites</small>
             </span>
             <button
+              type="button"
               :aria-label="accreditedOnly ? 'LGU Accredited only enabled' : 'LGU Accredited only disabled'"
               :class="{ 'toggle-off': !accreditedOnly }"
               @click="accreditedOnly = !accreditedOnly"
@@ -536,7 +537,7 @@ onMounted(loadLocations)
             backgroundImage: selectedLocation.imageUrl ? `url(${selectedLocation.imageUrl})` : undefined,
           }"
         >
-          <button aria-label="Close details" @click="showDetail = false">
+          <button type="button" aria-label="Close details" @click="showDetail = false">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6 6 18" />
             </svg>
@@ -567,14 +568,14 @@ onMounted(loadLocations)
             </p>
           </div>
           <div class="detail-drawer__actions">
-            <button class="detail-drawer__primary-action" @click="getDirections(selectedLocation)">
+            <button class="detail-drawer__primary-action" type="button" @click="getDirections(selectedLocation)">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M9 18 3 15V5l6 3 6-3 6 3v10l-6-3-6 3Z" />
                 <path d="M9 8v10M15 5v10" />
               </svg>
               Get directions
             </button>
-            <button class="detail-drawer__secondary-action" :disabled="isSaving || !selectedCanBeSaved" @click="toggleItinerary(selectedLocation)">
+            <button class="detail-drawer__secondary-action" type="button" :disabled="isSaving || !selectedCanBeSaved" @click="toggleItinerary(selectedLocation)">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M6 4h12v17l-6-3-6 3V4Z" />
               </svg>

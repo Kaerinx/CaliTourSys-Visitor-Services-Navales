@@ -79,14 +79,20 @@ onUnmounted(() => {
 
 <template>
   <aside v-if="isPromotionRoute" class="itinerary-widget" :class="{ 'itinerary-widget--open': isOpen }">
-    <button class="itinerary-widget__trigger" type="button" @click="isOpen = !isOpen">
+    <button
+      class="itinerary-widget__trigger"
+      type="button"
+      :aria-expanded="isOpen"
+      aria-controls="public-itinerary-panel"
+      @click="isOpen = !isOpen"
+    >
       <span>
         <strong>{{ itemCount }}</strong>
       </span>
       Itinerary
     </button>
 
-    <section v-if="isOpen" class="itinerary-widget__panel" aria-label="Saved itinerary">
+    <section v-if="isOpen" id="public-itinerary-panel" class="itinerary-widget__panel" aria-label="Saved itinerary">
       <header>
         <div>
           <p>Saved trip items</p>

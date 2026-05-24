@@ -174,7 +174,7 @@ onMounted(loadProducts)
           <button class="login-button" type="button" disabled title="Public login is planned for a later phase">
             Public Site
           </button>
-          <button class="icon-button icon-button--menu" aria-label="Menu">
+          <button class="icon-button icon-button--menu" type="button" aria-label="Menu" disabled title="Mobile menu is planned for a later phase">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
             </svg>
@@ -225,6 +225,7 @@ onMounted(loadProducts)
               <button
                 v-for="(chip, index) in chips"
                 :key="chip"
+                type="button"
                 class="chip"
                 :class="{ 'chip--active': activeChip === chip }"
                 @click="selectChip(chip)"
@@ -258,14 +259,14 @@ onMounted(loadProducts)
             <div class="empty-state__art"></div>
             <h2>Unable to load products</h2>
             <p>{{ errorMessage }}</p>
-            <button @click="clearFilters">Clear filters</button>
+            <button type="button" @click="clearFilters">Clear filters</button>
           </div>
 
           <div v-else-if="filteredProducts.length === 0" class="empty-state">
             <div class="empty-state__art"></div>
             <h2>No results found</h2>
             <p>Try adjusting your search terms or filters to find what you're looking for.</p>
-            <button @click="clearFilters">Clear filters</button>
+            <button type="button" @click="clearFilters">Clear filters</button>
           </div>
 
           <div v-else class="product-grid">
@@ -292,7 +293,7 @@ onMounted(loadProducts)
                 <strong>{{ product.name }}</strong>
                 <span class="producer-line">
                   {{ product.producer }}
-                  <span class="verified-dot">✓</span>
+                  <span class="verified-dot" aria-label="Verified producer"></span>
                 </span>
                 <span class="product-card__footer">
                   <span>{{ product.price }}</span>
@@ -303,14 +304,14 @@ onMounted(loadProducts)
           </div>
 
           <nav class="pagination" aria-label="Product pages">
-            <button>Previous</button>
-            <button class="pagination__active">1</button>
-            <button>2</button>
-            <button>3</button>
-            <button>4</button>
+            <button type="button" disabled>Previous</button>
+            <button type="button" class="pagination__active" aria-current="page">1</button>
+            <button type="button" disabled>2</button>
+            <button type="button" disabled>3</button>
+            <button type="button" disabled>4</button>
             <span>...</span>
-            <button>12</button>
-            <button>Next</button>
+            <button type="button" disabled>12</button>
+            <button type="button" disabled>Next</button>
           </nav>
         </div>
       </section>
@@ -331,9 +332,9 @@ onMounted(loadProducts)
             celebrating our coast, culture, and craft.
           </p>
           <div class="social-row">
-            <a href="#" aria-label="Facebook">f</a>
-            <a href="#" aria-label="Instagram">◎</a>
-            <a href="#" aria-label="Youtube">▶</a>
+            <a aria-label="Facebook page pending" aria-disabled="true">f</a>
+            <a aria-label="Instagram page pending" aria-disabled="true">◎</a>
+            <a aria-label="Youtube page pending" aria-disabled="true">▶</a>
           </div>
         </div>
 
@@ -369,8 +370,8 @@ onMounted(loadProducts)
         <div class="page-shell">
           <span>© 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
           <span>
-            <a href="#">Privacy</a>
-            <a href="#">Accessibility</a>
+            <a aria-disabled="true">Privacy</a>
+            <a aria-disabled="true">Accessibility</a>
             <RouterLink to="/promotion/inquiry">Contact</RouterLink>
           </span>
         </div>
@@ -865,6 +866,15 @@ h1 {
   line-height: 1;
 }
 
+.verified-dot::after {
+  width: 6px;
+  height: 3px;
+  border-bottom: 1.5px solid #ffffff;
+  border-left: 1.5px solid #ffffff;
+  content: '';
+  transform: rotate(-45deg) translate(0, -1px);
+}
+
 .product-card__footer {
   display: flex;
   align-items: center;
@@ -983,6 +993,11 @@ h1 {
 
 .pagination button:hover {
   border-color: #1b4332;
+}
+
+.pagination button:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
 .pagination__active {

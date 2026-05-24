@@ -188,7 +188,7 @@ onMounted(loadEvents)
           <button class="login-button" type="button" disabled title="Public login is planned for a later phase">
             Public Site
           </button>
-          <button class="icon-button icon-button--menu" aria-label="Menu">
+          <button class="icon-button icon-button--menu" type="button" aria-label="Menu" disabled title="Mobile menu is planned for a later phase">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
             </svg>
@@ -258,10 +258,10 @@ onMounted(loadEvents)
               </p>
               <p class="featured-event__desc">{{ featuredEvent.desc }}</p>
               <div class="featured-event__actions">
-                <button class="button button--white" @click="selectedEvent = featuredEvent">
+                <button class="button button--white" type="button" @click="selectedEvent = featuredEvent">
                   View event details
                 </button>
-                <button class="button button--ghost-white" :disabled="isSaving" @click="toggleEventItinerary(featuredEvent)">
+                <button class="button button--ghost-white" type="button" :disabled="isSaving" @click="toggleEventItinerary(featuredEvent)">
                   {{ savedEventIds.has(featuredEvent.id) ? 'Saved' : 'Add to itinerary' }}
                 </button>
               </div>
@@ -333,11 +333,11 @@ onMounted(loadEvents)
                 </p>
                 <p class="event-desc">{{ event.desc }}</p>
                 <div class="event-card__actions">
-                  <button @click="selectedEvent = event">View event -&gt;</button>
-                  <button :disabled="isSaving" @click="toggleEventItinerary(event)">
+                  <button type="button" @click="selectedEvent = event">View event -&gt;</button>
+                  <button type="button" :disabled="isSaving" @click="toggleEventItinerary(event)">
                     {{ savedEventIds.has(event.id) ? 'Saved' : 'Save' }}
                   </button>
-                  <button @click="shareEvent(event)">Share</button>
+                  <button type="button" @click="shareEvent(event)">Share</button>
                 </div>
               </div>
             </article>
@@ -349,7 +349,7 @@ onMounted(loadEvents)
     <div v-if="selectedEvent" class="event-modal" @click.self="selectedEvent = null">
       <article class="event-modal__panel">
         <div class="event-modal__image" :style="{ '--modal-accent': selectedEvent.accent }">
-          <button aria-label="Close" @click="selectedEvent = null">
+          <button type="button" aria-label="Close" @click="selectedEvent = null">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6 6 18" />
             </svg>
@@ -381,8 +381,8 @@ onMounted(loadEvents)
             hospitality of our community.
           </p>
           <div class="event-modal__actions">
-            <button class="event-modal__close-action" @click="selectedEvent = null">Close</button>
-            <button class="event-modal__calendar-action" :disabled="isSaving" @click="toggleEventItinerary(selectedEvent)">
+            <button class="event-modal__close-action" type="button" @click="selectedEvent = null">Close</button>
+            <button class="event-modal__calendar-action" type="button" :disabled="isSaving" @click="toggleEventItinerary(selectedEvent)">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M7 3v4M17 3v4M4 8h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2Z" />
                 <path d="M12 12v5M9.5 14.5h5" />
@@ -417,9 +417,9 @@ onMounted(loadEvents)
             celebrating our coast, culture, and craft.
           </p>
           <div class="social-row">
-            <a href="#" aria-label="Facebook">f</a>
-            <a href="#" aria-label="Instagram">◎</a>
-            <a href="#" aria-label="Youtube">▶</a>
+            <a aria-label="Facebook page pending" aria-disabled="true">f</a>
+            <a aria-label="Instagram page pending" aria-disabled="true">◎</a>
+            <a aria-label="Youtube page pending" aria-disabled="true">▶</a>
           </div>
         </div>
 
@@ -455,8 +455,8 @@ onMounted(loadEvents)
         <div class="page-shell">
           <span>&copy; 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
           <span>
-            <a href="#">Privacy</a>
-            <a href="#">Accessibility</a>
+            <a aria-disabled="true">Privacy</a>
+            <a aria-disabled="true">Accessibility</a>
             <RouterLink to="/promotion/inquiry">Contact</RouterLink>
           </span>
         </div>

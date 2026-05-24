@@ -166,7 +166,7 @@ onMounted(loadArtifacts)
           <button class="login-button" type="button" disabled title="Public login is planned for a later phase">
             Public Site
           </button>
-          <button class="icon-button icon-button--menu" aria-label="Menu">
+          <button class="icon-button icon-button--menu" type="button" aria-label="Menu" disabled title="Mobile menu is planned for a later phase">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
             </svg>
@@ -185,13 +185,13 @@ onMounted(loadArtifacts)
             the world.
           </p>
           <div class="hero-actions">
-            <button class="button button--white">
+            <button class="button button--white" type="button" disabled title="Intro video is planned for a later public content phase">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M8 5v14l11-7L8 5Z" />
               </svg>
               Watch intro
             </button>
-            <button class="button button--ghost-white">Browse collection</button>
+            <button class="button button--ghost-white" type="button">Browse collection</button>
           </div>
         </div>
       </section>
@@ -211,6 +211,7 @@ onMounted(loadArtifacts)
               <button
                 v-for="(filter, index) in filters"
                 :key="filter"
+                type="button"
                 class="filter-chip"
                 :class="{ 'filter-chip--active': activeFilter === filter }"
                 @click="activeFilter = filter"
@@ -227,6 +228,7 @@ onMounted(loadArtifacts)
             <button
               v-for="artifact in filteredArtifacts"
               :key="artifact.id"
+              type="button"
               class="artifact-card"
               @click="selectedItem = artifact"
             >
@@ -264,7 +266,7 @@ onMounted(loadArtifacts)
       <article class="artifact-modal__panel">
         <div class="artifact-modal__image" :style="{ '--artifact-accent': selectedItem.accent }"></div>
         <div class="artifact-modal__body">
-          <button class="artifact-modal__close" aria-label="Close" @click="selectedItem = null">
+          <button class="artifact-modal__close" type="button" aria-label="Close" @click="selectedItem = null">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6 6 18" />
             </svg>
@@ -278,8 +280,8 @@ onMounted(loadArtifacts)
             local cultural partners.
           </p>
           <div class="artifact-modal__actions">
-            <button class="artifact-modal__share" @click="shareArtifact(selectedItem)">Share artifact</button>
-            <button class="artifact-modal__share" :disabled="isSaving" @click="toggleArtifactItinerary(selectedItem)">
+            <button class="artifact-modal__share" type="button" @click="shareArtifact(selectedItem)">Share artifact</button>
+            <button class="artifact-modal__share" type="button" :disabled="isSaving" @click="toggleArtifactItinerary(selectedItem)">
               {{
                 isSaving
                   ? 'Saving...'
@@ -310,9 +312,9 @@ onMounted(loadArtifacts)
             celebrating our coast, culture, and craft.
           </p>
           <div class="social-row">
-            <a href="#" aria-label="Facebook">f</a>
-            <a href="#" aria-label="Instagram">◎</a>
-            <a href="#" aria-label="Youtube">▶</a>
+            <a aria-label="Facebook page pending" aria-disabled="true">f</a>
+            <a aria-label="Instagram page pending" aria-disabled="true">◎</a>
+            <a aria-label="Youtube page pending" aria-disabled="true">▶</a>
           </div>
         </div>
 
@@ -348,8 +350,8 @@ onMounted(loadArtifacts)
         <div class="page-shell">
           <span>© 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
           <span>
-            <a href="#">Privacy</a>
-            <a href="#">Accessibility</a>
+            <a aria-disabled="true">Privacy</a>
+            <a aria-disabled="true">Accessibility</a>
             <RouterLink to="/promotion/inquiry">Contact</RouterLink>
           </span>
         </div>

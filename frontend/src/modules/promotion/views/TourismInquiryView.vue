@@ -114,7 +114,7 @@ async function submitNewsletter() {
           <button class="login-button" type="button" disabled title="Public login is planned for a later phase">
             Public Site
           </button>
-          <button class="icon-button icon-button--menu" aria-label="Menu">
+          <button class="icon-button icon-button--menu" type="button" aria-label="Menu" disabled title="Mobile menu is planned for a later phase">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
             </svg>
@@ -220,9 +220,9 @@ async function submitNewsletter() {
             celebrating our coast, culture, and craft.
           </p>
           <div class="social-row">
-            <a href="#" aria-label="Facebook">f</a>
-            <a href="#" aria-label="Instagram">o</a>
-            <a href="#" aria-label="Youtube">></a>
+            <a aria-label="Facebook page pending" aria-disabled="true">f</a>
+            <a aria-label="Instagram page pending" aria-disabled="true">o</a>
+            <a aria-label="Youtube page pending" aria-disabled="true">></a>
           </div>
         </div>
 
@@ -258,8 +258,8 @@ async function submitNewsletter() {
         <div class="page-shell">
           <span>&copy; 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
           <span>
-            <a href="#">Privacy</a>
-            <a href="#">Accessibility</a>
+            <a aria-disabled="true">Privacy</a>
+            <a aria-disabled="true">Accessibility</a>
             <RouterLink to="/promotion/inquiry">Contact</RouterLink>
           </span>
         </div>

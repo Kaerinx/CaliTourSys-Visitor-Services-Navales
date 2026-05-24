@@ -306,11 +306,11 @@ watch(() => route.params.slug || route.params.id, loadProduct, { immediate: true
         <p>{{ product.description }}</p>
 
         <div class="action-stack">
-          <button @click="openContactProducer">Contact producer</button>
-          <button :disabled="isSaving" @click="toggleItinerary">
+          <button type="button" @click="openContactProducer">Contact producer</button>
+          <button type="button" :disabled="isSaving" @click="toggleItinerary">
             {{ isSaving ? 'Saving...' : isSaved ? 'Remove from itinerary' : 'Save to itinerary' }}
           </button>
-          <button @click="shareProduct">Share product</button>
+          <button type="button" @click="shareProduct">Share product</button>
         </div>
 
         <div v-if="business" class="producer-card">
