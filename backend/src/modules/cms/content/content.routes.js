@@ -18,6 +18,38 @@ router.patch('/events/:id', authorize('events.update'), controller.updateEvent)
 router.patch('/events/:id/publish', authorize('events.publish'), controller.publishEvent)
 router.patch('/events/:id/archive', authorize('events.archive'), controller.archiveEvent)
 
+router.get('/products', authorize('products.view'), controller.listProducts)
+router.post('/products', authorize('products.create'), controller.createProduct)
+router.get('/products/:id', authorize('products.view'), controller.getProduct)
+router.patch('/products/:id', authorize('products.update'), controller.updateProduct)
+router.patch('/products/:id/publish', authorize('products.publish'), controller.publishProduct)
+router.patch('/products/:id/archive', authorize('products.archive'), controller.archiveProduct)
+
+router.get('/destinations', authorize('destinations.view'), controller.listDestinations)
+router.post('/destinations', authorize('destinations.create'), controller.createDestination)
+router.get('/destinations/:id', authorize('destinations.view'), controller.getDestination)
+router.patch('/destinations/:id', authorize('destinations.update'), controller.updateDestination)
+router.patch('/destinations/:id/publish', authorize('destinations.publish'), controller.publishDestination)
+router.patch('/destinations/:id/archive', authorize('destinations.archive'), controller.archiveDestination)
+
+router.get('/businesses', authorize('businesses.view'), controller.listBusinesses)
+router.post('/businesses', authorize('businesses.create'), controller.createBusiness)
+router.get('/businesses/:id', authorize('businesses.view'), controller.getBusiness)
+router.patch('/businesses/:id', authorize('businesses.update'), controller.updateBusiness)
+
+router.get('/museum/artifacts', authorize('museum.view'), controller.listMuseumArtifacts)
+router.post('/museum/artifacts', authorize('museum.create'), controller.createMuseumArtifact)
+router.get('/museum/artifacts/:id', authorize('museum.view'), controller.getMuseumArtifact)
+router.patch('/museum/artifacts/:id', authorize('museum.update'), controller.updateMuseumArtifact)
+router.patch('/museum/artifacts/:id/publish', authorize('museum.publish'), controller.publishMuseumArtifact)
+router.patch('/museum/artifacts/:id/archive', authorize('museum.archive'), controller.archiveMuseumArtifact)
+
+router.get('/map-locations', authorize('map_locations.view'), controller.listMapLocations)
+router.post('/map-locations', authorize('map_locations.create'), controller.createMapLocation)
+router.get('/map-locations/:id', authorize('map_locations.view'), controller.getMapLocation)
+router.patch('/map-locations/:id', authorize('map_locations.update'), controller.updateMapLocation)
+router.delete('/map-locations/:id', authorize('map_locations.update'), controller.deleteMapLocation)
+
 router.get('/event-categories', authorize('events.view'), controller.listEventCategories)
 router.post('/event-categories', authorize('events.update'), controller.createEventCategory)
 router.patch('/event-categories/:id', authorize('events.update'), controller.updateEventCategory)
@@ -35,4 +67,3 @@ router.post('/museum/categories', authorize('museum.update'), controller.createA
 router.patch('/museum/categories/:id', authorize('museum.update'), controller.updateArtifactCategory)
 
 module.exports = router
-

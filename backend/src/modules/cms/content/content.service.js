@@ -184,21 +184,338 @@ async function updateCategory(kind, id, data, req) {
   return result.after
 }
 
-module.exports = {
-  archiveEvent,
-  archivePromotion,
-  createCategory,
-  createEvent,
-  createPromotion,
-  getEvent,
-  getPromotion,
-  listCategories,
-  listEvents,
-  listPromotions,
-  publishEvent,
-  publishPromotion,
-  updateCategory,
-  updateEvent,
-  updatePromotion,
+function auditLabel(prefix, value) {
+  return prefix ? `${prefix}: ${value}` : value
 }
 
+async function listProducts(filters) {
+  const pagination = getPagination(filters)
+  return withPagination(filters, await repository.listProducts(filters, pagination))
+}
+
+async function createProduct(data, req) {
+  const product = await repository.createProduct(data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'create',
+    entityType: 'product',
+    entityId: product.id,
+    entityLabel: product.name,
+    afterValues: product,
+  })
+  return product
+}
+
+async function getProduct(id) {
+  const product = await repository.getProductById(id)
+  if (!product) throw createNotFoundError('Product')
+  return product
+}
+
+async function updateProduct(id, data, req) {
+  const result = await repository.updateProduct(id, data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'update',
+    entityType: 'product',
+    entityId: result.after.id,
+    entityLabel: result.after.name,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function publishProduct(id, req) {
+  const result = await repository.publishProduct(id, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'publish',
+    entityType: 'product',
+    entityId: result.after.id,
+    entityLabel: result.after.name,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function archiveProduct(id, req) {
+  const result = await repository.archiveProduct(id, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'archive',
+    entityType: 'product',
+    entityId: result.after.id,
+    entityLabel: result.after.name,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function listDestinations(filters) {
+  const pagination = getPagination(filters)
+  return withPagination(filters, await repository.listDestinations(filters, pagination))
+}
+
+async function createDestination(data, req) {
+  const destination = await repository.createDestination(data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'create',
+    entityType: 'destination',
+    entityId: destination.id,
+    entityLabel: destination.name,
+    afterValues: destination,
+  })
+  return destination
+}
+
+async function getDestination(id) {
+  const destination = await repository.getDestinationById(id)
+  if (!destination) throw createNotFoundError('Destination')
+  return destination
+}
+
+async function updateDestination(id, data, req) {
+  const result = await repository.updateDestination(id, data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'update',
+    entityType: 'destination',
+    entityId: result.after.id,
+    entityLabel: result.after.name,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function publishDestination(id, req) {
+  const result = await repository.publishDestination(id, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'publish',
+    entityType: 'destination',
+    entityId: result.after.id,
+    entityLabel: result.after.name,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function archiveDestination(id, req) {
+  const result = await repository.archiveDestination(id, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'archive',
+    entityType: 'destination',
+    entityId: result.after.id,
+    entityLabel: result.after.name,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function listBusinesses(filters) {
+  const pagination = getPagination(filters)
+  return withPagination(filters, await repository.listBusinesses(filters, pagination))
+}
+
+async function createBusiness(data, req) {
+  const business = await repository.createBusiness(data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'create',
+    entityType: 'business',
+    entityId: business.id,
+    entityLabel: business.name,
+    afterValues: business,
+  })
+  return business
+}
+
+async function getBusiness(id) {
+  const business = await repository.getBusinessById(id)
+  if (!business) throw createNotFoundError('Business')
+  return business
+}
+
+async function updateBusiness(id, data, req) {
+  const result = await repository.updateBusiness(id, data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'update',
+    entityType: 'business',
+    entityId: result.after.id,
+    entityLabel: result.after.name,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function listMuseumArtifacts(filters) {
+  const pagination = getPagination(filters)
+  return withPagination(filters, await repository.listMuseumArtifacts(filters, pagination))
+}
+
+async function createMuseumArtifact(data, req) {
+  const artifact = await repository.createMuseumArtifact(data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'create',
+    entityType: 'museum_artifact',
+    entityId: artifact.id,
+    entityLabel: artifact.name,
+    afterValues: artifact,
+  })
+  return artifact
+}
+
+async function getMuseumArtifact(id) {
+  const artifact = await repository.getMuseumArtifactById(id)
+  if (!artifact) throw createNotFoundError('Museum artifact')
+  return artifact
+}
+
+async function updateMuseumArtifact(id, data, req) {
+  const result = await repository.updateMuseumArtifact(id, data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'update',
+    entityType: 'museum_artifact',
+    entityId: result.after.id,
+    entityLabel: result.after.name,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function publishMuseumArtifact(id, req) {
+  const result = await repository.publishMuseumArtifact(id, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'publish',
+    entityType: 'museum_artifact',
+    entityId: result.after.id,
+    entityLabel: result.after.name,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function archiveMuseumArtifact(id, req) {
+  const result = await repository.archiveMuseumArtifact(id, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'archive',
+    entityType: 'museum_artifact',
+    entityId: result.after.id,
+    entityLabel: result.after.name,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function listMapLocations(filters) {
+  const pagination = getPagination(filters)
+  return withPagination(filters, await repository.listMapLocations(filters, pagination))
+}
+
+async function createMapLocation(data, req) {
+  const location = await repository.createMapLocation(data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'create',
+    entityType: 'map_location',
+    entityId: location.id,
+    entityLabel: location.label,
+    afterValues: location,
+  })
+  return location
+}
+
+async function getMapLocation(id) {
+  const location = await repository.getMapLocationById(id)
+  if (!location) throw createNotFoundError('Map location')
+  return location
+}
+
+async function updateMapLocation(id, data, req) {
+  const result = await repository.updateMapLocation(id, data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'update',
+    entityType: 'map_location',
+    entityId: result.after.id,
+    entityLabel: result.after.label,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function deleteMapLocation(id, req) {
+  const result = await repository.deleteMapLocation(id)
+  await logCmsContentAudit({
+    req,
+    action: 'delete',
+    entityType: 'map_location',
+    entityId: result.before.id,
+    entityLabel: auditLabel(null, result.before.label),
+    beforeValues: result.before,
+  })
+  return { id: result.before.id, deleted: true }
+}
+
+module.exports = {
+  archiveDestination,
+  archiveEvent,
+  archiveMuseumArtifact,
+  archiveProduct,
+  archivePromotion,
+  createBusiness,
+  createCategory,
+  createDestination,
+  createEvent,
+  createMapLocation,
+  createMuseumArtifact,
+  createProduct,
+  createPromotion,
+  deleteMapLocation,
+  getBusiness,
+  getDestination,
+  getEvent,
+  getMapLocation,
+  getMuseumArtifact,
+  getProduct,
+  getPromotion,
+  listBusinesses,
+  listCategories,
+  listDestinations,
+  listEvents,
+  listMapLocations,
+  listMuseumArtifacts,
+  listProducts,
+  listPromotions,
+  publishDestination,
+  publishEvent,
+  publishMuseumArtifact,
+  publishProduct,
+  publishPromotion,
+  updateBusiness,
+  updateCategory,
+  updateDestination,
+  updateEvent,
+  updateMapLocation,
+  updateMuseumArtifact,
+  updateProduct,
+  updatePromotion,
+}

@@ -80,6 +80,32 @@ Phase 07E-1 content permissions:
 
 Dedicated category permissions do not exist yet. Category routes therefore use the closest existing content-module permissions and should be split later only if the role matrix requires finer control.
 
+Phase 07E-2 remaining content permissions:
+
+| Endpoint Group | Permission |
+|---|---|
+| `GET /cms/products`, `GET /cms/products/:id` | `products.view` |
+| `POST /cms/products` | `products.create` |
+| `PATCH /cms/products/:id` | `products.update` |
+| `PATCH /cms/products/:id/publish` | `products.publish` |
+| `PATCH /cms/products/:id/archive` | `products.archive` |
+| `GET /cms/destinations`, `GET /cms/destinations/:id` | `destinations.view` |
+| `POST /cms/destinations` | `destinations.create` |
+| `PATCH /cms/destinations/:id` | `destinations.update` |
+| `PATCH /cms/destinations/:id/publish` | `destinations.publish` |
+| `PATCH /cms/destinations/:id/archive` | `destinations.archive` |
+| `GET /cms/businesses`, `GET /cms/businesses/:id` | `businesses.view` |
+| `POST /cms/businesses` | `businesses.create` |
+| `PATCH /cms/businesses/:id` | `businesses.update` |
+| `GET /cms/museum/artifacts`, `GET /cms/museum/artifacts/:id` | `museum.view` |
+| `POST /cms/museum/artifacts` | `museum.create` |
+| `PATCH /cms/museum/artifacts/:id` | `museum.update` |
+| `PATCH /cms/museum/artifacts/:id/publish` | `museum.publish` |
+| `PATCH /cms/museum/artifacts/:id/archive` | `museum.archive` |
+| `GET /cms/map-locations`, `GET /cms/map-locations/:id` | `map_locations.view` |
+| `POST /cms/map-locations` | `map_locations.create` |
+| `PATCH /cms/map-locations/:id`, `DELETE /cms/map-locations/:id` | `map_locations.update` |
+
 ## 5. Standard Success Response
 
 ```json
@@ -361,7 +387,80 @@ Category audit rows use the closest existing `cms_entity_type` because the enum 
 - destination categories: `destination`
 - museum categories: `museum_artifact`
 
-## 12. Planned Endpoints for Later Phases
+## 12. Implemented Endpoints in Phase 07E-2
+
+### Products
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/cms/products` | Paginated CMS product list. |
+| `POST` | `/api/v1/cms/products` | Create product. |
+| `GET` | `/api/v1/cms/products/:id` | Get product by UUID. |
+| `PATCH` | `/api/v1/cms/products/:id` | Update product. |
+| `PATCH` | `/api/v1/cms/products/:id/publish` | Publish product. |
+| `PATCH` | `/api/v1/cms/products/:id/archive` | Archive product. |
+
+List filters: `page`, `limit`, `search`, `status`, `categoryId`, `businessId`, `featured`, `sort`.
+
+### Destinations
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/cms/destinations` | Paginated CMS destination list. |
+| `POST` | `/api/v1/cms/destinations` | Create destination. |
+| `GET` | `/api/v1/cms/destinations/:id` | Get destination by UUID. |
+| `PATCH` | `/api/v1/cms/destinations/:id` | Update destination. |
+| `PATCH` | `/api/v1/cms/destinations/:id/publish` | Publish destination. |
+| `PATCH` | `/api/v1/cms/destinations/:id/archive` | Archive destination. |
+
+List filters: `page`, `limit`, `search`, `status`, `categoryId`, `barangay`, `featured`, `sort`.
+
+### Businesses / Producers
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/cms/businesses` | Paginated CMS business/producer list. |
+| `POST` | `/api/v1/cms/businesses` | Create business/producer profile. |
+| `GET` | `/api/v1/cms/businesses/:id` | Get business by UUID. |
+| `PATCH` | `/api/v1/cms/businesses/:id` | Update business profile. |
+
+List filters: `page`, `limit`, `search`, `status`, `businessType`, `featured`, `sort`.
+
+### Museum Artifacts
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/cms/museum/artifacts` | Paginated CMS museum artifact list. |
+| `POST` | `/api/v1/cms/museum/artifacts` | Create museum artifact. |
+| `GET` | `/api/v1/cms/museum/artifacts/:id` | Get artifact by UUID. |
+| `PATCH` | `/api/v1/cms/museum/artifacts/:id` | Update artifact. |
+| `PATCH` | `/api/v1/cms/museum/artifacts/:id/publish` | Publish artifact. |
+| `PATCH` | `/api/v1/cms/museum/artifacts/:id/archive` | Archive artifact. |
+
+List filters: `page`, `limit`, `search`, `status`, `categoryId`, `featured`, `sort`.
+
+### Map Locations
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/cms/map-locations` | Paginated CMS map location list. |
+| `POST` | `/api/v1/cms/map-locations` | Create map location. |
+| `GET` | `/api/v1/cms/map-locations/:id` | Get map location by UUID. |
+| `PATCH` | `/api/v1/cms/map-locations/:id` | Update map location. |
+| `DELETE` | `/api/v1/cms/map-locations/:id` | Delete map location. |
+
+List filters: `page`, `limit`, `search`, `status`, `locationType`, `sort`.
+
+Map location target rules:
+
+- `locationType = destination` requires `destinationId`
+- `locationType = business` requires `businessId`
+- `locationType = event` requires `eventId`
+- exactly one target may be present
+
+Phase 07E-2 writes audit logs for `create`, `update`, `publish`, `archive`, and map-location `delete`.
+
+## 13. Planned Endpoints for Later Phases
 
 Dashboard:
 
@@ -377,45 +476,23 @@ Events:
 
 Products:
 
-- `GET /api/v1/cms/products`
-- `POST /api/v1/cms/products`
-- `GET /api/v1/cms/products/:id`
-- `PATCH /api/v1/cms/products/:id`
-- `PATCH /api/v1/cms/products/:id/publish`
-- `PATCH /api/v1/cms/products/:id/archive`
+- Phase 07E-2 implemented.
 
 Destinations:
 
-- `GET /api/v1/cms/destinations`
-- `POST /api/v1/cms/destinations`
-- `GET /api/v1/cms/destinations/:id`
-- `PATCH /api/v1/cms/destinations/:id`
-- `PATCH /api/v1/cms/destinations/:id/publish`
-- `PATCH /api/v1/cms/destinations/:id/archive`
+- Phase 07E-2 implemented.
 
 Map Locations:
 
-- `GET /api/v1/cms/map-locations`
-- `POST /api/v1/cms/map-locations`
-- `GET /api/v1/cms/map-locations/:id`
-- `PATCH /api/v1/cms/map-locations/:id`
-- `DELETE /api/v1/cms/map-locations/:id`
+- Phase 07E-2 implemented.
 
 Museum:
 
-- `GET /api/v1/cms/museum/artifacts`
-- `POST /api/v1/cms/museum/artifacts`
-- `GET /api/v1/cms/museum/artifacts/:id`
-- `PATCH /api/v1/cms/museum/artifacts/:id`
-- `PATCH /api/v1/cms/museum/artifacts/:id/publish`
-- `PATCH /api/v1/cms/museum/artifacts/:id/archive`
+- Phase 07E-2 implemented.
 
 Businesses:
 
-- `GET /api/v1/cms/businesses`
-- `POST /api/v1/cms/businesses`
-- `GET /api/v1/cms/businesses/:id`
-- `PATCH /api/v1/cms/businesses/:id`
+- Phase 07E-2 implemented.
 
 Inquiries:
 

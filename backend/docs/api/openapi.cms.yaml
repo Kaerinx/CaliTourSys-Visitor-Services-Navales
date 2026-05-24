@@ -13,6 +13,11 @@ tags:
   - name: CMS Promotions
   - name: CMS Events
   - name: CMS Categories
+  - name: CMS Products
+  - name: CMS Destinations
+  - name: CMS Businesses
+  - name: CMS Museum
+  - name: CMS Map Locations
 paths:
   /cms/health:
     get:
@@ -469,6 +474,76 @@ paths:
     $ref: "#/components/pathItems/CategoryCollection"
   /cms/museum/categories/{id}:
     $ref: "#/components/pathItems/CategoryMember"
+  /cms/products:
+    get:
+      $ref: "#/components/pathItems/GenericContentList"
+    post:
+      $ref: "#/components/pathItems/GenericContentCreate"
+  /cms/products/{id}:
+    get:
+      $ref: "#/components/pathItems/GenericContentDetail"
+    patch:
+      $ref: "#/components/pathItems/GenericContentUpdate"
+  /cms/products/{id}/publish:
+    patch:
+      $ref: "#/components/pathItems/GenericContentState"
+  /cms/products/{id}/archive:
+    patch:
+      $ref: "#/components/pathItems/GenericContentState"
+  /cms/destinations:
+    get:
+      $ref: "#/components/pathItems/GenericContentList"
+    post:
+      $ref: "#/components/pathItems/GenericContentCreate"
+  /cms/destinations/{id}:
+    get:
+      $ref: "#/components/pathItems/GenericContentDetail"
+    patch:
+      $ref: "#/components/pathItems/GenericContentUpdate"
+  /cms/destinations/{id}/publish:
+    patch:
+      $ref: "#/components/pathItems/GenericContentState"
+  /cms/destinations/{id}/archive:
+    patch:
+      $ref: "#/components/pathItems/GenericContentState"
+  /cms/businesses:
+    get:
+      $ref: "#/components/pathItems/GenericContentList"
+    post:
+      $ref: "#/components/pathItems/GenericContentCreate"
+  /cms/businesses/{id}:
+    get:
+      $ref: "#/components/pathItems/GenericContentDetail"
+    patch:
+      $ref: "#/components/pathItems/GenericContentUpdate"
+  /cms/museum/artifacts:
+    get:
+      $ref: "#/components/pathItems/GenericContentList"
+    post:
+      $ref: "#/components/pathItems/GenericContentCreate"
+  /cms/museum/artifacts/{id}:
+    get:
+      $ref: "#/components/pathItems/GenericContentDetail"
+    patch:
+      $ref: "#/components/pathItems/GenericContentUpdate"
+  /cms/museum/artifacts/{id}/publish:
+    patch:
+      $ref: "#/components/pathItems/GenericContentState"
+  /cms/museum/artifacts/{id}/archive:
+    patch:
+      $ref: "#/components/pathItems/GenericContentState"
+  /cms/map-locations:
+    get:
+      $ref: "#/components/pathItems/GenericContentList"
+    post:
+      $ref: "#/components/pathItems/GenericContentCreate"
+  /cms/map-locations/{id}:
+    get:
+      $ref: "#/components/pathItems/GenericContentDetail"
+    patch:
+      $ref: "#/components/pathItems/GenericContentUpdate"
+    delete:
+      $ref: "#/components/pathItems/GenericContentDelete"
 components:
   securitySchemes:
     BearerAuth:
@@ -601,6 +676,168 @@ components:
             $ref: "#/components/responses/NotFound"
           "409":
             $ref: "#/components/responses/Conflict"
+    GenericContentList:
+      tags:
+        - CMS Products
+        - CMS Destinations
+        - CMS Businesses
+        - CMS Museum
+        - CMS Map Locations
+      summary: Paginated CMS content list
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/SearchParam"
+        - $ref: "#/components/parameters/StatusParam"
+        - $ref: "#/components/parameters/FeaturedParam"
+      responses:
+        "200":
+          description: Paginated CMS records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    GenericContentCreate:
+      tags:
+        - CMS Products
+        - CMS Destinations
+        - CMS Businesses
+        - CMS Museum
+        - CMS Map Locations
+      summary: Create CMS content record
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created CMS record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    GenericContentDetail:
+      tags:
+        - CMS Products
+        - CMS Destinations
+        - CMS Businesses
+        - CMS Museum
+        - CMS Map Locations
+      summary: Get CMS content record by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          description: CMS record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    GenericContentUpdate:
+      tags:
+        - CMS Products
+        - CMS Destinations
+        - CMS Businesses
+        - CMS Museum
+        - CMS Map Locations
+      summary: Update CMS content record
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated CMS record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    GenericContentState:
+      tags:
+        - CMS Products
+        - CMS Destinations
+        - CMS Museum
+      summary: Publish or archive CMS content record
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          description: Updated CMS record state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    GenericContentDelete:
+      tags:
+        - CMS Map Locations
+      summary: Delete CMS map location
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          description: Deleted CMS record response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   responses:
     Unauthorized:
       description: Authentication required or invalid token
