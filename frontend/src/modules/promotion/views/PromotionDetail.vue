@@ -226,9 +226,9 @@ watch(() => route.params.slug || route.params.id, loadProduct, { immediate: true
               <path d="m20 20-3.2-3.2" />
             </svg>
           </button>
-          <button class="login-button" type="button" disabled title="Public login is planned for a later phase">
-            Public Site
-          </button>
+          <RouterLink class="login-button" to="/cms/login" aria-label="Open CMS login">
+            Login
+          </RouterLink>
         </div>
       </div>
     </header>
@@ -576,6 +576,9 @@ button {
 }
 
 .login-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 38px;
   padding: 0 18px;
   border: 1.5px solid #1b4332;
@@ -583,6 +586,7 @@ button {
   color: #1b4332;
   font-size: 14px;
   font-weight: 500;
+  text-decoration: none;
 }
 
 .login-button:hover {

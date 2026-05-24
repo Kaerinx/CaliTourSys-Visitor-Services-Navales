@@ -163,9 +163,9 @@ onMounted(loadArtifacts)
               <path d="m20 20-3.2-3.2" />
             </svg>
           </button>
-          <button class="login-button" type="button" disabled title="Public login is planned for a later phase">
-            Public Site
-          </button>
+          <RouterLink class="login-button" to="/cms/login" aria-label="Open CMS login">
+            Login
+          </RouterLink>
           <button class="icon-button icon-button--menu" type="button" aria-label="Menu" disabled title="Mobile menu is planned for a later phase">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" />
@@ -528,6 +528,9 @@ input {
 }
 
 .login-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 38px;
   padding: 0 18px;
   border: 1.5px solid #1b4332;
@@ -535,6 +538,7 @@ input {
   color: #1b4332;
   font-size: 14px;
   font-weight: 500;
+  text-decoration: none;
 }
 
 .login-button:hover {

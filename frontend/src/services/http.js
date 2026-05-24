@@ -12,6 +12,11 @@ export class ApiError extends Error {
 }
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/+$/, '')
+let authTokenGetter = () => null
+
+export function setAuthTokenGetter(getter) {
+  authTokenGetter = typeof getter === 'function' ? getter : () => null
+}
 
 function buildUrl(path, params) {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
@@ -39,15 +44,18 @@ async function parseJsonSafely(response) {
   }
 }
 
-async function request(method, path, { params, body, headers } = {}) {
+async function request(method, path, { params, body, headers, auth = false } = {}) {
   let response
+  const token = auth ? authTokenGetter() : null
 
   try {
     response = await fetch(buildUrl(path, params), {
       method,
+      credentials: 'include',
       headers: {
         Accept: 'application/json',
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -90,11 +98,26 @@ export const http = {
   get(path, params) {
     return request('GET', path, { params })
   },
+  patch(path, body, options = {}) {
+    return request('PATCH', path, { body, ...options })
+  },
   post(path, body) {
     return request('POST', path, { body })
   },
+  postAuth(path, body) {
+    return request('POST', path, { body, auth: true })
+  },
+  patchAuth(path, body) {
+    return request('PATCH', path, { body, auth: true })
+  },
+  getAuth(path, params) {
+    return request('GET', path, { params, auth: true })
+  },
   delete(path) {
     return request('DELETE', path)
+  },
+  deleteAuth(path) {
+    return request('DELETE', path, { auth: true })
   },
 }
 
