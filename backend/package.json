@@ -7,19 +7,24 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "check": "node --check server.js && node --check src/app.js && node --check src/config/env.js && node --check src/config/db.js && node --check src/routes/index.js && node --check src/routes/health.routes.js && node --check src/middleware/requestId.js && node --check src/middleware/notFound.js && node --check src/middleware/errorHandler.js && node --check src/middleware/rateLimiters.js && node --check src/utils/apiResponse.js && node --check src/utils/pagination.js && node --check src/utils/cacheHeaders.js && node --check src/utils/slug.js && node --check src/utils/token.js && node --check src/modules/public/public.routes.js && node --check src/modules/public/public.controller.js && node --check src/modules/public/public.service.js && node --check src/modules/public/public.repository.js && node --check src/modules/public/public.validators.js && node --check scripts/smoke-public-api.js",
-    "test:public-api": "node scripts/smoke-public-api.js"
+    "check": "node --check server.js && node --check src/app.js && node --check src/config/env.js && node --check src/config/db.js && node --check src/routes/index.js && node --check src/routes/health.routes.js && node --check src/middleware/requestId.js && node --check src/middleware/notFound.js && node --check src/middleware/errorHandler.js && node --check src/middleware/rateLimiters.js && node --check src/middleware/authenticate.js && node --check src/middleware/authorize.js && node --check src/utils/apiResponse.js && node --check src/utils/pagination.js && node --check src/utils/cacheHeaders.js && node --check src/utils/slug.js && node --check src/utils/token.js && node --check src/utils/password.js && node --check src/utils/tokens.js && node --check src/utils/cookies.js && node --check src/utils/auditLogger.js && node --check src/modules/public/public.routes.js && node --check src/modules/public/public.controller.js && node --check src/modules/public/public.service.js && node --check src/modules/public/public.repository.js && node --check src/modules/public/public.validators.js && node --check src/modules/auth/auth.routes.js && node --check src/modules/auth/auth.controller.js && node --check src/modules/auth/auth.service.js && node --check src/modules/auth/auth.repository.js && node --check src/modules/auth/auth.validators.js && node --check scripts/smoke-public-api.js && node --check scripts/smoke-auth-api.js && node --check scripts/create-cms-user.js",
+    "test:public-api": "node scripts/smoke-public-api.js",
+    "test:auth-api": "node scripts/smoke-auth-api.js",
+    "create:cms-user": "node scripts/create-cms-user.js"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "compression": "^1.8.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.16.3",
     "pino-http": "^11.0.0",
     "zod": "^4.1.12"
