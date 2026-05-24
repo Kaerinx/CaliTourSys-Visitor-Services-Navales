@@ -106,6 +106,22 @@ Phase 07E-2 remaining content permissions:
 | `POST /cms/map-locations` | `map_locations.create` |
 | `PATCH /cms/map-locations/:id`, `DELETE /cms/map-locations/:id` | `map_locations.update` |
 
+Phase 07E-3 operations permissions:
+
+| Endpoint Group | Permission |
+|---|---|
+| `GET /cms/media`, `GET /cms/media/:id` | `media.view` |
+| `POST /cms/media`, `PATCH /cms/media/:id` | `media.upload` |
+| `PATCH /cms/media/:id/archive` | `media.archive` |
+| `GET /cms/inquiries`, `GET /cms/inquiries/:id`, `GET /cms/inquiries/:id/responses` | `inquiries.view` |
+| `PATCH /cms/inquiries/:id/status`, `POST /cms/inquiries/:id/responses` | `inquiries.respond` |
+| `GET /cms/newsletter-subscribers`, `PATCH /cms/newsletter-subscribers/:id/status` | `newsletter.view` |
+| `GET /cms/users`, `GET /cms/users/:id` | `users.view` |
+| `PATCH /cms/users/:id/status` | `users.manage` |
+| `GET /cms/roles`, `GET /cms/permissions` | `roles.view` |
+| `PATCH /cms/users/:id/roles` | `users.manage` and `roles.manage` |
+| `GET /cms/audit-logs`, `GET /cms/audit-logs/:id` | `audit_logs.view` |
+
 ## 5. Standard Success Response
 
 ```json
@@ -460,7 +476,62 @@ Map location target rules:
 
 Phase 07E-2 writes audit logs for `create`, `update`, `publish`, `archive`, and map-location `delete`.
 
-## 13. Planned Endpoints for Later Phases
+## 13. Implemented Endpoints in Phase 07E-3
+
+### Media
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/cms/media` | Paginated media metadata list. |
+| `POST` | `/api/v1/cms/media` | Create media metadata only. |
+| `GET` | `/api/v1/cms/media/:id` | Get media metadata by UUID. |
+| `PATCH` | `/api/v1/cms/media/:id` | Update media metadata. |
+| `PATCH` | `/api/v1/cms/media/:id/archive` | Archive media asset. |
+
+Binary upload and cloud storage processing are not implemented in this phase.
+
+### Inquiries
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/cms/inquiries` | Paginated public inquiry list. |
+| `GET` | `/api/v1/cms/inquiries/:id` | Inquiry detail. |
+| `PATCH` | `/api/v1/cms/inquiries/:id/status` | Update inquiry status. |
+| `POST` | `/api/v1/cms/inquiries/:id/responses` | Store prepared/sent response record. |
+| `GET` | `/api/v1/cms/inquiries/:id/responses` | List stored response records. |
+
+No real email is sent in this phase. A response with `status = sent` records `sent_at` and marks the inquiry as `responded`.
+
+### Newsletter
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/cms/newsletter-subscribers` | Paginated subscriber list. |
+| `PATCH` | `/api/v1/cms/newsletter-subscribers/:id/status` | Update subscription status. |
+
+### Users and Roles
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/cms/users` | Paginated safe CMS user list. |
+| `GET` | `/api/v1/cms/users/:id` | Safe CMS user detail. |
+| `PATCH` | `/api/v1/cms/users/:id/status` | Update CMS user status. |
+| `GET` | `/api/v1/cms/roles` | List roles. |
+| `GET` | `/api/v1/cms/permissions` | List permissions. |
+| `PATCH` | `/api/v1/cms/users/:id/roles` | Replace user role assignments. |
+
+User creation remains intentionally limited to the bootstrap script. Password hashes, refresh token hashes, and auth sessions are never returned.
+
+### Audit Logs
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/cms/audit-logs` | Paginated safe audit log summary list. |
+| `GET` | `/api/v1/cms/audit-logs/:id` | Audit log detail with sanitized before/after values. |
+
+Audit detail recursively strips sensitive keys containing password, token, secret, or hash.
+
+## 14. Planned Endpoints for Later Phases
 
 Dashboard:
 
@@ -496,31 +567,20 @@ Businesses:
 
 Inquiries:
 
-- `GET /api/v1/cms/inquiries`
-- `GET /api/v1/cms/inquiries/:id`
-- `PATCH /api/v1/cms/inquiries/:id/status`
-- `POST /api/v1/cms/inquiries/:id/responses`
+- Phase 07E-3 implemented.
 
 Newsletter:
 
-- `GET /api/v1/cms/newsletter-subscribers`
+- Phase 07E-3 implemented.
 
 Media:
 
-- `GET /api/v1/cms/media`
-- `POST /api/v1/cms/media`
-- `PATCH /api/v1/cms/media/:id`
-- `PATCH /api/v1/cms/media/:id/archive`
+- Phase 07E-3 metadata API implemented. Binary upload is postponed.
 
 Users and Roles:
 
-- `GET /api/v1/cms/users`
-- `POST /api/v1/cms/users`
-- `PATCH /api/v1/cms/users/:id`
-- `GET /api/v1/cms/roles`
-- `GET /api/v1/cms/permissions`
-- `PATCH /api/v1/cms/users/:id/roles`
+- Phase 07E-3 read/status/role assignment endpoints implemented. User creation remains postponed.
 
 Audit Logs:
 
-- `GET /api/v1/cms/audit-logs`
+- Phase 07E-3 list/detail implemented.

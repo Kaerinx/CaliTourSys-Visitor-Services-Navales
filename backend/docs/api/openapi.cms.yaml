@@ -18,6 +18,7 @@ tags:
   - name: CMS Businesses
   - name: CMS Museum
   - name: CMS Map Locations
+  - name: CMS Operations
 paths:
   /cms/health:
     get:
@@ -544,6 +545,60 @@ paths:
       $ref: "#/components/pathItems/GenericContentUpdate"
     delete:
       $ref: "#/components/pathItems/GenericContentDelete"
+  /cms/media:
+    get:
+      $ref: "#/components/pathItems/OperationsList"
+    post:
+      $ref: "#/components/pathItems/OperationsCreate"
+  /cms/media/{id}:
+    get:
+      $ref: "#/components/pathItems/OperationsDetail"
+    patch:
+      $ref: "#/components/pathItems/OperationsUpdate"
+  /cms/media/{id}/archive:
+    patch:
+      $ref: "#/components/pathItems/OperationsState"
+  /cms/inquiries:
+    get:
+      $ref: "#/components/pathItems/OperationsList"
+  /cms/inquiries/{id}:
+    get:
+      $ref: "#/components/pathItems/OperationsDetail"
+  /cms/inquiries/{id}/status:
+    patch:
+      $ref: "#/components/pathItems/OperationsUpdate"
+  /cms/inquiries/{id}/responses:
+    get:
+      $ref: "#/components/pathItems/OperationsDetail"
+    post:
+      $ref: "#/components/pathItems/OperationsCreate"
+  /cms/newsletter-subscribers:
+    get:
+      $ref: "#/components/pathItems/OperationsList"
+  /cms/newsletter-subscribers/{id}/status:
+    patch:
+      $ref: "#/components/pathItems/OperationsUpdate"
+  /cms/users:
+    get:
+      $ref: "#/components/pathItems/OperationsList"
+  /cms/users/{id}:
+    get:
+      $ref: "#/components/pathItems/OperationsDetail"
+  /cms/users/{id}/status:
+    patch:
+      $ref: "#/components/pathItems/OperationsUpdate"
+  /cms/users/{id}/roles:
+    patch:
+      $ref: "#/components/pathItems/OperationsUpdate"
+  /cms/roles:
+    get:
+      $ref: "#/components/pathItems/OperationsArray"
+  /cms/permissions:
+    get:
+      $ref: "#/components/pathItems/OperationsArray"
+  /cms/audit-logs/{id}:
+    get:
+      $ref: "#/components/pathItems/OperationsDetail"
 components:
   securitySchemes:
     BearerAuth:
@@ -838,6 +893,141 @@ components:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+    OperationsList:
+      tags:
+        - CMS Operations
+      summary: Paginated protected CMS operations list
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/SearchParam"
+        - $ref: "#/components/parameters/StatusParam"
+      responses:
+        "200":
+          description: Paginated operations records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    OperationsCreate:
+      tags:
+        - CMS Operations
+      summary: Create protected CMS operations record
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created operations record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    OperationsDetail:
+      tags:
+        - CMS Operations
+      summary: Protected CMS operations detail
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          description: Operations record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    OperationsUpdate:
+      tags:
+        - CMS Operations
+      summary: Update protected CMS operations record
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated operations record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    OperationsState:
+      tags:
+        - CMS Operations
+      summary: State transition for protected CMS operations record
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          description: Updated operations record state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    OperationsArray:
+      tags:
+        - CMS Operations
+      summary: Protected CMS operations array response
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Operations array
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   responses:
     Unauthorized:
       description: Authentication required or invalid token
