@@ -1,68 +1,79 @@
 # CMS Frontend Module
 
-Scope: Phase 07F - CMS frontend shell and auth integration.
+Scope: CMS frontend shell/auth integration plus Phase 07G-1 core content pages.
 
-This module contains the first Vue CMS foundation for CaliTourSys. It is isolated under `/cms` and does not modify the completed public website routes under `/promotion`.
+This module is isolated under `/cms`. Public `/promotion` routes are intentionally left untouched by CMS page work.
 
 ## Routes
 
 - `/cms/login`
 - `/cms/dashboard`
 - `/cms/unauthorized`
+- `/cms/promotions`
+- `/cms/events`
+- `/cms/categories`
+- `/cms/categories/events`
+- `/cms/categories/products`
+- `/cms/categories/destinations`
+- `/cms/categories/museum`
 - `/cms/*` CMS-only not found placeholder
 
-Future CMS CRUD pages are intentionally not implemented in this phase.
+## Phase 07G-1 Pages
 
-## Auth Flow
+- Promotions list and form
+- Events list and form
+- Category landing page
+- Event categories
+- Product categories
+- Destination categories
+- Museum categories
 
-- Login submits to `POST /api/v1/auth/login`.
-- The access token is kept in Pinia state and mirrored to `sessionStorage` for development refresh behavior.
-- Passwords are never stored.
-- Authenticated API calls use `Authorization: Bearer <accessToken>`.
-- `POST /api/v1/auth/refresh` is used during route bootstrap when possible.
-- Logout calls `POST /api/v1/auth/logout`, clears local auth state, and redirects to `/cms/login`.
+## API Services Used
 
-The backend httpOnly refresh cookie remains the preferred session recovery mechanism. The `sessionStorage` access token is a development convenience and should be reviewed before deployment hardening.
+`services/cmsContentApi.js` centralizes protected CMS content API calls:
 
-## Permission Navigation
+- promotions: list, detail, create, update, publish, archive
+- events: list, detail, create, update, publish, archive
+- event categories: list, create, update
+- product categories: list, create, update
+- destination categories: list, create, update
+- museum categories: list, create, update
 
-The CMS layout tries `GET /api/v1/cms/navigation` first. If that fails, it falls back to a local permission map.
+All methods use the shared HTTP client and existing CMS auth token handling.
 
-Navigation items are filtered by permissions such as:
+## Permissions Used
 
-- `dashboard.view`
-- `promotions.view`
-- `events.view`
-- `products.view`
-- `destinations.view`
-- `businesses.view`
-- `map_locations.view`
-- `museum.view`
-- `media.view`
-- `inquiries.view`
-- `newsletter.view`
-- `users.view`
-- `roles.view`
-- `audit_logs.view`
+- Promotions page: `promotions.view`
+- Promotion create: `promotions.create`
+- Promotion edit: `promotions.update`
+- Promotion publish: `promotions.publish`
+- Promotion archive: `promotions.archive`
+- Events page: `events.view`
+- Event create: `events.create`
+- Event edit/category write: `events.update`
+- Event publish: `events.publish`
+- Event archive: `events.archive`
+- Product category page: `products.view`
+- Product category write: `products.update`
+- Destination category page: `destinations.view`
+- Destination category write: `destinations.update`
+- Museum category page: `museum.view`
+- Museum category write: `museum.update`
+- Category landing page: any of `events.view`, `products.view`, `destinations.view`, `museum.view`
 
-## Files Created
+Frontend buttons are hidden by permission, while backend RBAC remains the final authority.
 
-- `components/CmsSidebar.vue`
-- `components/CmsTopbar.vue`
-- `components/CmsStatCard.vue`
-- `components/CmsQuickActionCard.vue`
-- `components/CmsRecentActivity.vue`
-- `components/CmsPermissionGate.vue`
-- `layouts/CmsLayout.vue`
-- `views/CmsLoginView.vue`
-- `views/CmsDashboardView.vue`
-- `views/CmsUnauthorizedView.vue`
-- `views/CmsNotFoundView.vue`
-- `services/authApi.js`
-- `services/cmsApi.js`
-- `stores/authStore.js`
-- `routes.js`
-- `index.js`
+## Shared UI Components
+
+- `components/content/CmsContentToolbar.vue`
+- `components/content/CmsDataTable.vue`
+- `components/content/CmsStatusBadge.vue`
+- `components/content/CmsPagination.vue`
+- `components/content/CmsConfirmDialog.vue`
+- `components/content/CmsPromotionForm.vue`
+- `components/content/CmsEventForm.vue`
+- `components/content/CmsCategoryForm.vue`
+- `components/content/CmsCategoryManager.vue`
 
 ## How To Test
 
@@ -83,20 +94,34 @@ npm run dev
 Manual checks:
 
 - open `/cms/login`
-- try invalid credentials
 - login with a CMS user
-- confirm redirect to `/cms/dashboard`
-- refresh `/cms/dashboard`
-- confirm sidebar items match permissions
-- open `/cms/unauthorized`
-- logout
-- confirm `/promotion`, `/promotion/products`, and `/promotion/map` still work
+- open `/cms/promotions`
+- create a promotion draft
+- edit the promotion
+- publish the promotion
+- archive the promotion
+- open `/cms/events`
+- create an event draft with a category
+- edit the event
+- publish and archive the event
+- open `/cms/categories`
+- open each category page
+- create and edit event, product, destination, and museum categories
+- test duplicate slug handling
+- confirm buttons hide for users without matching permissions
+- refresh a CMS page and confirm auth bootstrap still works
+- confirm public routes still work: `/promotion`, `/promotion/events`, `/promotion/products`, `/promotion/map`
 
 ## Postponed
 
-- CMS CRUD pages
-- content forms
-- media upload UI
+- Phase 07G-2 pages
+- product, destination, museum artifact, business, map location, media, inquiry, newsletter, users, roles, and audit-log CMS pages
 - approval workflows
-- user creation UI
-- password reset and two-factor UI
+- business owner portal
+- media binary upload
+- visitor-facing auth API wiring
+- dedicated category permissions beyond the current backend module permissions
+
+## Notes
+
+The events API does not currently expose a server-side category filter. The event category filter is applied to the currently loaded page of results until the API contract adds `categoryId` filtering for `/cms/events`.

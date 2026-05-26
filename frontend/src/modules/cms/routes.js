@@ -29,6 +29,48 @@ const cmsRoutes = [
         meta: { permission: 'dashboard.view' },
       },
       {
+        path: 'promotions',
+        name: 'cms-promotions',
+        component: () => import('./views/content/CmsPromotionsView.vue'),
+        meta: { permission: 'promotions.view' },
+      },
+      {
+        path: 'events',
+        name: 'cms-events',
+        component: () => import('./views/content/CmsEventsView.vue'),
+        meta: { permission: 'events.view' },
+      },
+      {
+        path: 'categories',
+        name: 'cms-categories',
+        component: () => import('./views/content/CmsCategoriesView.vue'),
+        meta: { permissionsAny: ['events.view', 'products.view', 'destinations.view', 'museum.view'] },
+      },
+      {
+        path: 'categories/events',
+        name: 'cms-event-categories',
+        component: () => import('./views/content/CmsEventCategoriesView.vue'),
+        meta: { permission: 'events.view' },
+      },
+      {
+        path: 'categories/products',
+        name: 'cms-product-categories',
+        component: () => import('./views/content/CmsProductCategoriesView.vue'),
+        meta: { permission: 'products.view' },
+      },
+      {
+        path: 'categories/destinations',
+        name: 'cms-destination-categories',
+        component: () => import('./views/content/CmsDestinationCategoriesView.vue'),
+        meta: { permission: 'destinations.view' },
+      },
+      {
+        path: 'categories/museum',
+        name: 'cms-museum-categories',
+        component: () => import('./views/content/CmsMuseumCategoriesView.vue'),
+        meta: { permission: 'museum.view' },
+      },
+      {
         path: ':pathMatch(.*)*',
         name: 'cms-not-found',
         component: () => import('./views/CmsNotFoundView.vue'),
@@ -60,6 +102,11 @@ export async function guardCmsRoute(to) {
 
     const requiredPermission = to.meta.permission
     if (requiredPermission && !auth.hasPermission(requiredPermission)) {
+      return { name: 'cms-unauthorized' }
+    }
+
+    const requiredAny = to.meta.permissionsAny
+    if (requiredAny?.length && !auth.hasAnyPermission(requiredAny)) {
       return { name: 'cms-unauthorized' }
     }
   }

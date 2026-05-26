@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import CmsIcon from '../components/CmsIcon.vue'
 import CmsQuickActionCard from '../components/CmsQuickActionCard.vue'
 import CmsRecentActivity from '../components/CmsRecentActivity.vue'
@@ -8,9 +8,14 @@ import { cmsApi } from '../services/cmsApi'
 import { useCmsAuthStore } from '../stores/authStore'
 
 const auth = useCmsAuthStore()
+const DASHBOARD_REFRESH_INTERVAL_MS = 15000
+
 const isLoading = ref(true)
+const isRefreshing = ref(false)
 const error = ref('')
 const dashboard = ref(null)
+const lastUpdatedAt = ref(null)
+let refreshTimer = null
 
 const quickActions = [
   {
@@ -51,19 +56,42 @@ const visibleQuickActions = computed(() =>
   quickActions.filter((action) => auth.hasAnyPermission(action.permissions)),
 )
 
-onMounted(loadDashboard)
+onMounted(async () => {
+  await loadDashboard()
+  refreshTimer = window.setInterval(() => {
+    if (document.hidden) return
+    loadDashboard({ silent: true })
+  }, DASHBOARD_REFRESH_INTERVAL_MS)
+})
 
-async function loadDashboard() {
-  isLoading.value = true
-  error.value = ''
+onBeforeUnmount(() => {
+  if (refreshTimer) window.clearInterval(refreshTimer)
+})
+
+async function loadDashboard({ silent = false } = {}) {
+  if (isRefreshing.value) return
+  isRefreshing.value = true
+  if (!silent && !dashboard.value) isLoading.value = true
   try {
     const { data } = await cmsApi.getDashboard()
     dashboard.value = data
+    lastUpdatedAt.value = new Date()
+    error.value = ''
   } catch (err) {
-    error.value = err.message || 'Unable to load CMS dashboard.'
+    if (!dashboard.value) error.value = err.message || 'Unable to load CMS dashboard.'
   } finally {
     isLoading.value = false
+    isRefreshing.value = false
   }
+}
+
+function formatLastUpdated(value) {
+  if (!value) return 'Syncing...'
+  return new Intl.DateTimeFormat('en', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(value)
 }
 </script>
 
@@ -75,10 +103,10 @@ async function loadDashboard() {
         <h1 id="cms-dashboard-title">CMS Dashboard</h1>
         <span>Monitor published content, visitor queues, and staff activity in one workspace.</span>
       </div>
-      <button type="button" :disabled="isLoading" @click="loadDashboard">
-        <CmsIcon name="refresh" />
-        {{ isLoading ? 'Refreshing...' : 'Refresh' }}
-      </button>
+      <div class="cms-dashboard__live" aria-live="polite">
+        <i aria-hidden="true"></i>
+        <span>{{ isRefreshing ? 'Updating live' : `Live / ${formatLastUpdated(lastUpdatedAt)}` }}</span>
+      </div>
     </header>
 
     <div v-if="isLoading" class="cms-dashboard__loading" aria-live="polite" aria-busy="true">
@@ -91,7 +119,7 @@ async function loadDashboard() {
       <CmsIcon name="alert" />
       <strong>Dashboard could not load</strong>
       <p>{{ error }}</p>
-      <button type="button" @click="loadDashboard">Try again</button>
+      <small>Auto-retrying every {{ DASHBOARD_REFRESH_INTERVAL_MS / 1000 }} seconds.</small>
     </div>
 
     <template v-else>
@@ -194,35 +222,27 @@ async function loadDashboard() {
   line-height: 1.55;
 }
 
-.cms-dashboard__hero button,
-.cms-state button {
+.cms-dashboard__live {
   display: inline-flex;
   gap: 8px;
   align-items: center;
-  justify-content: center;
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 8px;
-  color: #075985;
-  background: #fff;
+  min-height: 38px;
+  padding: 0 12px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 0.86rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
-.cms-dashboard__hero button svg {
-  width: 17px;
-  height: 17px;
-}
-
-.cms-dashboard__hero button:disabled {
-  opacity: 0.72;
-  cursor: wait;
-}
-
-.cms-dashboard__hero button:focus-visible,
-.cms-state button:focus-visible {
-  outline: 3px solid rgba(14, 165, 233, 0.2);
-  outline-offset: 2px;
+.cms-dashboard__live i {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #86efac;
+  box-shadow: 0 0 0 5px rgba(134, 239, 172, 0.18);
 }
 
 .cms-dashboard__stats {
@@ -358,10 +378,15 @@ h2 {
 }
 
 .cms-state p,
+.cms-state small,
 .cms-dashboard__empty p {
   max-width: 520px;
   margin: 0;
   line-height: 1.5;
+}
+
+.cms-state small {
+  color: #64748b;
 }
 
 .cms-state--error {

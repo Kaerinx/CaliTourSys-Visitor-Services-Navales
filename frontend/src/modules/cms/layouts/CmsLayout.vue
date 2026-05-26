@@ -15,6 +15,7 @@ const fallbackNavigation = [
   { key: 'dashboard', label: 'Dashboard', path: '/cms/dashboard', permission: 'dashboard.view', icon: 'dashboard' },
   { key: 'promotions', label: 'Promotions', path: '/cms/promotions', permission: 'promotions.view', icon: 'message' },
   { key: 'events', label: 'Events', path: '/cms/events', permission: 'events.view', icon: 'calendar' },
+  { key: 'categories', label: 'Categories', path: '/cms/categories', permissions: ['events.view', 'products.view', 'destinations.view', 'museum.view'], icon: 'audit' },
   { key: 'products', label: 'Products / OTOP', path: '/cms/products', permission: 'products.view', icon: 'package' },
   { key: 'destinations', label: 'Destinations', path: '/cms/destinations', permission: 'destinations.view', icon: 'destinations' },
   { key: 'businesses', label: 'Businesses', path: '/cms/businesses', permission: 'businesses.view', icon: 'building' },
@@ -29,7 +30,7 @@ const fallbackNavigation = [
 
 const navigationItems = computed(() => {
   if (!backendNavigation.value.length) return fallbackNavigation
-  return backendNavigation.value.map((item) => ({
+  const mapped = backendNavigation.value.map((item) => ({
     key: item.key,
     label: item.label,
     path: normalizeNavigationPath(item),
@@ -37,6 +38,18 @@ const navigationItems = computed(() => {
     permissions: item.requiredPermissions || item.permissions,
     icon: resolveNavigationIcon(item),
   }))
+
+  if (!mapped.some((item) => item.key === 'categories')) {
+    mapped.splice(3, 0, {
+      key: 'categories',
+      label: 'Categories',
+      path: '/cms/categories',
+      permissions: ['events.view', 'products.view', 'destinations.view', 'museum.view'],
+      icon: 'audit',
+    })
+  }
+
+  return mapped
 })
 
 onMounted(async () => {
@@ -73,6 +86,7 @@ function resolveNavigationIcon(item) {
     audit: 'audit',
     businesses: 'building',
     dashboard: 'dashboard',
+    categories: 'audit',
     destinations: 'destinations',
     events: 'calendar',
     inquiries: 'message',
