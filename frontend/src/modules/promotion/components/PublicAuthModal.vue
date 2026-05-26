@@ -205,11 +205,18 @@ onBeforeUnmount(() => {
   font-family: Inter, system-ui, sans-serif;
 }
 
+.public-auth *,
+.public-auth *::before,
+.public-auth *::after {
+  box-sizing: border-box;
+}
+
 .public-auth__dialog {
   position: relative;
   width: min(512px, 100%);
   max-height: calc(100vh - 48px);
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 32px;
   border: 1px solid #e8e4dc;
   border-radius: 16px;
@@ -376,7 +383,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 560px) {
   .public-auth {
-    padding: 16px;
+    padding: 18px;
   }
 
   .public-auth__dialog {
