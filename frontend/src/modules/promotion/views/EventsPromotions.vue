@@ -185,7 +185,7 @@ onMounted(loadEvents)
               <path d="m20 20-3.2-3.2" />
             </svg>
           </button>
-          <RouterLink class="login-button" to="/cms/login" aria-label="Open CMS login">
+          <RouterLink class="login-button" :to="{ path: $route.path, query: { ...$route.query, auth: 'login' } }" aria-label="Open visitor login">
             Login
           </RouterLink>
           <button class="icon-button icon-button--menu" type="button" aria-label="Menu" disabled title="Mobile menu is planned for a later phase">

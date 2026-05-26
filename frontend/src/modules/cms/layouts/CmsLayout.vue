@@ -12,19 +12,19 @@ const sidebarOpen = ref(false)
 const backendNavigation = ref([])
 
 const fallbackNavigation = [
-  { key: 'dashboard', label: 'Dashboard', path: '/cms/dashboard', permission: 'dashboard.view', icon: 'D' },
-  { key: 'promotions', label: 'Promotions', path: '/cms/promotions', permission: 'promotions.view', icon: 'P' },
-  { key: 'events', label: 'Events', path: '/cms/events', permission: 'events.view', icon: 'E' },
-  { key: 'products', label: 'Products / OTOP', path: '/cms/products', permission: 'products.view', icon: 'O' },
-  { key: 'destinations', label: 'Destinations', path: '/cms/destinations', permission: 'destinations.view', icon: 'T' },
-  { key: 'businesses', label: 'Businesses', path: '/cms/businesses', permission: 'businesses.view', icon: 'B' },
-  { key: 'map', label: 'Map Locations', path: '/cms/map-locations', permission: 'map_locations.view', icon: 'M' },
-  { key: 'museum', label: 'Museum', path: '/cms/museum/artifacts', permission: 'museum.view', icon: 'H' },
-  { key: 'media', label: 'Media', path: '/cms/media', permission: 'media.view', icon: 'I' },
-  { key: 'inquiries', label: 'Inquiries', path: '/cms/inquiries', permission: 'inquiries.view', icon: 'Q' },
-  { key: 'newsletter', label: 'Newsletter', path: '/cms/newsletter-subscribers', permission: 'newsletter.view', icon: 'N' },
-  { key: 'users', label: 'Users & Roles', path: '/cms/users', permissions: ['users.view', 'roles.view'], icon: 'U' },
-  { key: 'audit', label: 'Audit Logs', path: '/cms/audit-logs', permission: 'audit_logs.view', icon: 'A' },
+  { key: 'dashboard', label: 'Dashboard', path: '/cms/dashboard', permission: 'dashboard.view', icon: 'dashboard' },
+  { key: 'promotions', label: 'Promotions', path: '/cms/promotions', permission: 'promotions.view', icon: 'message' },
+  { key: 'events', label: 'Events', path: '/cms/events', permission: 'events.view', icon: 'calendar' },
+  { key: 'products', label: 'Products / OTOP', path: '/cms/products', permission: 'products.view', icon: 'package' },
+  { key: 'destinations', label: 'Destinations', path: '/cms/destinations', permission: 'destinations.view', icon: 'destinations' },
+  { key: 'businesses', label: 'Businesses', path: '/cms/businesses', permission: 'businesses.view', icon: 'building' },
+  { key: 'map', label: 'Map Locations', path: '/cms/map-locations', permission: 'map_locations.view', icon: 'map' },
+  { key: 'museum', label: 'Museum', path: '/cms/museum/artifacts', permission: 'museum.view', icon: 'museum' },
+  { key: 'media', label: 'Media', path: '/cms/media', permission: 'media.view', icon: 'image' },
+  { key: 'inquiries', label: 'Inquiries', path: '/cms/inquiries', permission: 'inquiries.view', icon: 'message' },
+  { key: 'newsletter', label: 'Newsletter', path: '/cms/newsletter-subscribers', permission: 'newsletter.view', icon: 'mail' },
+  { key: 'users', label: 'Users & Roles', path: '/cms/users', permissions: ['users.view', 'roles.view'], icon: 'users' },
+  { key: 'audit', label: 'Audit Logs', path: '/cms/audit-logs', permission: 'audit_logs.view', icon: 'audit' },
 ]
 
 const navigationItems = computed(() => {
@@ -35,7 +35,7 @@ const navigationItems = computed(() => {
     path: normalizeNavigationPath(item),
     permission: item.requiredPermission || item.permission,
     permissions: item.requiredPermissions || item.permissions,
-    icon: item.icon,
+    icon: resolveNavigationIcon(item),
   }))
 })
 
@@ -67,6 +67,27 @@ function normalizeNavigationPath(item) {
   if (item.path?.startsWith('/cms')) return item.path
   return `/cms${item.path || ''}`
 }
+
+function resolveNavigationIcon(item) {
+  const icons = {
+    audit: 'audit',
+    businesses: 'building',
+    dashboard: 'dashboard',
+    destinations: 'destinations',
+    events: 'calendar',
+    inquiries: 'message',
+    map: 'map',
+    'map-locations': 'map',
+    media: 'image',
+    museum: 'museum',
+    newsletter: 'mail',
+    products: 'package',
+    promotions: 'message',
+    users: 'users',
+  }
+
+  return icons[item.key] || item.icon || 'circle'
+}
 </script>
 
 <template>
@@ -76,7 +97,7 @@ function normalizeNavigationPath(item) {
 
     <div class="cms-layout__main">
       <CmsTopbar :user="auth.currentUser" @toggle-sidebar="sidebarOpen = true" @logout="logout" />
-      <main class="cms-layout__content">
+      <main id="cms-main-content" class="cms-layout__content" tabindex="-1">
         <RouterView />
       </main>
     </div>
@@ -86,7 +107,7 @@ function normalizeNavigationPath(item) {
 <style scoped>
 .cms-layout {
   min-height: 100vh;
-  background: #f8fafc;
+  background: #f6f8fb;
 }
 
 .cms-layout__main {
@@ -96,7 +117,7 @@ function normalizeNavigationPath(item) {
 
 .cms-layout__content {
   width: min(1240px, 100%);
-  padding: 24px;
+  padding: 24px 28px 32px;
   margin: 0 auto;
 }
 
@@ -113,7 +134,7 @@ function normalizeNavigationPath(item) {
   }
 
   .cms-layout__content {
-    padding: 16px;
+    padding: 18px 16px 28px;
   }
 }
 </style>
