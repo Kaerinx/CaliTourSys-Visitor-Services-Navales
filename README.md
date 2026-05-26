@@ -1,193 +1,153 @@
-# CaliTourSys - Tourism Product Development Program
+# CaliTourSys: Operation Information Management System of Calabanga
 
-Standalone Application Development module for the Tourism Office of Calabanga.
+## 📖 Project Description
 
-## Project Overview
+Tourism plays an important role in the economic and cultural development of local communities. However, the Municipal Tourism Office of Calabanga, Camarines Sur, continues to rely on manual and traditional processes for tourism promotion, business accreditation, and information dissemination. These practices limit operational efficiency, real-time updates, and effective coordination among stakeholders.
 
-This repository contains the **Tourism Product Development Program** module of
-CaliTourSys. The module helps the Tourism Office manage the internal workflow for
-turning local tourism assets into organized tourism activities and packages.
+CaliTourSys is a web-based Operation Information Management System designed to centralize tourism-related information, streamline business processes, support Micro, Small, and Medium Enterprises (MSMEs) and One Town One Product (OTOP) producers, and improve visitor services.
 
-The module currently supports:
+The system aims to:
 
-- demo JWT login with role-based access control
-- tourism asset management
-- product development planning linked to tourism assets
-- improvement monitoring
-- tourism activity management
-- tourism package creation
-- package readiness review
-- status history
-- dashboard/report summaries
-- ready-for-promotion package handoff endpoint
+- Improve operational efficiency of the Municipal Tourism Office
+- Provide centralized tourism information management
+- Enhance accessibility of tourism-related services and data
+- Strengthen engagement between the Local Government Unit (LGU), tourism businesses, and tourists
+- Support local tourism promotion and digital transformation initiatives
 
-This project is currently developed as a standalone Application Development
-submission. It is also intended to become one module of the larger capstone
-project: **Local Government Unit Tourism Office Operation Information Management
-System of Calabanga**.
+---
 
-## Tech Stack
 
-- Frontend: Vue.js with Vite
-- Backend: Node.js with Express.js
-- Database: SQLite
-- Authentication: demo JWT login with role-based access control
+---
 
-## User Roles
+# 💻 Tech Stack
 
-| Role | Access |
-| --- | --- |
-| Tourism Staff | Create and update operational records |
-| Tourism Officer | Create, update, archive, review, and approve readiness |
-| LGU Official | View-only access |
-| System Administrator | Full module access |
+## Frontend
+- Vue.js 3 (Vite)
+- Pinia (State Management)
+- Vue Router
 
-## Demo Accounts
+## Backend
+- Node.js
+- Express.js
 
-All demo accounts use this password:
+## Database
+- PostgreSQL
+- Supabase
+- 3rd Normal Form (3NF) Relational Database Design
 
-```text
-password123
+## API & Security
+- REST API
+- JWT Authentication
+
+## DevOps & Collaboration
+- GitHub Copilot
+- Git Flow Workflow
+
+---
+
+# ⚙️ Installation Guide
+
+Follow these steps to set up the development environment locally.
+
+---
+
+## 📋 Prerequisites
+
+Ensure the following are installed on your machine:
+
+- Node.js (v18 or higher recommended)
+- PostgreSQL or Supabase Project
+- Git
+
+---
+
+# 1️⃣ Clone the Repository
+
+```bash
+git clone https://github.com/rayyyrayyyyy/CaliTourSys.git
+cd CaliTourSys
 ```
 
-| Username | Role |
-| --- | --- |
-| `staff` | Tourism Staff |
-| `officer` | Tourism Officer |
-| `lgu` | LGU Official |
-| `admin` | System Administrator |
+---
 
-These accounts are for demonstration only and should not be used as production
-credentials.
+# 2️⃣ Backend Setup
 
-## Project Structure
-
-```text
-CaliTourSys/
-  backend/     Express API, SQLite migrations, seeds, and module services
-  frontend/    Vue/Vite frontend application
-  modules/     Placeholder folder for future group module consolidation
-```
-
-## Local Setup
-
-### 1. Install Backend Dependencies
-
-```powershell
+```bash
 cd backend
 npm install
+cp .env.example .env
 ```
 
-### 2. Prepare Backend Environment
+Update the `.env` file with your configuration:
 
-Create `backend/.env` from `backend/.env.example`.
-
-```powershell
-Copy-Item .env.example .env
+```env
+DB_HOST=your_database_host
+DB_NAME=your_database_name
+JWT_SECRET=your_secret_key
 ```
 
-The default values are suitable for local development.
+Run the backend server:
 
-### 3. Run Database Migrations and Seeds
-
-```powershell
-npm run db:migrate
-npm run db:seed
-```
-
-The seed command can be run more than once. Demo users are updated and sample
-records use fixed IDs to avoid duplicate data.
-
-### 4. Start Backend
-
-```powershell
+```bash
 npm run dev
 ```
 
-Backend API:
+---
 
-```text
-http://localhost:5000/api
-```
+# 3️⃣ Frontend Setup
 
-Health check:
-
-```text
-http://localhost:5000/api/health
-```
-
-### 5. Install Frontend Dependencies
-
-Open a new terminal:
-
-```powershell
-cd frontend
+```bash
+cd ../frontend
 npm install
+cp .env.example .env
 ```
 
-### 6. Prepare Frontend Environment
+Update the frontend environment variable:
 
-Create `frontend/.env` from `frontend/.env.example`.
-
-```powershell
-Copy-Item .env.example .env
+```env
+VITE_API_BASE_URL=http://localhost:5000
 ```
 
-### 7. Start Frontend
+Run the frontend development server:
 
-```powershell
+```bash
 npm run dev
 ```
 
-Frontend app:
 
-```text
-http://localhost:5173
-```
 
-## Useful Scripts
+# ✨ Core Features
 
-Backend:
+- Tourism Information Management
+- Tourist Spot Discovery
+- Promotion & Marketing Management
+- Tourist Map & Navigation
+- Business Accreditation Management
+- Visitor Monitoring Management
+- Product Development Program
+- OTOP & MSME Support
+- Real-Time Information Updates
+- User Authentication & Authorization
 
-```powershell
-npm run check
-npm run db:migrate
-npm run db:seed
-```
+---
 
-Frontend:
+# 👥 Contributors & Roles
 
-```powershell
-npm run build
-```
+| Team Member | Role | Assigned Module |
+|---|---|---|
+| John Ray M. Amaro | Project Manager | Promotion & Marketing; Tourist Map & Discovery |
+| Marnel R. Vasquez | Lead Analytics | Business Accreditation |
+| Francis E. Aracosta | Lead Developer | Product Development Program |
+| Khylene Navales | Lead Designer | Visitor Monitoring Management |
 
-Database reset is protected because it deletes local SQLite data:
 
-```powershell
-$env:CONFIRM_DB_RESET='YES'
-npm run db:reset
-Remove-Item Env:\CONFIRM_DB_RESET
-```
+# 📬 Contact
 
-## Main API Groups
+For inquiries and collaboration:
 
-```text
-/api/auth
-/api/assets
-/api/development-plans
-/api/improvements
-/api/activities
-/api/packages
-/api/packages/ready-for-promotion
-/api/reports
-/api/product/status
-```
+- **Project Name:** CaliTourSys
+- **Institution:** Municipal Tourism Office of Calabanga
+- **Location:** Calabanga, Camarines Sur, Philippines
 
-## Notes
+---
 
-- SQLite database files are stored locally under `backend/data/` and are ignored
-  by Git.
-- `.env` files are ignored by Git. Only `.env.example` files should be committed.
-- Demo JWT authentication is for prototype and classroom demonstration purposes.
-  A production deployment should add stronger account management, password
-  policies, and deployment security.

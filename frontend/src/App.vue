@@ -1,16 +1,61 @@
 <script setup>
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppFooter from '@/components/common/AppFooter.vue'
 import AppNavbar from '@/components/common/AppNavbar.vue'
+import FloatingItinerary from './modules/promotion/components/FloatingItinerary.vue'
+import PublicAuthModal from './modules/promotion/components/PublicAuthModal.vue'
+
+const route = useRoute()
+const router = useRouter()
+
+const isProductShell = computed(
+  () => route.path === '/login' || route.path === '/dashboard' || route.path.startsWith('/product'),
+)
+const showPublicItinerary = computed(() => !route.path.startsWith('/cms') && !isProductShell.value)
+const publicAuthMode = computed(() => {
+  const mode = route.query.auth
+  return mode === 'register' ? 'register' : mode === 'login' ? 'login' : ''
+})
+
+function setPublicAuthMode(mode) {
+  router.replace({
+    path: route.path,
+    query: {
+      ...route.query,
+      auth: mode,
+    },
+  })
+}
+
+function closePublicAuth() {
+  const nextQuery = { ...route.query }
+  delete nextQuery.auth
+  router.replace({
+    path: route.path,
+    query: nextQuery,
+  })
+}
 </script>
 
 <template>
-  <div class="app-shell">
+  <div v-if="isProductShell" class="app-shell">
     <AppNavbar />
     <main>
       <RouterView />
     </main>
     <AppFooter />
   </div>
+  <template v-else>
+    <RouterView />
+    <FloatingItinerary v-if="showPublicItinerary" />
+    <PublicAuthModal
+      v-if="showPublicItinerary && publicAuthMode"
+      :mode="publicAuthMode"
+      @close="closePublicAuth"
+      @change-mode="setPublicAuthMode"
+    />
+  </template>
 </template>
 
 <style>

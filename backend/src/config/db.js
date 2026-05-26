@@ -1,24 +1,38 @@
-import { databasePath, openDatabase } from '../database/connection.js'
-import { runMigrations } from '../database/runMigrations.js'
+const { Pool } = require('pg')
+const { env } = require('./env')
 
-let database
+const pool = new Pool({
+  connectionString: env.DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+})
 
-export function getDatabase() {
-  if (!database) {
-    database = openDatabase()
-    runMigrations(database)
-  }
+pool.on('error', (error) => {
+  console.error('Unexpected PostgreSQL pool error', error)
+})
 
-  return database
+function query(text, params) {
+  return pool.query(text, params)
 }
 
-export async function testDatabaseConnection() {
-  const db = getDatabase()
-  const row = db.prepare('SELECT 1 AS ok').get()
+async function testDatabaseConnection() {
+  const startedAt = Date.now()
+  const result = await query('SELECT 1 AS ok')
 
   return {
-    connected: row.ok === 1,
-    type: 'sqlite',
-    path: databasePath,
+    connected: result.rows[0]?.ok === 1,
+    latencyMs: Date.now() - startedAt,
   }
+}
+
+async function closeDatabasePool() {
+  await pool.end()
+}
+
+module.exports = {
+  pool,
+  query,
+  testDatabaseConnection,
+  closeDatabasePool,
 }

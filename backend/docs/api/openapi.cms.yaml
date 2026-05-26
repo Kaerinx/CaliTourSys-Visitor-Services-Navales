@@ -1,0 +1,1674 @@
+openapi: 3.1.0
+info:
+  title: CaliTourSys CMS API
+  version: 1.0.0
+  description: Protected CMS API contract for Phase 07D foundation endpoints.
+servers:
+  - url: http://localhost:5000/api/v1
+security:
+  - BearerAuth: []
+tags:
+  - name: CMS Foundation
+  - name: CMS Audit Logs
+  - name: CMS Promotions
+  - name: CMS Events
+  - name: CMS Categories
+  - name: CMS Products
+  - name: CMS Destinations
+  - name: CMS Businesses
+  - name: CMS Museum
+  - name: CMS Map Locations
+  - name: CMS Operations
+paths:
+  /cms/health:
+    get:
+      tags:
+        - CMS Foundation
+      summary: Protected CMS health check
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: CMS health response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CmsHealth"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /cms/dashboard:
+    get:
+      tags:
+        - CMS Foundation
+      summary: CMS dashboard summary
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Dashboard summary counts and recent audit logs
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CmsDashboardSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /cms/navigation:
+    get:
+      tags:
+        - CMS Foundation
+      summary: Permission-filtered CMS navigation
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Navigation items allowed for the authenticated user
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/CmsNavigationItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /cms/audit-logs:
+    get:
+      tags:
+        - CMS Audit Logs
+      summary: Safe paginated audit log list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: action
+          in: query
+          schema:
+            $ref: "#/components/schemas/AuditActionType"
+        - name: entityType
+          in: query
+          schema:
+            $ref: "#/components/schemas/CmsEntityType"
+      responses:
+        "200":
+          description: Paginated safe audit log list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CmsAuditLogItem"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /cms/promotions:
+    get:
+      tags:
+        - CMS Promotions
+      summary: Paginated CMS promotions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/SearchParam"
+        - $ref: "#/components/parameters/StatusParam"
+        - $ref: "#/components/parameters/FeaturedParam"
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, -createdAt, updatedAt, -updatedAt, title, -title, status]
+      responses:
+        "200":
+          description: Paginated promotions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CmsPromotion"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags:
+        - CMS Promotions
+      summary: Create promotion
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CmsPromotionInput"
+      responses:
+        "201":
+          description: Created promotion
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CmsPromotion"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /cms/promotions/{id}:
+    get:
+      tags:
+        - CMS Promotions
+      summary: Get promotion by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          description: Promotion detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CmsPromotion"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags:
+        - CMS Promotions
+      summary: Update promotion
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CmsPromotionPatch"
+      responses:
+        "200":
+          description: Updated promotion
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CmsPromotion"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /cms/promotions/{id}/publish:
+    patch:
+      tags:
+        - CMS Promotions
+      summary: Publish promotion
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/PromotionSuccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /cms/promotions/{id}/archive:
+    patch:
+      tags:
+        - CMS Promotions
+      summary: Archive promotion
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/PromotionSuccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /cms/events:
+    get:
+      tags:
+        - CMS Events
+      summary: Paginated CMS events
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/SearchParam"
+        - $ref: "#/components/parameters/StatusParam"
+        - $ref: "#/components/parameters/FeaturedParam"
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, -createdAt, updatedAt, -updatedAt, title, -title, status, startsAt, -startsAt]
+      responses:
+        "200":
+          description: Paginated events
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CmsEvent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags:
+        - CMS Events
+      summary: Create event
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CmsEventInput"
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CmsEvent"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /cms/events/{id}:
+    get:
+      tags:
+        - CMS Events
+      summary: Get event by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventSuccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags:
+        - CMS Events
+      summary: Update event
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CmsEventPatch"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventSuccess"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /cms/events/{id}/publish:
+    patch:
+      tags:
+        - CMS Events
+      summary: Publish event
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventSuccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /cms/events/{id}/archive:
+    patch:
+      tags:
+        - CMS Events
+      summary: Archive event
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/EventSuccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /cms/event-categories:
+    $ref: "#/components/pathItems/CategoryCollection"
+  /cms/event-categories/{id}:
+    $ref: "#/components/pathItems/CategoryMember"
+  /cms/product-categories:
+    $ref: "#/components/pathItems/CategoryCollection"
+  /cms/product-categories/{id}:
+    $ref: "#/components/pathItems/CategoryMember"
+  /cms/destination-categories:
+    $ref: "#/components/pathItems/CategoryCollection"
+  /cms/destination-categories/{id}:
+    $ref: "#/components/pathItems/CategoryMember"
+  /cms/museum/categories:
+    $ref: "#/components/pathItems/CategoryCollection"
+  /cms/museum/categories/{id}:
+    $ref: "#/components/pathItems/CategoryMember"
+  /cms/products:
+    get:
+      $ref: "#/components/pathItems/GenericContentList"
+    post:
+      $ref: "#/components/pathItems/GenericContentCreate"
+  /cms/products/{id}:
+    get:
+      $ref: "#/components/pathItems/GenericContentDetail"
+    patch:
+      $ref: "#/components/pathItems/GenericContentUpdate"
+  /cms/products/{id}/publish:
+    patch:
+      $ref: "#/components/pathItems/GenericContentState"
+  /cms/products/{id}/archive:
+    patch:
+      $ref: "#/components/pathItems/GenericContentState"
+  /cms/destinations:
+    get:
+      $ref: "#/components/pathItems/GenericContentList"
+    post:
+      $ref: "#/components/pathItems/GenericContentCreate"
+  /cms/destinations/{id}:
+    get:
+      $ref: "#/components/pathItems/GenericContentDetail"
+    patch:
+      $ref: "#/components/pathItems/GenericContentUpdate"
+  /cms/destinations/{id}/publish:
+    patch:
+      $ref: "#/components/pathItems/GenericContentState"
+  /cms/destinations/{id}/archive:
+    patch:
+      $ref: "#/components/pathItems/GenericContentState"
+  /cms/businesses:
+    get:
+      $ref: "#/components/pathItems/GenericContentList"
+    post:
+      $ref: "#/components/pathItems/GenericContentCreate"
+  /cms/businesses/{id}:
+    get:
+      $ref: "#/components/pathItems/GenericContentDetail"
+    patch:
+      $ref: "#/components/pathItems/GenericContentUpdate"
+  /cms/museum/artifacts:
+    get:
+      $ref: "#/components/pathItems/GenericContentList"
+    post:
+      $ref: "#/components/pathItems/GenericContentCreate"
+  /cms/museum/artifacts/{id}:
+    get:
+      $ref: "#/components/pathItems/GenericContentDetail"
+    patch:
+      $ref: "#/components/pathItems/GenericContentUpdate"
+  /cms/museum/artifacts/{id}/publish:
+    patch:
+      $ref: "#/components/pathItems/GenericContentState"
+  /cms/museum/artifacts/{id}/archive:
+    patch:
+      $ref: "#/components/pathItems/GenericContentState"
+  /cms/map-locations:
+    get:
+      $ref: "#/components/pathItems/GenericContentList"
+    post:
+      $ref: "#/components/pathItems/GenericContentCreate"
+  /cms/map-locations/{id}:
+    get:
+      $ref: "#/components/pathItems/GenericContentDetail"
+    patch:
+      $ref: "#/components/pathItems/GenericContentUpdate"
+    delete:
+      $ref: "#/components/pathItems/GenericContentDelete"
+  /cms/media:
+    get:
+      $ref: "#/components/pathItems/OperationsList"
+    post:
+      $ref: "#/components/pathItems/OperationsCreate"
+  /cms/media/{id}:
+    get:
+      $ref: "#/components/pathItems/OperationsDetail"
+    patch:
+      $ref: "#/components/pathItems/OperationsUpdate"
+  /cms/media/{id}/archive:
+    patch:
+      $ref: "#/components/pathItems/OperationsState"
+  /cms/inquiries:
+    get:
+      $ref: "#/components/pathItems/OperationsList"
+  /cms/inquiries/{id}:
+    get:
+      $ref: "#/components/pathItems/OperationsDetail"
+  /cms/inquiries/{id}/status:
+    patch:
+      $ref: "#/components/pathItems/OperationsUpdate"
+  /cms/inquiries/{id}/responses:
+    get:
+      $ref: "#/components/pathItems/OperationsDetail"
+    post:
+      $ref: "#/components/pathItems/OperationsCreate"
+  /cms/newsletter-subscribers:
+    get:
+      $ref: "#/components/pathItems/OperationsList"
+  /cms/newsletter-subscribers/{id}/status:
+    patch:
+      $ref: "#/components/pathItems/OperationsUpdate"
+  /cms/users:
+    get:
+      $ref: "#/components/pathItems/OperationsList"
+  /cms/users/{id}:
+    get:
+      $ref: "#/components/pathItems/OperationsDetail"
+  /cms/users/{id}/status:
+    patch:
+      $ref: "#/components/pathItems/OperationsUpdate"
+  /cms/users/{id}/roles:
+    patch:
+      $ref: "#/components/pathItems/OperationsUpdate"
+  /cms/roles:
+    get:
+      $ref: "#/components/pathItems/OperationsArray"
+  /cms/permissions:
+    get:
+      $ref: "#/components/pathItems/OperationsArray"
+  /cms/audit-logs/{id}:
+    get:
+      $ref: "#/components/pathItems/OperationsDetail"
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    SearchParam:
+      name: search
+      in: query
+      schema:
+        type: string
+        maxLength: 120
+    StatusParam:
+      name: status
+      in: query
+      schema:
+        $ref: "#/components/schemas/ContentStatus"
+    FeaturedParam:
+      name: featured
+      in: query
+      schema:
+        type: boolean
+    UuidPathParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  pathItems:
+    CategoryCollection:
+      get:
+        tags:
+          - CMS Categories
+        summary: Paginated CMS categories
+        security:
+          - BearerAuth: []
+        parameters:
+          - $ref: "#/components/parameters/PageParam"
+          - $ref: "#/components/parameters/LimitParam"
+          - $ref: "#/components/parameters/SearchParam"
+          - $ref: "#/components/parameters/StatusParam"
+          - name: sort
+            in: query
+            schema:
+              type: string
+              enum: [displayOrder, -displayOrder, createdAt, -createdAt, updatedAt, -updatedAt, name, -name, status]
+        responses:
+          "200":
+            description: Paginated categories
+            content:
+              application/json:
+                schema:
+                  allOf:
+                    - $ref: "#/components/schemas/PaginatedEnvelope"
+                    - type: object
+                      properties:
+                        data:
+                          type: array
+                          items:
+                            $ref: "#/components/schemas/CmsCategory"
+          "401":
+            $ref: "#/components/responses/Unauthorized"
+          "403":
+            $ref: "#/components/responses/Forbidden"
+      post:
+        tags:
+          - CMS Categories
+        summary: Create CMS category
+        security:
+          - BearerAuth: []
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CmsCategoryInput"
+        responses:
+          "201":
+            $ref: "#/components/responses/CategorySuccess"
+          "400":
+            $ref: "#/components/responses/ValidationError"
+          "401":
+            $ref: "#/components/responses/Unauthorized"
+          "403":
+            $ref: "#/components/responses/Forbidden"
+          "409":
+            $ref: "#/components/responses/Conflict"
+    CategoryMember:
+      patch:
+        tags:
+          - CMS Categories
+        summary: Update CMS category
+        security:
+          - BearerAuth: []
+        parameters:
+          - $ref: "#/components/parameters/UuidPathParam"
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CmsCategoryPatch"
+        responses:
+          "200":
+            $ref: "#/components/responses/CategorySuccess"
+          "400":
+            $ref: "#/components/responses/ValidationError"
+          "401":
+            $ref: "#/components/responses/Unauthorized"
+          "403":
+            $ref: "#/components/responses/Forbidden"
+          "404":
+            $ref: "#/components/responses/NotFound"
+          "409":
+            $ref: "#/components/responses/Conflict"
+    GenericContentList:
+      tags:
+        - CMS Products
+        - CMS Destinations
+        - CMS Businesses
+        - CMS Museum
+        - CMS Map Locations
+      summary: Paginated CMS content list
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/SearchParam"
+        - $ref: "#/components/parameters/StatusParam"
+        - $ref: "#/components/parameters/FeaturedParam"
+      responses:
+        "200":
+          description: Paginated CMS records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    GenericContentCreate:
+      tags:
+        - CMS Products
+        - CMS Destinations
+        - CMS Businesses
+        - CMS Museum
+        - CMS Map Locations
+      summary: Create CMS content record
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created CMS record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    GenericContentDetail:
+      tags:
+        - CMS Products
+        - CMS Destinations
+        - CMS Businesses
+        - CMS Museum
+        - CMS Map Locations
+      summary: Get CMS content record by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          description: CMS record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    GenericContentUpdate:
+      tags:
+        - CMS Products
+        - CMS Destinations
+        - CMS Businesses
+        - CMS Museum
+        - CMS Map Locations
+      summary: Update CMS content record
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated CMS record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    GenericContentState:
+      tags:
+        - CMS Products
+        - CMS Destinations
+        - CMS Museum
+      summary: Publish or archive CMS content record
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          description: Updated CMS record state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    GenericContentDelete:
+      tags:
+        - CMS Map Locations
+      summary: Delete CMS map location
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          description: Deleted CMS record response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    OperationsList:
+      tags:
+        - CMS Operations
+      summary: Paginated protected CMS operations list
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/SearchParam"
+        - $ref: "#/components/parameters/StatusParam"
+      responses:
+        "200":
+          description: Paginated operations records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    OperationsCreate:
+      tags:
+        - CMS Operations
+      summary: Create protected CMS operations record
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created operations record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    OperationsDetail:
+      tags:
+        - CMS Operations
+      summary: Protected CMS operations detail
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          description: Operations record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    OperationsUpdate:
+      tags:
+        - CMS Operations
+      summary: Update protected CMS operations record
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated operations record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    OperationsState:
+      tags:
+        - CMS Operations
+      summary: State transition for protected CMS operations record
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          description: Updated operations record state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    OperationsArray:
+      tags:
+        - CMS Operations
+      summary: Protected CMS operations array response
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Operations array
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  responses:
+    Unauthorized:
+      description: Authentication required or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: Missing required permission
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Conflict:
+      description: Duplicate or conflicting CMS record
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: CMS record not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    PromotionSuccess:
+      description: Promotion response
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/SuccessEnvelope"
+              - type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/CmsPromotion"
+    EventSuccess:
+      description: Event response
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/SuccessEnvelope"
+              - type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/CmsEvent"
+    CategorySuccess:
+      description: Category response
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/SuccessEnvelope"
+              - type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/CmsCategory"
+  schemas:
+    SuccessEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        meta:
+          $ref: "#/components/schemas/Meta"
+    PaginatedEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items: {}
+        meta:
+          allOf:
+            - $ref: "#/components/schemas/Meta"
+            - type: object
+              properties:
+                pagination:
+                  $ref: "#/components/schemas/Pagination"
+    ErrorEnvelope:
+      type: object
+      required:
+        - success
+        - error
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          required:
+            - code
+            - message
+            - details
+          properties:
+            code:
+              type: string
+              example: UNAUTHENTICATED
+            message:
+              type: string
+            details:
+              type: array
+              items: {}
+        meta:
+          $ref: "#/components/schemas/Meta"
+    Meta:
+      type: object
+      required:
+        - requestId
+        - timestamp
+      properties:
+        requestId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    Pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - totalItems
+        - totalPages
+        - hasNextPage
+        - hasPreviousPage
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalItems:
+          type: integer
+        totalPages:
+          type: integer
+        hasNextPage:
+          type: boolean
+        hasPreviousPage:
+          type: boolean
+    CmsHealth:
+      type: object
+      required:
+        - status
+        - service
+        - version
+        - authenticated
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: CaliTourSys CMS API
+        version:
+          type: string
+          example: v1
+        authenticated:
+          type: boolean
+    CmsDashboardSummary:
+      type: object
+      properties:
+        totalProducts:
+          type: integer
+        publishedProducts:
+          type: integer
+        draftProducts:
+          type: integer
+        totalEvents:
+          type: integer
+        publishedEvents:
+          type: integer
+        totalDestinations:
+          type: integer
+        publishedDestinations:
+          type: integer
+        totalBusinesses:
+          type: integer
+        activeBusinesses:
+          type: integer
+        totalMuseumArtifacts:
+          type: integer
+        publishedMuseumArtifacts:
+          type: integer
+        pendingInquiries:
+          type: integer
+        newsletterSubscribers:
+          type: integer
+        recentAuditLogs:
+          type: array
+          items:
+            $ref: "#/components/schemas/CmsAuditLogItem"
+    CmsNavigationItem:
+      type: object
+      required:
+        - key
+        - label
+        - path
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        path:
+          type: string
+    CmsAuditLogItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          $ref: "#/components/schemas/AuditActionType"
+        entityType:
+          $ref: "#/components/schemas/CmsEntityType"
+        entityId:
+          type: string
+          format: uuid
+          nullable: true
+        entityLabel:
+          type: string
+          nullable: true
+        actor:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            displayName:
+              type: string
+        requestId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    AuditActionType:
+      type: string
+      enum:
+        - create
+        - update
+        - publish
+        - archive
+        - delete
+        - restore
+        - login
+        - logout
+        - failed_login
+        - password_change
+        - permission_change
+    CmsEntityType:
+      type: string
+      enum:
+        - product
+        - promotion
+        - event
+        - destination
+        - business
+        - map_location
+        - museum_artifact
+        - media_asset
+        - inquiry
+        - newsletter_subscriber
+        - user
+        - role
+        - permission
+    ContentStatus:
+      type: string
+      enum:
+        - draft
+        - published
+        - archived
+    PromotionType:
+      type: string
+      enum:
+        - campaign
+        - featured
+        - seasonal
+        - announcement
+    CmsPromotion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          example: summer-tourism-campaign
+        title:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        promotionType:
+          $ref: "#/components/schemas/PromotionType"
+        accentColor:
+          type: string
+          nullable: true
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ContentStatus"
+        isFeatured:
+          type: boolean
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CmsPromotionInput:
+      type: object
+      required:
+        - slug
+        - title
+        - promotionType
+      properties:
+        slug:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        title:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        promotionType:
+          $ref: "#/components/schemas/PromotionType"
+        accentColor:
+          type: string
+          nullable: true
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ContentStatus"
+        isFeatured:
+          type: boolean
+    CmsPromotionPatch:
+      type: object
+      properties:
+        slug:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        title:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        promotionType:
+          $ref: "#/components/schemas/PromotionType"
+        accentColor:
+          type: string
+          nullable: true
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ContentStatus"
+        isFeatured:
+          type: boolean
+    CmsEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        category:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            slug:
+              type: string
+            name:
+              type: string
+        slug:
+          type: string
+        title:
+          type: string
+        shortDescription:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        venueName:
+          type: string
+          nullable: true
+        organizerName:
+          type: string
+          nullable: true
+        contactInfo:
+          type: string
+          nullable: true
+        addressLine:
+          type: string
+          nullable: true
+        barangay:
+          type: string
+          nullable: true
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ContentStatus"
+        isFeatured:
+          type: boolean
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CmsEventInput:
+      type: object
+      required:
+        - categoryId
+        - slug
+        - title
+        - startsAt
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        title:
+          type: string
+        shortDescription:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        venueName:
+          type: string
+          nullable: true
+        organizerName:
+          type: string
+          nullable: true
+        contactInfo:
+          type: string
+          nullable: true
+        addressLine:
+          type: string
+          nullable: true
+        barangay:
+          type: string
+          nullable: true
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        accentColor:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ContentStatus"
+        isFeatured:
+          type: boolean
+    CmsEventPatch:
+      type: object
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        title:
+          type: string
+        shortDescription:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        venueName:
+          type: string
+          nullable: true
+        organizerName:
+          type: string
+          nullable: true
+        contactInfo:
+          type: string
+          nullable: true
+        addressLine:
+          type: string
+          nullable: true
+        barangay:
+          type: string
+          nullable: true
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        accentColor:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ContentStatus"
+        isFeatured:
+          type: boolean
+    CmsCategory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        displayOrder:
+          type: integer
+        status:
+          $ref: "#/components/schemas/ContentStatus"
+        color:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CmsCategoryInput:
+      type: object
+      required:
+        - slug
+        - name
+      properties:
+        slug:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        displayOrder:
+          type: integer
+        status:
+          $ref: "#/components/schemas/ContentStatus"
+        color:
+          type: string
+          nullable: true
+    CmsCategoryPatch:
+      type: object
+      properties:
+        slug:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        displayOrder:
+          type: integer
+        status:
+          $ref: "#/components/schemas/ContentStatus"
+        color:
+          type: string
+          nullable: true

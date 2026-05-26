@@ -1,0 +1,496 @@
+<script setup>
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import mapboxgl from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
+
+const DEFAULT_CENTER = [123.2469, 13.7069]
+
+const props = defineProps({
+  accessToken: {
+    type: String,
+    default: '',
+  },
+  featureCollection: {
+    type: Object,
+    default: () => ({ type: 'FeatureCollection', features: [] }),
+  },
+  selectedId: {
+    type: String,
+    default: '',
+  },
+  loading: {
+    type: Boolean,
+    default: false,
+  },
+  error: {
+    type: String,
+    default: '',
+  },
+})
+
+const emit = defineEmits(['select', 'map-error'])
+
+const mapContainer = ref(null)
+const mapLoadError = ref('')
+const mapLoadWarning = ref('')
+const mapReady = ref(false)
+
+let map = null
+let activePopup = null
+let resizeObserver = null
+const markers = new Map()
+
+const features = computed(() =>
+  Array.isArray(props.featureCollection?.features) ? props.featureCollection.features : [],
+)
+
+const hasToken = computed(() => Boolean(props.accessToken))
+const hasValidTokenFormat = computed(() => !props.accessToken || props.accessToken.startsWith('pk.'))
+const hasUsableToken = computed(() => hasToken.value && hasValidTokenFormat.value)
+const canRenderMap = computed(() => hasUsableToken.value && !mapLoadError.value)
+
+function featureId(feature) {
+  return String(feature?.properties?.slug || feature?.properties?.id || '')
+}
+
+function featureCoordinates(feature) {
+  const coordinates = feature?.geometry?.coordinates
+  if (!Array.isArray(coordinates) || coordinates.length < 2) return null
+
+  const longitude = Number(coordinates[0])
+  const latitude = Number(coordinates[1])
+
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return null
+  return [longitude, latitude]
+}
+
+function validFeatures() {
+  return features.value.filter((feature) => featureId(feature) && featureCoordinates(feature))
+}
+
+function markerClassFor(type) {
+  return `tourist-map-marker tourist-map-marker--${type || 'location'}`
+}
+
+function createPopupContent(feature) {
+  const properties = feature.properties || {}
+  const wrapper = document.createElement('article')
+  wrapper.className = 'tourist-map-popup'
+
+  if (properties.primaryImage) {
+    const image = document.createElement('img')
+    image.src = properties.primaryImage
+    image.alt = properties.label || 'Tourism location'
+    wrapper.appendChild(image)
+  }
+
+  const body = document.createElement('div')
+  body.className = 'tourist-map-popup__body'
+
+  const heading = document.createElement('h3')
+  heading.textContent = properties.label || 'Tourism location'
+  body.appendChild(heading)
+
+  const meta = document.createElement('p')
+  meta.textContent = [properties.category, properties.locationType].filter(Boolean).join(' · ')
+  body.appendChild(meta)
+
+  if (properties.description) {
+    const description = document.createElement('p')
+    description.textContent = properties.description
+    body.appendChild(description)
+  }
+
+  const detailsButton = document.createElement('button')
+  detailsButton.type = 'button'
+  detailsButton.textContent = 'View details'
+  detailsButton.addEventListener('click', () => emit('request-details', featureId(feature)))
+  body.appendChild(detailsButton)
+
+  wrapper.appendChild(body)
+
+  return wrapper
+}
+
+function openPopup(feature) {
+  if (!map) return
+
+  const coordinates = featureCoordinates(feature)
+  if (!coordinates) return
+
+  activePopup?.remove()
+  activePopup = new mapboxgl.Popup({
+    closeButton: true,
+    closeOnClick: false,
+    maxWidth: '300px',
+    offset: 24,
+  })
+    .setLngLat(coordinates)
+    .setDOMContent(createPopupContent(feature))
+    .addTo(map)
+}
+
+function flyToFeature(feature) {
+  if (!map) return
+
+  const coordinates = featureCoordinates(feature)
+  if (!coordinates) return
+
+  map.flyTo({
+    center: coordinates,
+    zoom: Math.max(map.getZoom(), 13),
+    essential: true,
+  })
+}
+
+function selectFeature(feature, shouldEmit = true) {
+  const id = featureId(feature)
+  if (!id) return
+
+  markers.forEach(({ element }, markerId) => {
+    element.classList.toggle('tourist-map-marker--selected', markerId === id)
+  })
+
+  flyToFeature(feature)
+
+  if (shouldEmit) emit('select', id)
+}
+
+function fitToFeatures() {
+  if (!map) return
+
+  const mappedFeatures = validFeatures()
+  if (mappedFeatures.length === 0) {
+    map.setCenter(DEFAULT_CENTER)
+    map.setZoom(11)
+    return
+  }
+
+  if (mappedFeatures.length === 1) {
+    const coordinates = featureCoordinates(mappedFeatures[0])
+    map.setCenter(coordinates)
+    map.setZoom(13)
+    return
+  }
+
+  const bounds = new mapboxgl.LngLatBounds()
+  mappedFeatures.forEach((feature) => bounds.extend(featureCoordinates(feature)))
+
+  map.fitBounds(bounds, {
+    padding: 72,
+    maxZoom: 14,
+    duration: 0,
+  })
+}
+
+function clearMarkers() {
+  markers.forEach(({ marker }) => marker.remove())
+  markers.clear()
+}
+
+function syncMarkers() {
+  if (!map || !mapReady.value) return
+
+  clearMarkers()
+
+  validFeatures().forEach((feature) => {
+    const id = featureId(feature)
+    const properties = feature.properties || {}
+    const coordinates = featureCoordinates(feature)
+    const element = document.createElement('button')
+
+    element.type = 'button'
+    element.className = markerClassFor(properties.locationType)
+    element.style.setProperty('--marker-color', properties.markerColor || '#1b4332')
+    element.setAttribute('aria-label', properties.label || 'Select tourism location')
+    element.addEventListener('click', () => selectFeature(feature))
+    element.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        selectFeature(feature)
+      }
+    })
+
+    const marker = new mapboxgl.Marker({ element, anchor: 'bottom' }).setLngLat(coordinates).addTo(map)
+    markers.set(id, { marker, element, feature })
+  })
+
+  fitToFeatures()
+
+  const selectedFeature = validFeatures().find((feature) => featureId(feature) === props.selectedId)
+  if (selectedFeature) selectFeature(selectedFeature, false)
+}
+
+async function initializeMap() {
+  if (!hasUsableToken.value || !mapContainer.value || map) return
+
+  try {
+    mapboxgl.accessToken = props.accessToken
+
+    map = new mapboxgl.Map({
+      container: mapContainer.value,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: DEFAULT_CENTER,
+      zoom: 11,
+      attributionControl: true,
+    })
+
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
+    map.on('load', () => {
+      mapReady.value = true
+      map.resize()
+      syncMarkers()
+    })
+    map.on('error', (event) => {
+      const status = event?.error?.status
+      const message = String(event?.error?.message || '')
+      const tokenRelated = message.toLowerCase().includes('token') || status === 401 || status === 403
+
+      if (!mapReady.value && tokenRelated) {
+        mapLoadError.value = 'Mapbox rejected the public token. Please check VITE_MAPBOX_PUBLIC_TOKEN.'
+        emit('map-error', mapLoadError.value)
+        return
+      }
+
+      if (!mapReady.value) {
+        mapLoadWarning.value = 'Some map resources are still loading or temporarily unavailable.'
+        emit('map-error', mapLoadWarning.value)
+      }
+    })
+
+    if (window.ResizeObserver) {
+      resizeObserver = new ResizeObserver(() => map?.resize())
+      resizeObserver.observe(mapContainer.value)
+    }
+  } catch {
+    mapLoadError.value = 'Map is temporarily unavailable.'
+    emit('map-error', mapLoadError.value)
+  }
+}
+
+watch(
+  () => props.accessToken,
+  async () => {
+    if (map || !props.accessToken) return
+    await nextTick()
+    initializeMap()
+  },
+)
+
+watch(features, () => syncMarkers(), { deep: true })
+
+watch(
+  () => props.selectedId,
+  (id) => {
+    if (!id || !mapReady.value) return
+
+    const selectedMarker = markers.get(id)
+    if (selectedMarker) selectFeature(selectedMarker.feature, false)
+  },
+)
+
+onMounted(initializeMap)
+
+onBeforeUnmount(() => {
+  activePopup?.remove()
+  resizeObserver?.disconnect()
+  clearMarkers()
+  map?.remove()
+  map = null
+})
+</script>
+
+<template>
+  <div class="tourist-mapbox">
+    <div v-show="canRenderMap" ref="mapContainer" class="tourist-mapbox__canvas"></div>
+
+    <div v-if="!hasToken" class="tourist-mapbox__state">
+      <strong>Map unavailable</strong>
+      <span>Add VITE_MAPBOX_PUBLIC_TOKEN to the frontend environment to enable the interactive map.</span>
+    </div>
+
+    <div v-else-if="!hasValidTokenFormat" class="tourist-mapbox__state">
+      <strong>Map unavailable</strong>
+      <span>VITE_MAPBOX_PUBLIC_TOKEN must be a public Mapbox token that starts with pk.</span>
+    </div>
+
+    <div v-else-if="mapLoadError" class="tourist-mapbox__state">
+      <strong>Map unavailable</strong>
+      <span>{{ mapLoadError }}</span>
+    </div>
+
+    <div v-else-if="mapLoadWarning" class="tourist-mapbox__state tourist-mapbox__state--floating">
+      <strong>Map warning</strong>
+      <span>{{ mapLoadWarning }}</span>
+    </div>
+
+    <div v-else-if="loading" class="tourist-mapbox__state tourist-mapbox__state--floating">
+      <strong>Loading map locations...</strong>
+    </div>
+
+    <div v-else-if="error" class="tourist-mapbox__state tourist-mapbox__state--floating">
+      <strong>Unable to load locations</strong>
+      <span>{{ error }}</span>
+    </div>
+
+    <div v-else-if="features.length === 0" class="tourist-mapbox__state tourist-mapbox__state--floating">
+      <strong>No map locations yet</strong>
+      <span>Published map-ready locations will appear here.</span>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.tourist-mapbox {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #e8e3da;
+}
+
+.tourist-mapbox__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.tourist-mapbox :global(.mapboxgl-ctrl-top-right) {
+  top: 72px;
+  right: 16px;
+}
+
+.tourist-mapbox :global(.mapboxgl-ctrl-group) {
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(27, 67, 50, 0.14);
+}
+
+.tourist-mapbox__state {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 32px;
+  background:
+    radial-gradient(circle at 24% 28%, rgba(216, 243, 220, 0.92), transparent 32%),
+    linear-gradient(135deg, #f2f0eb, #e8e4dc);
+  color: #5c5c5c;
+  text-align: center;
+}
+
+.tourist-mapbox__state--floating {
+  inset: auto 24px 24px auto;
+  max-width: 320px;
+  display: grid;
+  place-content: initial;
+  border: 1px solid #e8e4dc;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 16px 40px rgba(27, 67, 50, 0.14);
+  text-align: left;
+}
+
+.tourist-mapbox__state strong {
+  color: #1a1a1a;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 16px;
+}
+
+.tourist-mapbox__state span {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+:global(.tourist-map-marker) {
+  width: 32px;
+  height: 42px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.28));
+}
+
+:global(.tourist-map-marker::before) {
+  position: absolute;
+  inset: 0;
+  background: var(--marker-color, #1b4332);
+  clip-path: path('M16 0C7.2 0 0 7.1 0 15.9 0 26.7 16 42 16 42s16-15.3 16-26.1C32 7.1 24.8 0 16 0Z');
+  content: '';
+}
+
+:global(.tourist-map-marker::after) {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #ffffff;
+  content: '';
+}
+
+:global(.tourist-map-marker--event::after) {
+  border-radius: 3px;
+}
+
+:global(.tourist-map-marker--business::after) {
+  width: 14px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+:global(.tourist-map-marker--selected) {
+  transform: scale(1.24);
+}
+
+:global(.tourist-map-marker:focus-visible) {
+  outline: 3px solid rgba(27, 67, 50, 0.28);
+  outline-offset: 4px;
+}
+
+:global(.tourist-map-popup) {
+  overflow: hidden;
+  color: #1a1a1a;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+:global(.tourist-map-popup img) {
+  width: 100%;
+  height: 120px;
+  display: block;
+  object-fit: cover;
+}
+
+:global(.tourist-map-popup__body) {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+:global(.tourist-map-popup h3) {
+  margin: 0;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+:global(.tourist-map-popup p) {
+  margin: 0;
+  color: #5c5c5c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+:global(.tourist-map-popup button) {
+  justify-self: start;
+  margin-top: 3px;
+  border: 0;
+  background: transparent;
+  color: #1b4332;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+</style>

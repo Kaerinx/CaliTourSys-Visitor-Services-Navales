@@ -1,47 +1,14 @@
-import { Router } from 'express'
+const express = require('express')
+const healthRoutes = require('./health.routes')
+const publicRoutes = require('../modules/public/public.routes')
+const authRoutes = require('../modules/auth/auth.routes')
+const cmsRoutes = require('../modules/cms/cms.routes')
 
-import { testDatabaseConnection } from '../config/db.js'
-import activityRoutes from '../modules/product/activities.route.js'
-import authRoutes from '../modules/auth/auth.route.js'
-import assetRoutes from '../modules/product/assets.route.js'
-import developmentPlanRoutes from '../modules/product/developmentPlans.route.js'
-import improvementRoutes from '../modules/product/improvements.route.js'
-import packageRoutes from '../modules/product/packages.route.js'
-import productRoutes from '../modules/product/product.route.js'
-import reportRoutes from '../modules/product/reports.route.js'
+const router = express.Router()
 
-const router = Router()
-
-router.get('/health', async (req, res) => {
-  try {
-    const database = await testDatabaseConnection()
-
-    res.json({
-      service: 'CaliTourSys API',
-      status: 'ok',
-      currentPhase: 'Readiness, reports, and promotion handoff',
-      database,
-    })
-  } catch (error) {
-    res.status(503).json({
-      service: 'CaliTourSys API',
-      status: 'degraded',
-      currentPhase: 'Readiness, reports, and promotion handoff',
-      database: {
-        connected: false,
-        reason: error.message,
-      },
-    })
-  }
-})
-
+router.use('/health', healthRoutes)
+router.use('/public', publicRoutes)
 router.use('/auth', authRoutes)
-router.use('/assets', assetRoutes)
-router.use('/activities', activityRoutes)
-router.use('/development-plans', developmentPlanRoutes)
-router.use('/improvements', improvementRoutes)
-router.use('/packages', packageRoutes)
-router.use('/product', productRoutes)
-router.use('/reports', reportRoutes)
+router.use('/cms', cmsRoutes)
 
-export default router
+module.exports = router

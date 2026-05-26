@@ -1,35 +1,53 @@
-import cors from 'cors'
-import dotenv from 'dotenv'
-import express from 'express'
-
-import routes from './routes/index.js'
-import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
-
-dotenv.config()
+const express = require('express')
+const cors = require('cors')
+const helmet = require('helmet')
+const compression = require('compression')
+const pinoHttp = require('pino-http')
+const cookieParser = require('cookie-parser')
+const { env } = require('./config/env')
+const routes = require('./routes')
+const { requestId } = require('./middleware/requestId')
+const { notFound } = require('./middleware/notFound')
+const { errorHandler } = require('./middleware/errorHandler')
 
 const app = express()
-const allowedOrigins = (process.env.FRONTEND_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean)
 
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin || env.CORS_ORIGINS.includes(origin)) {
+      return callback(null, true)
+    }
+
+    const error = new Error('CORS origin is not allowed')
+    error.statusCode = 403
+    error.code = 'CORS_NOT_ALLOWED'
+    error.publicMessage = 'CORS origin is not allowed.'
+
+    return callback(error)
+  },
+  credentials: true,
+}
+
+app.disable('x-powered-by')
+app.set('trust proxy', env.IS_PRODUCTION ? 1 : false)
+
+app.use(requestId)
 app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        return callback(null, true)
-      }
-
-      return callback(new Error(`CORS blocked origin: ${origin}`))
-    },
-    credentials: true,
+  pinoHttp({
+    genReqId: (req) => req.id,
+    redact: ['req.headers.authorization', 'req.headers.cookie'],
   }),
 )
-app.use(express.json())
+app.use(helmet())
+app.use(cors(corsOptions))
+app.use(compression())
+app.use(cookieParser())
+app.use(express.json({ limit: env.REQUEST_BODY_LIMIT }))
+app.use(express.urlencoded({ extended: false, limit: env.REQUEST_BODY_LIMIT }))
 
-app.use('/api', routes)
+app.use('/api/v1', routes)
 
-app.use(notFoundHandler)
+app.use(notFound)
 app.use(errorHandler)
 
-export default app
+module.exports = app
