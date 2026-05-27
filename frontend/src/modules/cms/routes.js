@@ -71,6 +71,36 @@ const cmsRoutes = [
         meta: { permission: 'museum.view' },
       },
       {
+        path: 'products',
+        name: 'cms-products',
+        component: () => import('./views/content/CmsProductsView.vue'),
+        meta: { permission: 'products.view' },
+      },
+      {
+        path: 'destinations',
+        name: 'cms-destinations',
+        component: () => import('./views/content/CmsDestinationsView.vue'),
+        meta: { permission: 'destinations.view' },
+      },
+      {
+        path: 'businesses',
+        name: 'cms-businesses',
+        component: () => import('./views/content/CmsBusinessesView.vue'),
+        meta: { permission: 'businesses.view' },
+      },
+      {
+        path: 'museum',
+        name: 'cms-museum',
+        component: () => import('./views/content/CmsMuseumArtifactsView.vue'),
+        meta: { permission: 'museum.view' },
+      },
+      {
+        path: 'map-locations',
+        name: 'cms-map-locations',
+        component: () => import('./views/content/CmsMapLocationsView.vue'),
+        meta: { permission: 'map_locations.view' },
+      },
+      {
         path: ':pathMatch(.*)*',
         name: 'cms-not-found',
         component: () => import('./views/CmsNotFoundView.vue'),

@@ -20,7 +20,7 @@ const fallbackNavigation = [
   { key: 'destinations', label: 'Destinations', path: '/cms/destinations', permission: 'destinations.view', icon: 'destinations' },
   { key: 'businesses', label: 'Businesses', path: '/cms/businesses', permission: 'businesses.view', icon: 'building' },
   { key: 'map', label: 'Map Locations', path: '/cms/map-locations', permission: 'map_locations.view', icon: 'map' },
-  { key: 'museum', label: 'Museum', path: '/cms/museum/artifacts', permission: 'museum.view', icon: 'museum' },
+  { key: 'museum', label: 'Museum', path: '/cms/museum', permission: 'museum.view', icon: 'museum' },
   { key: 'media', label: 'Media', path: '/cms/media', permission: 'media.view', icon: 'image' },
   { key: 'inquiries', label: 'Inquiries', path: '/cms/inquiries', permission: 'inquiries.view', icon: 'message' },
   { key: 'newsletter', label: 'Newsletter', path: '/cms/newsletter-subscribers', permission: 'newsletter.view', icon: 'mail' },
@@ -69,7 +69,7 @@ async function logout() {
 function normalizeNavigationPath(item) {
   const overrides = {
     newsletter: '/cms/newsletter-subscribers',
-    museum: '/cms/museum/artifacts',
+    museum: '/cms/museum',
     'visitor-services': '/cms/inquiries',
     'content-management': '/cms/promotions',
     'otop-support': '/cms/products',

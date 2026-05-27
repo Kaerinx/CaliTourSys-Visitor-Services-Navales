@@ -169,7 +169,7 @@ function formatLastUpdated(value) {
           <span><strong>{{ dashboard?.totalBusinesses || 0 }}</strong> businesses</span>
           <span><strong>{{ dashboard?.activeBusinesses || 0 }}</strong> active</span>
           <span><strong>{{ dashboard?.totalMuseumArtifacts || 0 }}</strong> artifacts</span>
-          <span><strong>{{ dashboard?.newsletterSubscribers || 0 }}</strong> subscribers</span>
+          <span><strong>{{ dashboard?.newsletterSubscribers || 0 }}</strong> visitor subscribers</span>
         </div>
       </section>
     </template>

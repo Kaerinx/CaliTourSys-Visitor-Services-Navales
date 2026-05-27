@@ -78,4 +78,90 @@ export const cmsContentApi = {
   updateMuseumCategory(id, payload) {
     return http.patchAuth(`/cms/museum/categories/${id}`, payload)
   },
+
+  getProducts(params) {
+    return http.getAuth('/cms/products', params)
+  },
+  getProductById(id) {
+    return http.getAuth(`/cms/products/${id}`)
+  },
+  createProduct(payload) {
+    return http.postAuth('/cms/products', payload)
+  },
+  updateProduct(id, payload) {
+    return http.patchAuth(`/cms/products/${id}`, payload)
+  },
+  publishProduct(id) {
+    return http.patchAuth(`/cms/products/${id}/publish`, {})
+  },
+  archiveProduct(id) {
+    return http.patchAuth(`/cms/products/${id}/archive`, {})
+  },
+
+  getDestinations(params) {
+    return http.getAuth('/cms/destinations', params)
+  },
+  getDestinationById(id) {
+    return http.getAuth(`/cms/destinations/${id}`)
+  },
+  createDestination(payload) {
+    return http.postAuth('/cms/destinations', payload)
+  },
+  updateDestination(id, payload) {
+    return http.patchAuth(`/cms/destinations/${id}`, payload)
+  },
+  publishDestination(id) {
+    return http.patchAuth(`/cms/destinations/${id}/publish`, {})
+  },
+  archiveDestination(id) {
+    return http.patchAuth(`/cms/destinations/${id}/archive`, {})
+  },
+
+  getBusinesses(params) {
+    return http.getAuth('/cms/businesses', params)
+  },
+  getBusinessById(id) {
+    return http.getAuth(`/cms/businesses/${id}`)
+  },
+  createBusiness(payload) {
+    return http.postAuth('/cms/businesses', payload)
+  },
+  updateBusiness(id, payload) {
+    return http.patchAuth(`/cms/businesses/${id}`, payload)
+  },
+
+  getMuseumArtifacts(params) {
+    return http.getAuth('/cms/museum/artifacts', params)
+  },
+  getMuseumArtifactById(id) {
+    return http.getAuth(`/cms/museum/artifacts/${id}`)
+  },
+  createMuseumArtifact(payload) {
+    return http.postAuth('/cms/museum/artifacts', payload)
+  },
+  updateMuseumArtifact(id, payload) {
+    return http.patchAuth(`/cms/museum/artifacts/${id}`, payload)
+  },
+  publishMuseumArtifact(id) {
+    return http.patchAuth(`/cms/museum/artifacts/${id}/publish`, {})
+  },
+  archiveMuseumArtifact(id) {
+    return http.patchAuth(`/cms/museum/artifacts/${id}/archive`, {})
+  },
+
+  getMapLocations(params) {
+    return http.getAuth('/cms/map-locations', params)
+  },
+  getMapLocationById(id) {
+    return http.getAuth(`/cms/map-locations/${id}`)
+  },
+  createMapLocation(payload) {
+    return http.postAuth('/cms/map-locations', payload)
+  },
+  updateMapLocation(id, payload) {
+    return http.patchAuth(`/cms/map-locations/${id}`, payload)
+  },
+  deleteMapLocation(id) {
+    return http.deleteAuth(`/cms/map-locations/${id}`)
+  },
 }

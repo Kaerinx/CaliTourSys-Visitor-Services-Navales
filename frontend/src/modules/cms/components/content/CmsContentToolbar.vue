@@ -4,13 +4,31 @@ import CmsIcon from '../CmsIcon.vue'
 defineProps({
   search: { type: String, default: '' },
   status: { type: String, default: '' },
+  statusOptions: {
+    type: Array,
+    default: () => [
+      { value: 'draft', label: 'Draft' },
+      { value: 'published', label: 'Published' },
+      { value: 'archived', label: 'Archived' },
+    ],
+  },
   featured: { type: String, default: '' },
   categoryId: { type: String, default: '' },
   categories: { type: Array, default: () => [] },
+  businessId: { type: String, default: '' },
+  businesses: { type: Array, default: () => [] },
+  businessType: { type: String, default: '' },
+  businessTypes: { type: Array, default: () => [] },
+  barangay: { type: String, default: '' },
+  locationType: { type: String, default: '' },
   createLabel: { type: String, default: 'Create' },
   canCreate: { type: Boolean, default: false },
   showFeatured: { type: Boolean, default: false },
   showCategory: { type: Boolean, default: false },
+  showBusiness: { type: Boolean, default: false },
+  showBusinessType: { type: Boolean, default: false },
+  showBarangay: { type: Boolean, default: false },
+  showLocationType: { type: Boolean, default: false },
 })
 
 defineEmits([
@@ -18,6 +36,10 @@ defineEmits([
   'update:status',
   'update:featured',
   'update:categoryId',
+  'update:businessId',
+  'update:businessType',
+  'update:barangay',
+  'update:locationType',
   'create',
 ])
 </script>
@@ -39,9 +61,9 @@ defineEmits([
       <span>Status</span>
       <select :value="status" @change="$emit('update:status', $event.target.value)">
         <option value="">All statuses</option>
-        <option value="draft">Draft</option>
-        <option value="published">Published</option>
-        <option value="archived">Archived</option>
+        <option v-for="option in statusOptions" :key="option.value" :value="option.value">
+          {{ option.label }}
+        </option>
       </select>
     </label>
 
@@ -64,6 +86,45 @@ defineEmits([
       </select>
     </label>
 
+    <label v-if="showBusiness">
+      <span>Business</span>
+      <select :value="businessId" @change="$emit('update:businessId', $event.target.value)">
+        <option value="">All businesses</option>
+        <option v-for="business in businesses" :key="business.id" :value="business.id">
+          {{ business.name }}
+        </option>
+      </select>
+    </label>
+
+    <label v-if="showBusinessType">
+      <span>Business type</span>
+      <select :value="businessType" @change="$emit('update:businessType', $event.target.value)">
+        <option value="">All types</option>
+        <option v-for="type in businessTypes" :key="type" :value="type">
+          {{ type }}
+        </option>
+      </select>
+    </label>
+
+    <label v-if="showBarangay">
+      <span>Barangay</span>
+      <input
+        :value="barangay"
+        placeholder="Filter by barangay"
+        @input="$emit('update:barangay', $event.target.value)"
+      />
+    </label>
+
+    <label v-if="showLocationType">
+      <span>Location type</span>
+      <select :value="locationType" @change="$emit('update:locationType', $event.target.value)">
+        <option value="">All types</option>
+        <option value="destination">Destination</option>
+        <option value="business">Business</option>
+        <option value="event">Event</option>
+      </select>
+    </label>
+
     <button v-if="canCreate" class="cms-content-toolbar__create" type="button" @click="$emit('create')">
       <span aria-hidden="true">+</span>
       {{ createLabel }}
@@ -74,7 +135,7 @@ defineEmits([
 <style scoped>
 .cms-content-toolbar {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) repeat(3, minmax(150px, auto)) auto;
+  grid-template-columns: minmax(240px, 1fr) repeat(auto-fit, minmax(150px, auto));
   gap: 12px;
   align-items: end;
   padding: 16px;

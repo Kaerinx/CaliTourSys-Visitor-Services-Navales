@@ -61,10 +61,21 @@ form > label,
   gap: 7px;
 }
 
+form > :deep(label),
+.cms-form-modal__grid :deep(label) {
+  display: grid;
+  gap: 7px;
+}
+
 form > label,
+form > :deep(label),
 .cms-form-modal__grid,
 .cms-form-modal__error {
   margin-inline: 20px;
+}
+
+.cms-form-modal__grid :deep(label) {
+  margin-inline: 0;
 }
 
 form > label:first-child,
@@ -78,9 +89,28 @@ label > span {
   font-weight: 800;
 }
 
+:deep(label > span) {
+  color: #334155;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
 input,
 select,
 textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+}
+
+:deep(input),
+:deep(select),
+:deep(textarea) {
   width: 100%;
   min-height: 42px;
   padding: 9px 12px;
@@ -108,7 +138,16 @@ select[aria-invalid='true'] {
   border-color: #dc2626;
 }
 
+:deep(input[aria-invalid='true']),
+:deep(select[aria-invalid='true']) {
+  border-color: #dc2626;
+}
+
 small {
+  color: #b91c1c;
+}
+
+:deep(small) {
   color: #b91c1c;
 }
 

@@ -7,7 +7,10 @@ import PublicAuthModal from './modules/promotion/components/PublicAuthModal.vue'
 
 const route = useRoute()
 const router = useRouter()
-const showPublicItinerary = computed(() => !route.path.startsWith('/cms'))
+const isCmsRoute = computed(() => route.path.startsWith('/cms'))
+const isMuseumRoute = computed(() => route.path.startsWith('/promotion/museum'))
+const showPublicItinerary = computed(() => !isCmsRoute.value && !isMuseumRoute.value)
+const showPublicAuth = computed(() => !isCmsRoute.value)
 const publicAuthMode = computed(() => {
   const mode = route.query.auth
   return mode === 'register' ? 'register' : mode === 'login' ? 'login' : ''
@@ -37,7 +40,7 @@ function closePublicAuth() {
   <RouterView />
   <FloatingItinerary v-if="showPublicItinerary" />
   <PublicAuthModal
-    v-if="showPublicItinerary && publicAuthMode"
+    v-if="showPublicAuth && publicAuthMode"
     :mode="publicAuthMode"
     @close="closePublicAuth"
     @change-mode="setPublicAuthMode"

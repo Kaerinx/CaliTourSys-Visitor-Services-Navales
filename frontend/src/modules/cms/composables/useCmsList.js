@@ -51,7 +51,16 @@ export function useCmsList(loader, initialFilters = {}) {
   }
 
   watch(
-    () => [filters.search, filters.status, filters.featured, filters.categoryId],
+    () => [
+      filters.search,
+      filters.status,
+      filters.featured,
+      filters.categoryId,
+      filters.businessId,
+      filters.businessType,
+      filters.barangay,
+      filters.locationType,
+    ],
     () => {
       filters.page = 1
       window.clearTimeout(searchTimer)

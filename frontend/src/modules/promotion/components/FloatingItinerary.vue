@@ -104,7 +104,7 @@ onUnmounted(() => {
       <p v-if="isLoading" class="itinerary-widget__state">Loading saved items...</p>
       <p v-else-if="message" class="itinerary-widget__state">{{ message }}</p>
       <p v-if="!isLoading && items.length === 0" class="itinerary-widget__empty">
-        Save products, events, destinations, or museum items to build a public trip list.
+        Save products, events, or destinations to build a public trip list.
       </p>
 
       <div v-else class="itinerary-widget__list">

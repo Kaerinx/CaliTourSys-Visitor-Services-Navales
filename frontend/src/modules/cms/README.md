@@ -1,6 +1,6 @@
 # CMS Frontend Module
 
-Scope: CMS frontend shell/auth integration plus Phase 07G-1 core content pages.
+Scope: CMS frontend shell/auth integration plus Phase 07G-1 and Phase 07G-2 content pages.
 
 This module is isolated under `/cms`. Public `/promotion` routes are intentionally left untouched by CMS page work.
 
@@ -16,6 +16,11 @@ This module is isolated under `/cms`. Public `/promotion` routes are intentional
 - `/cms/categories/products`
 - `/cms/categories/destinations`
 - `/cms/categories/museum`
+- `/cms/products`
+- `/cms/destinations`
+- `/cms/businesses`
+- `/cms/museum`
+- `/cms/map-locations`
 - `/cms/*` CMS-only not found placeholder
 
 ## Phase 07G-1 Pages
@@ -28,6 +33,14 @@ This module is isolated under `/cms`. Public `/promotion` routes are intentional
 - Destination categories
 - Museum categories
 
+## Phase 07G-2 Pages
+
+- Products / OTOP
+- Destinations
+- Businesses / Producers
+- Museum artifacts
+- Map locations
+
 ## API Services Used
 
 `services/cmsContentApi.js` centralizes protected CMS content API calls:
@@ -38,6 +51,11 @@ This module is isolated under `/cms`. Public `/promotion` routes are intentional
 - product categories: list, create, update
 - destination categories: list, create, update
 - museum categories: list, create, update
+- products: list, detail, create, update, publish, archive
+- destinations: list, detail, create, update, publish, archive
+- businesses: list, detail, create, update
+- museum artifacts: list, detail, create, update, publish, archive
+- map locations: list, detail, create, update, delete
 
 All methods use the shared HTTP client and existing CMS auth token handling.
 
@@ -60,6 +78,16 @@ All methods use the shared HTTP client and existing CMS auth token handling.
 - Museum category page: `museum.view`
 - Museum category write: `museum.update`
 - Category landing page: any of `events.view`, `products.view`, `destinations.view`, `museum.view`
+- Products page: `products.view`
+- Product create/edit/publish/archive: `products.create`, `products.update`, `products.publish`, `products.archive`
+- Destinations page: `destinations.view`
+- Destination create/edit/publish/archive: `destinations.create`, `destinations.update`, `destinations.publish`, `destinations.archive`
+- Businesses page: `businesses.view`
+- Business create/edit: `businesses.create`, `businesses.update`
+- Museum artifacts page: `museum.view`
+- Museum artifact create/edit/publish/archive: `museum.create`, `museum.update`, `museum.publish`, `museum.archive`
+- Map locations page: `map_locations.view`
+- Map location create/edit/delete: `map_locations.create`, `map_locations.update`
 
 Frontend buttons are hidden by permission, while backend RBAC remains the final authority.
 
@@ -74,6 +102,14 @@ Frontend buttons are hidden by permission, while backend RBAC remains the final 
 - `components/content/CmsEventForm.vue`
 - `components/content/CmsCategoryForm.vue`
 - `components/content/CmsCategoryManager.vue`
+- `components/content/CmsProductForm.vue`
+- `components/content/CmsDestinationForm.vue`
+- `components/content/CmsBusinessForm.vue`
+- `components/content/CmsMuseumArtifactForm.vue`
+- `components/content/CmsMapLocationForm.vue`
+- `components/content/CmsImagePreviewField.vue`
+- `components/content/CmsCoordinateField.vue`
+- `components/content/CmsRelationSelect.vue`
 
 ## How To Test
 
@@ -107,6 +143,17 @@ Manual checks:
 - open `/cms/categories`
 - open each category page
 - create and edit event, product, destination, and museum categories
+- open `/cms/products`
+- create, edit, publish, and archive a product
+- open `/cms/destinations`
+- create, edit, publish, and archive a destination
+- open `/cms/businesses`
+- create and edit a business
+- open `/cms/museum`
+- create, edit, publish, and archive a museum artifact
+- open `/cms/map-locations`
+- create, edit, and delete a map location
+- test invalid coordinates and map target validation
 - test duplicate slug handling
 - confirm buttons hide for users without matching permissions
 - refresh a CMS page and confirm auth bootstrap still works
@@ -114,8 +161,8 @@ Manual checks:
 
 ## Postponed
 
-- Phase 07G-2 pages
-- product, destination, museum artifact, business, map location, media, inquiry, newsletter, users, roles, and audit-log CMS pages
+- Phase 07G-3 pages
+- media, inquiry, newsletter, users, roles, reports, and audit-log CMS pages
 - approval workflows
 - business owner portal
 - media binary upload
@@ -125,3 +172,5 @@ Manual checks:
 ## Notes
 
 The events API does not currently expose a server-side category filter. The event category filter is applied to the currently loaded page of results until the API contract adds `categoryId` filtering for `/cms/events`.
+
+Map location list records expose target IDs but not joined target labels. The CMS displays the linked ID in the table until the backend list response includes joined destination/business/event names.

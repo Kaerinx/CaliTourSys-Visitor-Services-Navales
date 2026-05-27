@@ -28,13 +28,15 @@ defineProps({
   text-transform: capitalize;
 }
 
-.cms-status-badge[data-status='published'] {
+.cms-status-badge[data-status='published'],
+.cms-status-badge[data-status='active'] {
   color: #0f766e;
   border-color: #99f6e4;
   background: #ccfbf1;
 }
 
-.cms-status-badge[data-status='draft'] {
+.cms-status-badge[data-status='draft'],
+.cms-status-badge[data-status='inactive'] {
   color: #075985;
   border-color: #bae6fd;
   background: #e0f2fe;
