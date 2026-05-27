@@ -143,6 +143,8 @@ module.exports = {
   listEventCategories: categoryHandler(service.listEventCategories),
   listProducts: paginatedHandler(validators.productListQuerySchema, service.listProducts),
   getProductBySlug: detailHandler(service.getProductBySlug),
+  listPackages: paginatedHandler(validators.packageListQuerySchema, service.listPackages),
+  getPackageBySlug: detailHandler(service.getPackageBySlug),
   listProductCategories: categoryHandler(service.listProductCategories),
   getBusinessBySlug: detailHandler(service.getBusinessBySlug),
   listDestinations: paginatedHandler(validators.destinationListQuerySchema, service.listDestinations),

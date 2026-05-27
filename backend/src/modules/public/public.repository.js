@@ -1,4 +1,5 @@
 const { query } = require('../../config/db')
+const { PUBLIC_PACKAGE_STATUSES } = require('../productDevelopment/constants')
 
 function addParam(params, value) {
   params.push(value)
@@ -76,6 +77,74 @@ function mapProduct(row) {
     primaryImage: imageFromRow(row),
     tags: row.tags || [],
     isFeatured: toBoolean(row.is_featured),
+  }
+}
+
+function slugify(value) {
+  return String(value || 'tourism-package')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function packageSlug(row) {
+  return row?.id ? `package-${slugify(row.name)}-${row.id}` : null
+}
+
+function packageCategoryImage(category) {
+  const images = {
+    'Faith & Heritage':
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Quipayo%20Church%20%28S.%20Ciencia%29%20-%20Flickr.jpg',
+    'Coastal & Island':
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
+    'Nature & Eco':
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Sunset%20at%20San%20Miguel%20Bay%2C%20Calabanga.jpg',
+    'Agri-Tourism & Farm':
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Kabgan%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
+    'Food & Local Products':
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Sea%20Side%20Calabanga%20Camarines%20Sur.jpg',
+  }
+
+  return images[category] || images['Nature & Eco']
+}
+
+function mapPackage(row) {
+  return {
+    id: row.id,
+    slug: packageSlug(row),
+    name: row.name,
+    description: row.description,
+    category: {
+      slug: slugify(row.category),
+      name: row.category,
+    },
+    targetMarket: row.target_market,
+    estimatedDuration: row.estimated_duration,
+    packageStatus: row.package_status,
+    remarks: row.remarks || '',
+    primaryImage: {
+      url: row.image_url || packageCategoryImage(row.category),
+      altText: `${row.name} package image`,
+    },
+    itemCount: Number(row.item_count || 0),
+    assetCount: Number(row.asset_count || 0),
+    activityCount: Number(row.activity_count || 0),
+    isFeatured: row.package_status === 'Published',
+    updatedAt: row.updated_at,
+  }
+}
+
+function mapPackageItem(row) {
+  return {
+    id: row.id,
+    itemType: row.item_type,
+    referenceId: row.item_reference_id,
+    name: row.item_name,
+    description: row.item_description,
+    location: row.item_location,
+    status: row.item_status,
+    assetStatus: row.asset_status,
+    imageUrl: row.item_image_url,
   }
 }
 
@@ -304,6 +373,132 @@ async function getProductBySlug(slug) {
     accreditation: mapAccreditation(row),
     gallery: galleryResult.rows,
     relatedProducts: relatedResult.rows.map(mapProduct),
+  }
+}
+
+function packageSelect() {
+  return `
+    SELECT
+      tp.*,
+      COALESCE(first_asset.image_url, category_asset.image_url) AS image_url,
+      COUNT(pi.id)::integer AS item_count,
+      COUNT(pi.id) FILTER (WHERE pi.item_type = 'Asset')::integer AS asset_count,
+      COUNT(pi.id) FILTER (WHERE pi.item_type = 'Activity')::integer AS activity_count
+    FROM tourism_packages tp
+    LEFT JOIN package_items pi ON pi.package_id = tp.id
+    LEFT JOIN LATERAL (
+      SELECT ta.image_url
+      FROM package_items asset_item
+      JOIN tourism_assets ta ON ta.id = asset_item.item_reference_id
+      WHERE asset_item.package_id = tp.id
+        AND asset_item.item_type = 'Asset'
+        AND ta.image_url IS NOT NULL
+      ORDER BY asset_item.sort_order ASC
+      LIMIT 1
+    ) first_asset ON true
+    LEFT JOIN LATERAL (
+      SELECT ta.image_url
+      FROM tourism_assets ta
+      WHERE ta.category = CASE
+        WHEN tp.category = 'Faith & Heritage' THEN 'Religious'
+        WHEN tp.category = 'Coastal & Island' THEN 'Natural'
+        WHEN tp.category = 'Agri-Tourism & Farm' THEN 'Agricultural'
+        ELSE ta.category
+      END
+        AND ta.image_url IS NOT NULL
+      ORDER BY ta.updated_at DESC
+      LIMIT 1
+    ) category_asset ON true
+  `
+}
+
+function publicPackageWhere() {
+  return ['tp.package_status = ANY($1::text[])']
+}
+
+async function listPackages(filters, pagination) {
+  const params = [[...PUBLIC_PACKAGE_STATUSES]]
+  const where = publicPackageWhere()
+
+  if (filters.search) {
+    const ref = addParam(params, `%${filters.search}%`)
+    where.push(`(tp.name ILIKE ${ref} OR tp.description ILIKE ${ref} OR tp.target_market ILIKE ${ref})`)
+  }
+  if (filters.category) where.push(`tp.category = ${addParam(params, filters.category)}`)
+  if (filters.targetMarket) where.push(`tp.target_market ILIKE ${addParam(params, `%${filters.targetMarket}%`)}`)
+
+  const orderBy =
+    {
+      name: 'tp.name ASC',
+      '-name': 'tp.name DESC',
+      updatedAt: 'tp.updated_at ASC',
+      '-updatedAt': 'tp.updated_at DESC',
+    }[filters.sort] || "CASE tp.package_status WHEN 'Published' THEN 1 WHEN 'Approved' THEN 2 ELSE 3 END, tp.updated_at DESC"
+
+  const whereSql = where.join(' AND ')
+  const countResult = await query(
+    `SELECT COUNT(*)::int AS total FROM tourism_packages tp WHERE ${whereSql}`,
+    params,
+  )
+  const limitRef = addParam(params, pagination.limit)
+  const offsetRef = addParam(params, pagination.offset)
+  const rowsResult = await query(
+    `
+      ${packageSelect()}
+      WHERE ${whereSql}
+      GROUP BY tp.id, first_asset.image_url, category_asset.image_url
+      ORDER BY ${orderBy}, tp.name ASC
+      LIMIT ${limitRef} OFFSET ${offsetRef}
+    `,
+    params,
+  )
+
+  return {
+    items: rowsResult.rows.map(mapPackage),
+    totalItems: countResult.rows[0].total,
+  }
+}
+
+async function getPackageBySlug(slug) {
+  const listResult = await listPackages({}, { limit: 200, offset: 0 })
+  const summary = listResult.items.find((item) => item.slug === slug || item.id === slug)
+  if (!summary) return null
+
+  const detailResult = await query(
+    `
+      ${packageSelect()}
+      WHERE tp.id = $1
+      GROUP BY tp.id, first_asset.image_url, category_asset.image_url
+      LIMIT 1
+    `,
+    [summary.id],
+  )
+  const row = detailResult.rows[0]
+  if (!row) return null
+
+  const itemsResult = await query(
+    `
+      SELECT
+        pi.*,
+        CASE WHEN pi.item_type = 'Asset' THEN ta.name ELSE act.name END AS item_name,
+        CASE WHEN pi.item_type = 'Asset' THEN ta.description ELSE act.description END AS item_description,
+        CASE WHEN pi.item_type = 'Asset' THEN ta.location ELSE act_asset.location END AS item_location,
+        CASE WHEN pi.item_type = 'Asset' THEN ta.development_status ELSE act.activity_status END AS item_status,
+        CASE WHEN pi.item_type = 'Asset' THEN ta.development_status ELSE act_asset.development_status END AS asset_status,
+        CASE WHEN pi.item_type = 'Asset' THEN ta.image_url ELSE act_asset.image_url END AS item_image_url
+      FROM package_items pi
+      LEFT JOIN tourism_assets ta ON pi.item_type = 'Asset' AND ta.id = pi.item_reference_id
+      LEFT JOIN tourism_activities act ON pi.item_type = 'Activity' AND act.id = pi.item_reference_id
+      LEFT JOIN tourism_assets act_asset ON pi.item_type = 'Activity' AND act_asset.id = act.asset_id
+      WHERE pi.package_id = $1
+      ORDER BY pi.sort_order ASC
+    `,
+    [summary.id],
+  )
+
+  return {
+    ...mapPackage(row),
+    items: itemsResult.rows.map(mapPackageItem),
   }
 }
 
@@ -1290,6 +1485,8 @@ async function createNewsletterSubscription({ email, fullName }) {
 module.exports = {
   listProducts,
   getProductBySlug,
+  listPackages,
+  getPackageBySlug,
   listEvents,
   getEventBySlug,
   listDestinations,

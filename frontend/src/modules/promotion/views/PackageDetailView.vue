@@ -75,7 +75,7 @@ onMounted(loadPackage)
       <article v-else-if="tourismPackage" class="detail-layout">
         <section class="detail-hero">
           <RouterLink to="/packages" class="back-link">Back to Packages</RouterLink>
-          <span class="status-pill">Ready for Promotion</span>
+          <span class="status-pill">{{ tourismPackage.packageStatus }}</span>
           <h1>{{ tourismPackage.name }}</h1>
           <p>{{ tourismPackage.description }}</p>
           <div class="hero-actions">
@@ -106,13 +106,19 @@ onMounted(loadPackage)
           </dl>
         </aside>
 
+        <img
+          class="detail-image"
+          :src="tourismPackage.imageUrl"
+          :alt="`${tourismPackage.name} image`"
+        />
+
         <section class="items-panel">
           <h2>Included Assets and Activities</h2>
           <p v-if="packageItems.length === 0">
             The Product Development module has not attached detailed package items yet.
           </p>
           <div v-else class="item-list">
-            <div v-for="item in packageItems" :key="`${item.itemType}-${item.itemId}`" class="item-row">
+            <div v-for="item in packageItems" :key="`${item.itemType}-${item.id || item.referenceId}`" class="item-row">
               <span>{{ item.itemType }}</span>
               <div>
                 <strong>{{ item.name }}</strong>
@@ -128,6 +134,16 @@ onMounted(loadPackage)
         </section>
       </article>
     </main>
+
+    <footer class="site-footer">
+      <div class="site-footer__bottom page-shell">
+        <span>Copyright 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
+        <span>
+          <RouterLink to="/packages">Packages</RouterLink>
+          <RouterLink to="/promotion/inquiry">Contact</RouterLink>
+        </span>
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -269,6 +285,7 @@ a {
 }
 
 .detail-hero,
+.detail-image,
 .summary-panel,
 .items-panel,
 .state-card {
@@ -285,6 +302,14 @@ a {
   background:
     radial-gradient(circle at 85% 10%, rgba(212, 172, 13, 0.2), transparent 30%),
     #ffffff;
+}
+
+.detail-image {
+  width: 100%;
+  grid-column: 1 / -1;
+  min-height: 420px;
+  background-color: #dfe9e4;
+  object-fit: cover;
 }
 
 .back-link {
@@ -429,6 +454,28 @@ dd {
   font-weight: 700;
 }
 
+.site-footer {
+  background: #1b4332;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.site-footer__bottom {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 13px;
+}
+
+.site-footer a {
+  margin-left: 22px;
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 700;
+}
+
 @media (max-width: 1024px) {
   .site-nav__links {
     display: none;
@@ -468,6 +515,17 @@ dd {
 
   .item-row {
     grid-template-columns: 1fr;
+  }
+
+  .site-footer__bottom {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-top: 18px;
+    padding-bottom: 18px;
+  }
+
+  .site-footer a {
+    margin: 0 18px 0 0;
   }
 }
 </style>

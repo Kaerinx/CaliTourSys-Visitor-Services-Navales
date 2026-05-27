@@ -5,6 +5,7 @@ import FilterActions from '@/modules/product/components/FilterActions.vue'
 import ModuleStats from '@/modules/product/components/ModuleStats.vue'
 import RoleNotice from '@/modules/product/components/RoleNotice.vue'
 import StatusPill from '@/modules/product/components/StatusPill.vue'
+import { useProductAccess } from '@/modules/product/composables/useProductAccess'
 import { PACKAGE_CATEGORIES, PACKAGE_STATUSES } from '@/modules/product/constants/productOptions'
 import {
   archiveTourismPackage,
@@ -16,9 +17,9 @@ import {
   markTourismPackageReady,
   updateTourismPackage,
 } from '@/modules/product/services/productApi'
-import { USER_ROLES, useAuthStore } from '@/stores/auth'
+import { USER_ROLES } from '@/stores/auth'
 
-const auth = useAuthStore()
+const auth = useProductAccess()
 
 const assets = ref([])
 const activities = ref([])

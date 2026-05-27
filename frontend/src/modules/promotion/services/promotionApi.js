@@ -1,14 +1,14 @@
 import { http } from '../../../services/http'
 
 const publicPath = (path) => `/public${path}`
-const PRODUCT_API_BASE_URL = (
+const LEGACY_PRODUCT_API_BASE_URL = (
   import.meta.env.VITE_PRODUCT_API_BASE_URL ||
   import.meta.env.VITE_LEGACY_API_BASE_URL ||
   'http://localhost:5000/api'
 ).replace(/\/+$/, '')
 
-async function getProductApi(path) {
-  const response = await fetch(`${PRODUCT_API_BASE_URL}${path}`, {
+async function getLegacyProductApi(path) {
+  const response = await fetch(`${LEGACY_PRODUCT_API_BASE_URL}${path}`, {
     headers: {
       Accept: 'application/json',
     },
@@ -16,14 +16,13 @@ async function getProductApi(path) {
   const data = await response.json()
 
   if (!response.ok) {
-    const error = new Error(data?.message || 'Product API request failed')
+    const error = new Error(data?.message || data?.error?.message || 'Product API request failed')
     error.status = response.status
     throw error
   }
 
   return data
 }
-
 export function getHome() {
   return http.get(publicPath('/home'))
 }
@@ -53,7 +52,11 @@ export function getProducts(params) {
 }
 
 export function getReadyForPromotionPackages() {
-  return getProductApi('/packages/ready-for-promotion')
+  return http.get(publicPath('/packages')).catch(() => getLegacyProductApi('/packages/ready-for-promotion'))
+}
+
+export function getPackageBySlug(slug) {
+  return http.get(publicPath(`/packages/${slug}`))
 }
 
 export function getProductBySlug(slug) {

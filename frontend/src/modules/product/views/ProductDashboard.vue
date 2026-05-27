@@ -3,10 +3,10 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import ModuleStats from '@/modules/product/components/ModuleStats.vue'
+import { useProductAccess } from '@/modules/product/composables/useProductAccess'
 import { getProductModuleStatus, getProductReportSummary } from '@/modules/product/services/productApi'
-import { useAuthStore } from '@/stores/auth'
 
-const auth = useAuthStore()
+const auth = useProductAccess()
 const route = useRoute()
 const moduleStatus = ref(null)
 const reportSummary = ref(null)

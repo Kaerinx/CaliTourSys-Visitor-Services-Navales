@@ -75,6 +75,7 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
     if (!accessToken.value) return null
     const { data } = await authApi.me()
     setUser(data.user || data)
+    syncProductSession(cmsUserToProductSession(currentUser.value, accessToken.value))
     return currentUser.value
   }
 
@@ -85,6 +86,7 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
       const { data } = await authApi.refresh()
       persistToken(data.accessToken)
       setUser(data.user)
+      syncProductSession(cmsUserToProductSession(data.user, data.accessToken))
       return data.user
     } catch (err) {
       if (accessToken.value) {
@@ -106,6 +108,7 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
 
   async function bootstrap() {
     if (accessToken.value && currentUser.value) {
+      syncProductSession(cmsUserToProductSession(currentUser.value, accessToken.value))
       hasBootstrapped.value = true
       return currentUser.value
     }
@@ -167,4 +170,25 @@ function syncProductSession(session) {
   window.localStorage.setItem(PRODUCT_TOKEN_KEY, session.token)
   window.localStorage.setItem(PRODUCT_USER_KEY, JSON.stringify(session.user))
   useAuthStore().setSession(session)
+}
+
+function cmsUserToProductSession(user, token) {
+  if (!user || !token) return null
+
+  return {
+    token,
+    user: {
+      id: user.id,
+      username: user.email,
+      fullName: user.displayName,
+      role: legacyRoleName(user.roles),
+    },
+  }
+}
+
+function legacyRoleName(roles = []) {
+  if (roles.includes('system_admin')) return 'System Administrator'
+  if (roles.includes('tourism_officer')) return 'Tourism Officer'
+  if (roles.includes('tourism_staff') || roles.includes('content_editor')) return 'Tourism Staff'
+  return 'LGU Official'
 }

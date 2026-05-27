@@ -20,7 +20,14 @@ const viewerPermissions = Object.freeze(['dashboard.view', 'products.view'])
 export const authApi = {
   async login(payload) {
     try {
-      return await http.post('/auth/login', payload)
+      const response = await http.post('/auth/login', payload)
+      return {
+        ...response,
+        data: {
+          ...response.data,
+          productSession: mapCmsSessionToProductSession(response.data),
+        },
+      }
     } catch (error) {
       if (!shouldTryProductLogin(error)) throw error
       const session = await request('/auth/login', {
@@ -74,4 +81,25 @@ function mapProductUserToCmsUser(user = {}) {
     roles: [user.role].filter(Boolean),
     permissions: [...permissions],
   }
+}
+
+function mapCmsSessionToProductSession(data = {}) {
+  if (!data.accessToken || !data.user) return null
+
+  return {
+    token: data.accessToken,
+    user: {
+      id: data.user.id,
+      username: data.user.email,
+      fullName: data.user.displayName,
+      role: legacyRoleName(data.user.roles),
+    },
+  }
+}
+
+function legacyRoleName(roles = []) {
+  if (roles.includes('system_admin')) return 'System Administrator'
+  if (roles.includes('tourism_officer')) return 'Tourism Officer'
+  if (roles.includes('tourism_staff') || roles.includes('content_editor')) return 'Tourism Staff'
+  return 'LGU Official'
 }

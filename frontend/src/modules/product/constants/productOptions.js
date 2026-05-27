@@ -47,6 +47,8 @@ export const PACKAGE_STATUSES = Object.freeze([
   'In Development',
   'For Review',
   'Ready for Promotion',
+  'Approved',
+  'Published',
   'Archived',
 ])
 

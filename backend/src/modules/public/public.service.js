@@ -38,6 +38,22 @@ async function getProductBySlug(slug) {
   return product
 }
 
+async function listPackages(filters) {
+  const pagination = getPagination(filters)
+  const result = await repository.listPackages(filters, pagination)
+
+  return {
+    data: result.items,
+    pagination: buildPaginationMeta(pagination.page, pagination.limit, result.totalItems),
+  }
+}
+
+async function getPackageBySlug(slug) {
+  const tourismPackage = await repository.getPackageBySlug(slug)
+  if (!tourismPackage) throw createNotFoundError('Package not found.')
+  return tourismPackage
+}
+
 async function listEvents(filters) {
   const pagination = getPagination(filters)
   const result = await repository.listEvents(filters, pagination)
@@ -248,6 +264,8 @@ module.exports = {
   getHome,
   listProducts,
   getProductBySlug,
+  listPackages,
+  getPackageBySlug,
   listEvents,
   getEventBySlug,
   listDestinations,

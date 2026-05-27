@@ -20,6 +20,8 @@ router.get('/events/:slug', controller.getEventBySlug)
 router.get('/product-categories', controller.listProductCategories)
 router.get('/products', controller.listProducts)
 router.get('/products/:slug', controller.getProductBySlug)
+router.get('/packages', controller.listPackages)
+router.get('/packages/:slug', controller.getPackageBySlug)
 
 router.get('/businesses/:slug', controller.getBusinessBySlug)
 

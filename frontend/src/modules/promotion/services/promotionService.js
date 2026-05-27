@@ -81,6 +81,7 @@ function dateParts(value) {
 }
 
 function categoryName(category) {
+  if (typeof category === 'string') return category
   return category?.name || 'Tourism'
 }
 
@@ -147,12 +148,13 @@ function inferPackageCategory(tourismPackage) {
 
 function mapReadyPackage(tourismPackage, index = 0) {
   const packageItems = Array.isArray(tourismPackage.items) ? tourismPackage.items : []
-  const category = tourismPackage.category || inferPackageCategory(tourismPackage)
+  const category = categoryName(tourismPackage.category) || inferPackageCategory(tourismPackage)
+  const packageId = tourismPackage.slug || `package-${slugify(tourismPackage.name)}-${tourismPackage.id}`
 
   return {
-    id: `package-${slugify(tourismPackage.name)}-${tourismPackage.id}`,
+    id: packageId,
     apiId: tourismPackage.id,
-    slug: `package-${slugify(tourismPackage.name)}-${tourismPackage.id}`,
+    slug: packageId,
     name: tourismPackage.name,
     producer: 'Calabanga Tourism Product Development',
     businessId: null,
@@ -166,29 +168,39 @@ function mapReadyPackage(tourismPackage, index = 0) {
       tourismPackage.remarks ||
       'This tourism package has been approved for promotion handoff.',
     tags: [tourismPackage.targetMarket, tourismPackage.estimatedDuration].filter(Boolean),
-    imageUrl: null,
+    imageUrl: tourismPackage.primaryImage?.url || tourismPackage.imageUrl || packageImageForCategory(category),
     sourceModule: 'product-development',
     packageStatus: tourismPackage.packageStatus,
     targetMarket: tourismPackage.targetMarket || 'General visitors',
     estimatedDuration: tourismPackage.estimatedDuration || 'Duration to be confirmed',
     itemCount: tourismPackage.itemCount ?? packageItems.length,
-    assetCount: tourismPackage.assetCount ?? packageItems.filter((item) => item.itemType === 'asset').length,
+    assetCount: tourismPackage.assetCount ?? packageItems.filter((item) => item.itemType === 'Asset').length,
     activityCount:
-      tourismPackage.activityCount ?? packageItems.filter((item) => item.itemType === 'activity').length,
+      tourismPackage.activityCount ?? packageItems.filter((item) => item.itemType === 'Activity').length,
     remarks: tourismPackage.remarks || '',
     items: packageItems,
   }
 }
 
 async function getReadyPackageById(id) {
-  const readyPackages = await withMockFallback(
-    () => promotionApi.getReadyForPromotionPackages(),
-    () => [],
-  )
-  const packageCards = readyPackages.map(mapReadyPackage)
-  const tourismPackage = packageCards.find(
-    (packageCard) => packageCard.id === id || packageCard.slug === id || packageCard.apiId === id,
-  )
+  let data = null
+  let mappedPackage = null
+
+  try {
+    const response = await promotionApi.getPackageBySlug(id)
+    data = response.data
+  } catch {
+    const readyPackages = await withMockFallback(
+      () => promotionApi.getReadyForPromotionPackages(),
+      () => [],
+    )
+    mappedPackage = readyPackages.map(mapReadyPackage).find(
+      (packageCard) =>
+        packageCard.id === id || packageCard.slug === id || packageCard.apiId === id,
+    )
+  }
+
+  const tourismPackage = mappedPackage || (data ? mapReadyPackage(data) : null)
 
   if (!tourismPackage) {
     throw new Error('Package not found')
@@ -210,6 +222,23 @@ async function getReadyPackageById(id) {
     gallery: [],
     relatedProducts: [],
   }
+}
+
+function packageImageForCategory(category) {
+  const images = {
+    'Faith & Heritage':
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Quipayo%20Church%20%28S.%20Ciencia%29%20-%20Flickr.jpg',
+    'Coastal & Island':
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
+    'Nature & Eco':
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Sunset%20at%20San%20Miguel%20Bay%2C%20Calabanga.jpg',
+    'Agri-Tourism & Farm':
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Kabgan%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
+    'Food & Local Products':
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Sea%20Side%20Calabanga%20Camarines%20Sur.jpg',
+  }
+
+  return images[category] || images['Nature & Eco']
 }
 
 function mapProductDetail(detail) {

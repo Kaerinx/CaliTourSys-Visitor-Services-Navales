@@ -181,7 +181,7 @@ onMounted(loadPackages)
               :style="{ '--category-accent': category.accent, '--category-image': `url(${category.image})` }"
               @click="selectCategory(category.name)"
             >
-              <span class="category-card__image"></span>
+              <img class="category-card__image" :src="category.image" :alt="`${category.name} package category`" />
               <span class="category-card__body">
                 <strong>{{ category.name }}</strong>
                 <small>{{ category.description }}</small>
@@ -259,7 +259,13 @@ onMounted(loadPackages)
               class="package-card"
               :to="`/packages/${tourismPackage.id}`"
             >
-              <span class="status-pill">Ready for Promotion</span>
+              <img
+                class="package-card__image"
+                :src="tourismPackage.imageUrl"
+                :alt="`${tourismPackage.name} package image`"
+                loading="lazy"
+              />
+              <span class="status-pill">{{ tourismPackage.packageStatus }}</span>
               <span class="package-category">{{ tourismPackage.category }}</span>
               <h2>{{ tourismPackage.name }}</h2>
               <p>{{ tourismPackage.description }}</p>
@@ -660,7 +666,8 @@ h1 {
   min-height: 340px;
   display: flex;
   flex-direction: column;
-  padding: 26px;
+  overflow: hidden;
+  padding: 0;
   border: 1px solid #e8e4dc;
   border-radius: 12px;
   background:
@@ -669,6 +676,20 @@ h1 {
   transition:
     border-color 160ms ease,
     transform 160ms ease;
+}
+
+.package-card > :not(.package-card__image) {
+  margin-right: 26px;
+  margin-left: 26px;
+}
+
+.package-card__image {
+  width: 100%;
+  min-height: 150px;
+  display: block;
+  margin: 0;
+  background-color: #dfe9e4;
+  object-fit: cover;
 }
 
 .package-card:hover {
@@ -688,6 +709,10 @@ h1 {
   color: #1b4332;
   font-size: 12px;
   font-weight: 700;
+}
+
+.package-card .status-pill {
+  margin-top: 22px;
 }
 
 .package-card h2 {
@@ -734,6 +759,7 @@ h1 {
   gap: 12px;
   margin-top: auto;
   padding-top: 24px;
+  padding-bottom: 26px;
   color: #14261f;
   font-size: 14px;
   font-weight: 700;
@@ -982,13 +1008,10 @@ h1 {
 }
 
 .category-card__image {
+  width: 100%;
   min-height: 150px;
   display: block;
-  background:
-    linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.18)),
-    var(--category-image);
-  background-position: center;
-  background-size: cover;
+  object-fit: cover;
 }
 
 .category-card__body {

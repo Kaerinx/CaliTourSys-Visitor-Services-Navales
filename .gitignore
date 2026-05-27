@@ -75,6 +75,9 @@ web_modules/
 *.sqlite3
 backend/data/
 
+# Accidental nested project checkout
+/CaliTourSys/
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

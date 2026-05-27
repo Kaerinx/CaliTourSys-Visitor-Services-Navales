@@ -5,6 +5,7 @@ import FilterActions from '@/modules/product/components/FilterActions.vue'
 import ModuleStats from '@/modules/product/components/ModuleStats.vue'
 import RoleNotice from '@/modules/product/components/RoleNotice.vue'
 import StatusPill from '@/modules/product/components/StatusPill.vue'
+import { useProductAccess } from '@/modules/product/composables/useProductAccess'
 import { IMPROVEMENT_STATUSES } from '@/modules/product/constants/productOptions'
 import {
   archiveImprovementRecord,
@@ -13,9 +14,9 @@ import {
   getImprovementRecords,
   updateImprovementRecord,
 } from '@/modules/product/services/productApi'
-import { USER_ROLES, useAuthStore } from '@/stores/auth'
+import { USER_ROLES } from '@/stores/auth'
 
-const auth = useAuthStore()
+const auth = useProductAccess()
 
 const plans = ref([])
 const improvements = ref([])

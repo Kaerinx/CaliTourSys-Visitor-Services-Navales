@@ -93,6 +93,11 @@ const productListQuerySchema = listQuery([
   tag: z.string().trim().max(80).optional(),
 })
 
+const packageListQuerySchema = listQuery(['name', '-name', 'updatedAt', '-updatedAt']).extend({
+  category: z.string().trim().max(120).optional(),
+  targetMarket: z.string().trim().max(120).optional(),
+})
+
 const promotionListQuerySchema = listQuery([
   'startsAt',
   '-startsAt',
@@ -136,6 +141,7 @@ const mapLocationsQuerySchema = z.object({
 module.exports = {
   slugParamsSchema,
   productListQuerySchema,
+  packageListQuerySchema,
   promotionListQuerySchema,
   eventListQuerySchema,
   destinationListQuerySchema,
