@@ -1,69 +1,19 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 
 import ModuleStats from '@/modules/product/components/ModuleStats.vue'
-import ProductCard from '@/modules/product/components/ProductCard.vue'
 import { getProductModuleStatus, getProductReportSummary } from '@/modules/product/services/productApi'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
+const route = useRoute()
 const moduleStatus = ref(null)
 const reportSummary = ref(null)
 const statusError = ref('')
 const reportError = ref('')
 
-const moduleCards = [
-  {
-    title: 'Project setup',
-    status: 'Ready',
-    description: 'Frontend, backend, API base, and module folders are prepared.',
-  },
-  {
-    title: 'Login and roles',
-    status: 'Ready',
-    description: 'Demo users represent Tourism Staff, Tourism Officer, LGU Official, and Admin.',
-  },
-  {
-    title: 'Dashboard layout',
-    status: 'Ready',
-    description: 'Product module dashboard is ready for continued feature work.',
-  },
-  {
-    title: 'Tourism assets',
-    status: 'Active',
-    description: 'Asset management provides the records used by product development plans.',
-  },
-  {
-    title: 'Development plans',
-    status: 'Active',
-    description: 'Planning records can now be linked to non-archived tourism assets.',
-  },
-  {
-    title: 'Improvement monitoring',
-    status: 'Active',
-    description: 'Progress records can now track plan status, percentage, and update dates.',
-  },
-  {
-    title: 'Tourism activities',
-    status: 'Active',
-    description: 'Activity records can now be connected to active assets and plans.',
-  },
-  {
-    title: 'Packages',
-    status: 'Active',
-    description: 'Package records can now combine active assets and tourism activities.',
-  },
-  {
-    title: 'Readiness review',
-    status: 'Active',
-    description: 'Tourism Officers can approve complete packages for promotion handoff.',
-  },
-  {
-    title: 'Reports and handoff',
-    status: 'Active',
-    description: 'Dashboard summaries and ready package records support future consolidation.',
-  },
-]
+const productBasePath = computed(() => (route.path.startsWith('/cms') ? '/cms/product-development' : '/product'))
 
 const reportCards = computed(() => {
   const reports = reportSummary.value
@@ -74,11 +24,59 @@ const reportCards = computed(() => {
 
   return [
     { label: 'Tourism assets', value: reports.assets.total },
-    { label: 'Active assets', value: reports.assets.active },
+    { label: 'Active plans', value: reports.developmentPlans.active },
+    { label: 'Average progress', value: `${reports.improvements.averageProgress}%` },
     { label: 'Ready packages', value: reports.packages.readyForPromotion },
-    { label: 'Delayed improvements', value: reports.improvements.delayed },
   ]
 })
+
+const workflowCards = computed(() => {
+  const reports = reportSummary.value
+
+  return [
+    {
+      title: 'Assets',
+      path: `${productBasePath.value}/assets`,
+      count: reports?.assets.total ?? 0,
+      helper: `${reports?.assets.active ?? 0} active, ${reports?.assets.archived ?? 0} archived`,
+      description: 'Maintain tourism sites, attractions, and local resources before planning work starts.',
+    },
+    {
+      title: 'Plans',
+      path: `${productBasePath.value}/development-plans`,
+      count: reports?.developmentPlans.total ?? 0,
+      helper: `${reports?.developmentPlans.active ?? 0} active plans`,
+      description: 'Turn selected assets into objectives, timelines, needs, and assigned work.',
+    },
+    {
+      title: 'Improvements',
+      path: `${productBasePath.value}/improvements`,
+      count: reports?.improvements.total ?? 0,
+      helper: `${reports?.improvements.delayed ?? 0} delayed, ${reports?.improvements.completed ?? 0} completed`,
+      description: 'Track progress updates so development work is visible before packaging.',
+    },
+    {
+      title: 'Activities',
+      path: `${productBasePath.value}/activities`,
+      count: reports?.activities.total ?? 0,
+      helper: `${reports?.activities.active ?? 0} active activities`,
+      description: 'Design visitor activities linked to active assets and optional development plans.',
+    },
+    {
+      title: 'Packages',
+      path: `${productBasePath.value}/packages`,
+      count: reports?.packages.total ?? 0,
+      helper: `${reports?.packages.readyForPromotion ?? 0} ready for promotion`,
+      description: 'Combine assets and activities, then review complete packages for public handoff.',
+    },
+  ]
+})
+
+const quickActions = computed(() => [
+  { label: 'Create asset', path: `${productBasePath.value}/assets` },
+  { label: 'Create plan', path: `${productBasePath.value}/development-plans` },
+  { label: 'Review packages', path: `${productBasePath.value}/packages` },
+])
 
 const packageStatusSummary = computed(() => reportSummary.value?.packages.byStatus || [])
 const planStatusSummary = computed(() => reportSummary.value?.developmentPlans.byStatus || [])
@@ -90,7 +88,7 @@ onMounted(async () => {
       getProductReportSummary(),
     ])
 
-    moduleStatus.value = statusResponse
+    moduleStatus.value = statusResponse.data
     reportSummary.value = reportResponse.data
   } catch (error) {
     statusError.value = error.message
@@ -124,14 +122,19 @@ onMounted(async () => {
     <ModuleStats v-if="reportCards.length" :items="reportCards" />
     <p v-else-if="reportError" class="form-error">{{ reportError }}</p>
 
-    <div class="product-grid">
-      <ProductCard
-        v-for="card in moduleCards"
-        :key="card.title"
-        :description="card.description"
-        :status="card.status"
-        :title="card.title"
-      />
+    <div class="dashboard-actions">
+      <RouterLink v-for="action in quickActions" :key="action.label" :to="action.path">
+        {{ action.label }}
+      </RouterLink>
+    </div>
+
+    <div class="workflow-grid">
+      <RouterLink v-for="card in workflowCards" :key="card.title" class="workflow-card" :to="card.path">
+        <span>{{ card.helper }}</span>
+        <strong>{{ card.count }}</strong>
+        <h2>{{ card.title }}</h2>
+        <p>{{ card.description }}</p>
+      </RouterLink>
     </div>
 
     <section v-if="reportSummary" class="module-contract report-panel">
@@ -181,6 +184,73 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.dashboard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 20px;
+}
+
+.dashboard-actions a {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  padding: 0 16px;
+  background: var(--color-primary);
+  color: white;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.workflow-card {
+  display: grid;
+  min-height: 220px;
+  align-content: start;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  padding: 18px;
+  background: var(--color-panel);
+  color: inherit;
+  text-decoration: none;
+  box-shadow: var(--shadow-soft);
+}
+
+.workflow-card:hover {
+  border-color: var(--color-primary);
+}
+
+.workflow-card span {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.workflow-card strong {
+  margin-top: 18px;
+  font-size: 36px;
+  line-height: 1;
+}
+
+.workflow-card h2 {
+  margin: 12px 0 0;
+  font-size: 20px;
+}
+
+.workflow-card p {
+  margin: 10px 0 0;
+  color: var(--color-muted);
+  line-height: 1.55;
+}
+
 .report-panel {
   align-items: flex-start;
 }
@@ -209,5 +279,22 @@ onMounted(async () => {
   color: #245a8d;
   font-size: 12px;
   font-weight: 800;
+}
+
+@media (max-width: 1200px) {
+  .workflow-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard-actions,
+  .dashboard-actions a {
+    width: 100%;
+  }
+
+  .workflow-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

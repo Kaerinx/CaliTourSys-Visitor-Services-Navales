@@ -1,13 +1,17 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { ApiError, setAuthTokenGetter } from '@/services/http'
+import { useAuthStore } from '@/stores/auth'
 import { authApi } from '../services/authApi'
 
 const TOKEN_KEY = 'calitoursys_cms_access_token'
+const USER_KEY = 'calitoursys_cms_user'
+const PRODUCT_TOKEN_KEY = 'calitoursys_token'
+const PRODUCT_USER_KEY = 'calitoursys_user'
 
 export const useCmsAuthStore = defineStore('cmsAuth', () => {
   const accessToken = ref(sessionStorage.getItem(TOKEN_KEY) || '')
-  const currentUser = ref(null)
+  const currentUser = ref(readStoredUser())
   const isLoading = ref(false)
   const error = ref('')
   const hasBootstrapped = ref(false)
@@ -26,11 +30,15 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
 
   function setUser(user) {
     currentUser.value = user || null
+    if (user) sessionStorage.setItem(USER_KEY, JSON.stringify(user))
+    else sessionStorage.removeItem(USER_KEY)
   }
 
   function clearAuth() {
     persistToken('')
     setUser(null)
+    window.localStorage.removeItem(PRODUCT_TOKEN_KEY)
+    window.localStorage.removeItem(PRODUCT_USER_KEY)
   }
 
   async function login(email, password) {
@@ -40,6 +48,7 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
       const { data } = await authApi.login({ email, password })
       persistToken(data.accessToken)
       setUser(data.user)
+      syncProductSession(data.productSession)
       return data.user
     } catch (err) {
       clearAuth()
@@ -96,6 +105,10 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
   }
 
   async function bootstrap() {
+    if (accessToken.value && currentUser.value) {
+      hasBootstrapped.value = true
+      return currentUser.value
+    }
     if (hasBootstrapped.value && (isAuthenticated.value || !accessToken.value)) return currentUser.value
     return refreshSession()
   }
@@ -138,4 +151,20 @@ function friendlyAuthError(error) {
   }
 
   return 'Unable to sign in. Please try again.'
+}
+
+function readStoredUser() {
+  try {
+    return JSON.parse(sessionStorage.getItem(USER_KEY) || 'null')
+  } catch {
+    sessionStorage.removeItem(USER_KEY)
+    return null
+  }
+}
+
+function syncProductSession(session) {
+  if (!session?.token || !session?.user) return
+  window.localStorage.setItem(PRODUCT_TOKEN_KEY, session.token)
+  window.localStorage.setItem(PRODUCT_USER_KEY, JSON.stringify(session.user))
+  useAuthStore().setSession(session)
 }

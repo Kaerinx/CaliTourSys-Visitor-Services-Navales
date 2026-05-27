@@ -1,4 +1,5 @@
 const DEFAULT_API_BASE_URL = 'http://localhost:5000/api/v1'
+const DEFAULT_LEGACY_API_BASE_URL = 'http://localhost:5000/api'
 
 export class ApiError extends Error {
   constructor(message, options = {}) {
@@ -12,6 +13,11 @@ export class ApiError extends Error {
 }
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/+$/, '')
+const LEGACY_API_BASE_URL = (
+  import.meta.env.VITE_PRODUCT_API_BASE_URL ||
+  import.meta.env.VITE_LEGACY_API_BASE_URL ||
+  DEFAULT_LEGACY_API_BASE_URL
+).replace(/\/+$/, '')
 let authTokenGetter = () => null
 
 export function setAuthTokenGetter(getter) {
@@ -124,15 +130,67 @@ export const http = {
 export async function request(path, options = {}) {
   const method = options.method || 'GET'
   const legacyToken = window.localStorage.getItem('calitoursys_token')
-  const result = await apiRequest(method, path, {
-    body: options.body,
-    headers: {
-      ...(legacyToken ? { Authorization: `Bearer ${legacyToken}` } : {}),
-      ...options.headers,
-    },
-  })
+  try {
+    const result = await apiRequest(method, path, {
+      body: options.body,
+      headers: {
+        ...(legacyToken ? { Authorization: `Bearer ${legacyToken}` } : {}),
+        ...options.headers,
+      },
+    })
 
-  return result?.data ?? result
+    return result?.data ?? result
+  } catch (error) {
+    if (!shouldTryLegacyApi(error)) throw error
+    return legacyApiRequest(method, path, {
+      body: options.body,
+      headers: options.headers,
+      token: legacyToken,
+    })
+  }
 }
 
 export { API_BASE_URL }
+
+function shouldTryLegacyApi(error) {
+  return (
+    error?.code === 'NETWORK_ERROR' ||
+    error?.code === 'INVALID_JSON_RESPONSE' ||
+    error?.code === 'INVALID_API_ENVELOPE' ||
+    error?.status === 404
+  )
+}
+
+async function legacyApiRequest(method, path, { body, headers, token } = {}) {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  let response
+
+  try {
+    response = await fetch(`${LEGACY_API_BASE_URL}${normalizedPath}`, {
+      method,
+      headers: {
+        Accept: 'application/json',
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...headers,
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+  } catch {
+    throw new ApiError('Unable to connect to the tourism API. Please try again later.', {
+      code: 'NETWORK_ERROR',
+    })
+  }
+
+  const payload = await parseJsonSafely(response)
+
+  if (!response.ok) {
+    throw new ApiError(payload?.message || payload?.error?.message || 'The tourism API request failed.', {
+      status: response.status,
+      code: payload?.code || payload?.error?.code || 'API_ERROR',
+      details: payload?.details || payload?.error?.details || [],
+    })
+  }
+
+  return payload?.data ?? payload
+}

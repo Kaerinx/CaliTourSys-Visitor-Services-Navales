@@ -37,19 +37,21 @@ export function run(db) {
           package_id,
           package_name,
           description,
+          category,
           target_market,
           estimated_duration,
           package_status,
           remarks,
           created_by
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
     )
     .run(
       packageId,
       'Calabanga Eco Introduction Package',
       'A starter package combining an active tourism asset with a tourism activity for future review.',
+      'Nature & Eco',
       'Students, families, and eco-tourists',
       'Half day',
       'Draft',

@@ -37,19 +37,21 @@ export function run(db) {
           package_id,
           package_name,
           description,
+          category,
           target_market,
           estimated_duration,
           package_status,
           remarks,
           created_by
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
     )
     .run(
       packageId,
       'Calabanga Ready Tourism Sample Package',
       'A sample package already approved for promotion handoff testing.',
+      'Nature & Eco',
       'Students, families, and eco-tourists',
       'Half day',
       'Ready for Promotion',

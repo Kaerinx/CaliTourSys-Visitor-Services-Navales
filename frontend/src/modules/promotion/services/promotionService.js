@@ -108,6 +108,110 @@ function mapProduct(product, index = 0) {
   }
 }
 
+function slugify(value) {
+  return String(value || 'tourism-package')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function inferPackageCategory(tourismPackage) {
+  const content = [
+    tourismPackage.name,
+    tourismPackage.description,
+    tourismPackage.targetMarket,
+    tourismPackage.remarks,
+    ...(tourismPackage.items || []).map((item) => `${item.name} ${item.location} ${item.status}`),
+  ]
+    .join(' ')
+    .toLowerCase()
+
+  if (/church|faith|heritage|devotion|pilgrim|relig|quipayo|hinulid|santo|visita/.test(content)) {
+    return 'Faith & Heritage'
+  }
+
+  if (/bay|coast|island|sea|fish|fishing|kawit|tanglad|cabgan|san miguel/.test(content)) {
+    return 'Coastal & Island'
+  }
+
+  if (/farm|agri|hacienda|harvest|countryside/.test(content)) {
+    return 'Agri-Tourism & Farm'
+  }
+
+  if (/food|product|bagoong|pili|seafood|producer|market|local/.test(content)) {
+    return 'Food & Local Products'
+  }
+
+  return 'Nature & Eco'
+}
+
+function mapReadyPackage(tourismPackage, index = 0) {
+  const packageItems = Array.isArray(tourismPackage.items) ? tourismPackage.items : []
+  const category = tourismPackage.category || inferPackageCategory(tourismPackage)
+
+  return {
+    id: `package-${slugify(tourismPackage.name)}-${tourismPackage.id}`,
+    apiId: tourismPackage.id,
+    slug: `package-${slugify(tourismPackage.name)}-${tourismPackage.id}`,
+    name: tourismPackage.name,
+    producer: 'Calabanga Tourism Product Development',
+    businessId: null,
+    price: 'Price upon inquiry',
+    category,
+    accent: accentPalette[(index + 2) % accentPalette.length],
+    accredited: true,
+    featured: true,
+    description:
+      tourismPackage.description ||
+      tourismPackage.remarks ||
+      'This tourism package has been approved for promotion handoff.',
+    tags: [tourismPackage.targetMarket, tourismPackage.estimatedDuration].filter(Boolean),
+    imageUrl: null,
+    sourceModule: 'product-development',
+    packageStatus: tourismPackage.packageStatus,
+    targetMarket: tourismPackage.targetMarket || 'General visitors',
+    estimatedDuration: tourismPackage.estimatedDuration || 'Duration to be confirmed',
+    itemCount: tourismPackage.itemCount ?? packageItems.length,
+    assetCount: tourismPackage.assetCount ?? packageItems.filter((item) => item.itemType === 'asset').length,
+    activityCount:
+      tourismPackage.activityCount ?? packageItems.filter((item) => item.itemType === 'activity').length,
+    remarks: tourismPackage.remarks || '',
+    items: packageItems,
+  }
+}
+
+async function getReadyPackageById(id) {
+  const readyPackages = await withMockFallback(
+    () => promotionApi.getReadyForPromotionPackages(),
+    () => [],
+  )
+  const packageCards = readyPackages.map(mapReadyPackage)
+  const tourismPackage = packageCards.find(
+    (packageCard) => packageCard.id === id || packageCard.slug === id || packageCard.apiId === id,
+  )
+
+  if (!tourismPackage) {
+    throw new Error('Package not found')
+  }
+
+  return {
+    ...tourismPackage,
+    businessProfile: {
+      id: 'calabanga-tourism-product-development',
+      name: 'Calabanga Tourism Product Development',
+      type: 'Tourism Office',
+      owner: 'LGU Calabanga',
+      location: 'Calabanga, Camarines Sur',
+      accreditationStatus: 'approved',
+      accreditedSince: '2026',
+      description: 'Prepared by the Product Development module and approved for public promotion.',
+      contacts: [],
+    },
+    gallery: [],
+    relatedProducts: [],
+  }
+}
+
 function mapProductDetail(detail) {
   const product = mapProduct(
     {
@@ -283,7 +387,17 @@ export async function getPromotionalProducts(params) {
     () => promotionApi.getProducts(params),
     () => otopProducts,
   )
+
   return data.map((product, index) => (product.slug ? mapProduct(product, index) : product))
+}
+
+export async function getPromotionalPackages() {
+  const readyPackages = await withMockFallback(
+    () => promotionApi.getReadyForPromotionPackages(),
+    () => [],
+  )
+
+  return readyPackages.map(mapReadyPackage)
 }
 
 export async function getProductById(id) {
@@ -304,6 +418,10 @@ export async function getProductById(id) {
       .filter((item) => item.id !== data.id)
       .slice(0, 4),
   }
+}
+
+export function getPackageById(id) {
+  return getReadyPackageById(id)
 }
 
 export async function getBusinessById(id) {

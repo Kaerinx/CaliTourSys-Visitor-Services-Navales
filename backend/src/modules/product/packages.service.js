@@ -8,10 +8,17 @@ import {
   updatePackageStatus,
   updatePackage,
 } from './packages.model.js'
-import { PACKAGE_ITEM_TYPES, PACKAGE_STATUSES } from './product.constants.js'
+import { PACKAGE_CATEGORIES, PACKAGE_ITEM_TYPES, PACKAGE_STATUSES } from './product.constants.js'
 import { createStatusHistoryEntry } from './statusHistory.model.js'
 
-const requiredFields = ['name', 'description', 'targetMarket', 'estimatedDuration', 'packageStatus']
+const requiredFields = [
+  'name',
+  'description',
+  'category',
+  'targetMarket',
+  'estimatedDuration',
+  'packageStatus',
+]
 
 function normalizePackageItems(items = []) {
   if (!Array.isArray(items)) {
@@ -30,6 +37,7 @@ function normalizePackageInput(input = {}) {
   return {
     name: String(input.name || '').trim(),
     description: String(input.description || '').trim(),
+    category: String(input.category || 'Nature & Eco').trim(),
     targetMarket: String(input.targetMarket || '').trim(),
     estimatedDuration: String(input.estimatedDuration || '').trim(),
     packageStatus: String(input.packageStatus || 'Draft').trim(),
@@ -49,6 +57,12 @@ function validatePackageInput(packageInput) {
 
   if (!PACKAGE_STATUSES.includes(packageInput.packageStatus)) {
     const error = new Error('Invalid tourism package status.')
+    error.status = 400
+    throw error
+  }
+
+  if (!PACKAGE_CATEGORIES.includes(packageInput.category)) {
+    const error = new Error('Invalid tourism package category.')
     error.status = 400
     throw error
   }
@@ -260,6 +274,7 @@ export function listReadyForPromotionPackages() {
 export function getPackageOptions() {
   return {
     statuses: PACKAGE_STATUSES,
+    categories: PACKAGE_CATEGORIES,
     itemTypes: PACKAGE_ITEM_TYPES,
   }
 }

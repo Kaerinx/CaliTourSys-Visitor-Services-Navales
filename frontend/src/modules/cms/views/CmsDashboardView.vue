@@ -4,6 +4,7 @@ import CmsIcon from '../components/CmsIcon.vue'
 import CmsQuickActionCard from '../components/CmsQuickActionCard.vue'
 import CmsRecentActivity from '../components/CmsRecentActivity.vue'
 import CmsStatCard from '../components/CmsStatCard.vue'
+import { getProductReportSummary } from '@/modules/product/services/productApi'
 import { cmsApi } from '../services/cmsApi'
 import { useCmsAuthStore } from '../stores/authStore'
 
@@ -13,6 +14,14 @@ const error = ref('')
 const dashboard = ref(null)
 
 const quickActions = [
+  {
+    title: 'Tourism Packages',
+    description: 'Build visitor-ready package records and promotion handoff queues.',
+    path: '/cms/tourism-packages',
+    tone: 'green',
+    icon: 'package',
+    permissions: ['products.view'],
+  },
   {
     title: 'Content Management',
     description: 'Manage promotions, events, and public content.',
@@ -60,9 +69,30 @@ async function loadDashboard() {
     const { data } = await cmsApi.getDashboard()
     dashboard.value = data
   } catch (err) {
-    error.value = err.message || 'Unable to load CMS dashboard.'
+    try {
+      dashboard.value = mapProductReportToCmsDashboard(await getProductReportSummary())
+    } catch {
+      error.value = err.message || 'Unable to load CMS dashboard.'
+    }
   } finally {
     isLoading.value = false
+  }
+}
+
+function mapProductReportToCmsDashboard(report = {}) {
+  return {
+    totalProducts: report.assets?.total || 0,
+    publishedProducts: report.assets?.active || 0,
+    totalEvents: report.activities?.total || 0,
+    publishedEvents: report.activities?.active || 0,
+    totalDestinations: report.developmentPlans?.total || 0,
+    publishedDestinations: report.developmentPlans?.active || 0,
+    pendingInquiries: report.packages?.readyForPromotion || 0,
+    totalBusinesses: report.packages?.total || 0,
+    activeBusinesses: report.packages?.active || 0,
+    totalMuseumArtifacts: report.improvements?.total || 0,
+    newsletterSubscribers: report.statusHistory?.total || 0,
+    recentAuditLogs: [],
   }
 }
 </script>

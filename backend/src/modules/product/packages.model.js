@@ -12,6 +12,7 @@ function mapPackage(row) {
     id: row.package_id,
     name: row.package_name,
     description: row.description,
+    category: row.category || 'Nature & Eco',
     targetMarket: row.target_market,
     estimatedDuration: row.estimated_duration,
     packageStatus: row.package_status,
@@ -66,9 +67,11 @@ export function findPackages(filters = {}) {
   const values = []
 
   if (filters.search) {
-    clauses.push('(tp.package_name LIKE ? OR tp.description LIKE ? OR tp.target_market LIKE ?)')
+    clauses.push(
+      '(tp.package_name LIKE ? OR tp.description LIKE ? OR tp.target_market LIKE ? OR tp.category LIKE ?)',
+    )
     const searchValue = `%${filters.search}%`
-    values.push(searchValue, searchValue, searchValue)
+    values.push(searchValue, searchValue, searchValue, searchValue)
   }
 
   if (filters.status) {
@@ -79,6 +82,11 @@ export function findPackages(filters = {}) {
   if (filters.targetMarket) {
     clauses.push('tp.target_market LIKE ?')
     values.push(`%${filters.targetMarket}%`)
+  }
+
+  if (filters.category) {
+    clauses.push('tp.category = ?')
+    values.push(filters.category)
   }
 
   const whereSql = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
@@ -186,18 +194,20 @@ export function createPackage(packageInput, user) {
           package_id,
           package_name,
           description,
+          category,
           target_market,
           estimated_duration,
           package_status,
           remarks,
           created_by
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
     ).run(
       packageId,
       packageInput.name,
       packageInput.description,
+      packageInput.category,
       packageInput.targetMarket,
       packageInput.estimatedDuration,
       packageInput.packageStatus || 'Draft',
@@ -226,6 +236,7 @@ export function updatePackage(packageId, packageInput) {
         SET
           package_name = ?,
           description = ?,
+          category = ?,
           target_market = ?,
           estimated_duration = ?,
           package_status = ?,
@@ -236,6 +247,7 @@ export function updatePackage(packageId, packageInput) {
     ).run(
       packageInput.name,
       packageInput.description,
+      packageInput.category,
       packageInput.targetMarket,
       packageInput.estimatedDuration,
       packageInput.packageStatus,

@@ -149,6 +149,7 @@ onMounted(loadArtifacts)
           <RouterLink to="/promotion" class="site-nav__link">Home</RouterLink>
           <RouterLink to="/promotion/map" class="site-nav__link">Destination</RouterLink>
           <RouterLink to="/promotion/products" class="site-nav__link">Products</RouterLink>
+          <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
           <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link site-nav__link--active">
             Museum
@@ -322,6 +323,7 @@ onMounted(loadArtifacts)
           <h4>Explore</h4>
           <RouterLink to="/promotion/map">Map &amp; Discovery</RouterLink>
           <RouterLink to="/promotion/products">Products</RouterLink>
+          <RouterLink to="/packages">Packages</RouterLink>
           <RouterLink to="/promotion/events">Events</RouterLink>
           <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
         </div>

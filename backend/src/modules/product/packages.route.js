@@ -17,10 +17,11 @@ const packageEditors = [ROLES.TOURISM_STAFF, ROLES.TOURISM_OFFICER, ROLES.SYSTEM
 const packageArchivists = [ROLES.TOURISM_OFFICER, ROLES.SYSTEM_ADMINISTRATOR]
 const readinessApprovers = [ROLES.TOURISM_OFFICER, ROLES.SYSTEM_ADMINISTRATOR]
 
+router.get('/ready-for-promotion', listReadyPackages)
+
 router.use(authenticate)
 
 router.get('/', listPackages)
-router.get('/ready-for-promotion', listReadyPackages)
 router.get('/:packageId', getPackage)
 router.post('/', authorize(...packageEditors), createPackage)
 router.put('/:packageId', authorize(...packageEditors), updatePackage)

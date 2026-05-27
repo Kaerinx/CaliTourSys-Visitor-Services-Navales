@@ -5,7 +5,7 @@ import FilterActions from '@/modules/product/components/FilterActions.vue'
 import ModuleStats from '@/modules/product/components/ModuleStats.vue'
 import RoleNotice from '@/modules/product/components/RoleNotice.vue'
 import StatusPill from '@/modules/product/components/StatusPill.vue'
-import { PACKAGE_STATUSES } from '@/modules/product/constants/productOptions'
+import { PACKAGE_CATEGORIES, PACKAGE_STATUSES } from '@/modules/product/constants/productOptions'
 import {
   archiveTourismPackage,
   createTourismPackage,
@@ -42,6 +42,7 @@ const filters = reactive({
 const form = reactive({
   name: '',
   description: '',
+  category: 'Nature & Eco',
   targetMarket: '',
   estimatedDuration: '',
   packageStatus: 'Draft',
@@ -97,6 +98,7 @@ function resetForm() {
   editingPackageId.value = null
   form.name = ''
   form.description = ''
+  form.category = 'Nature & Eco'
   form.targetMarket = ''
   form.estimatedDuration = ''
   form.packageStatus = 'Draft'
@@ -116,6 +118,7 @@ function buildPackagePayload() {
   return {
     name: form.name,
     description: form.description,
+    category: form.category,
     targetMarket: form.targetMarket,
     estimatedDuration: form.estimatedDuration,
     packageStatus: form.packageStatus,
@@ -150,6 +153,7 @@ async function editPackage(tourismPackage) {
     editingPackageId.value = packageDetail.id
     form.name = packageDetail.name
     form.description = packageDetail.description
+    form.category = packageDetail.category || 'Nature & Eco'
     form.targetMarket = packageDetail.targetMarket
     form.estimatedDuration = packageDetail.estimatedDuration
     form.packageStatus = packageDetail.packageStatus
@@ -375,6 +379,15 @@ onMounted(loadPageData)
           ></textarea>
         </label>
 
+        <label>
+          Package Category
+          <select v-model="form.category" required>
+            <option v-for="category in PACKAGE_CATEGORIES" :key="category" :value="category">
+              {{ category }}
+            </option>
+          </select>
+        </label>
+
         <div class="form-grid">
           <label>
             Target Market
@@ -493,6 +506,7 @@ onMounted(loadPageData)
               <tr v-for="tourismPackage in packages" :key="tourismPackage.id">
                 <td>
                   <strong>{{ tourismPackage.name }}</strong>
+                  <small>{{ tourismPackage.category }}</small>
                   <span>{{ tourismPackage.description }}</span>
                   <small v-if="tourismPackage.remarks">{{ tourismPackage.remarks }}</small>
                 </td>

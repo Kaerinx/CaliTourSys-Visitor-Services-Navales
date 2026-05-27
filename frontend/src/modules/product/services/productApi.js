@@ -1,11 +1,21 @@
 import { request } from '@/services/http'
 
+function productRequest(path, options) {
+  return request(path, options).then((response) => {
+    if (response && Object.prototype.hasOwnProperty.call(response, 'data')) {
+      return response
+    }
+
+    return { data: response }
+  })
+}
+
 export function getProductModuleStatus() {
-  return request('/product/status')
+  return productRequest('/product/status')
 }
 
 export function getProductReportSummary() {
-  return request('/reports')
+  return productRequest('/reports')
 }
 
 export function getTourismAssets(filters = {}) {
@@ -19,25 +29,25 @@ export function getTourismAssets(filters = {}) {
 
   const query = params.toString()
 
-  return request(`/assets${query ? `?${query}` : ''}`)
+  return productRequest(`/assets${query ? `?${query}` : ''}`)
 }
 
 export function createTourismAsset(asset) {
-  return request('/assets', {
+  return productRequest('/assets', {
     method: 'POST',
     body: asset,
   })
 }
 
 export function updateTourismAsset(assetId, asset) {
-  return request(`/assets/${assetId}`, {
+  return productRequest(`/assets/${assetId}`, {
     method: 'PUT',
     body: asset,
   })
 }
 
 export function archiveTourismAsset(assetId) {
-  return request(`/assets/${assetId}/archive`, {
+  return productRequest(`/assets/${assetId}/archive`, {
     method: 'PATCH',
   })
 }
@@ -53,25 +63,25 @@ export function getDevelopmentPlans(filters = {}) {
 
   const query = params.toString()
 
-  return request(`/development-plans${query ? `?${query}` : ''}`)
+  return productRequest(`/development-plans${query ? `?${query}` : ''}`)
 }
 
 export function createDevelopmentPlan(plan) {
-  return request('/development-plans', {
+  return productRequest('/development-plans', {
     method: 'POST',
     body: plan,
   })
 }
 
 export function updateDevelopmentPlan(planId, plan) {
-  return request(`/development-plans/${planId}`, {
+  return productRequest(`/development-plans/${planId}`, {
     method: 'PUT',
     body: plan,
   })
 }
 
 export function archiveDevelopmentPlan(planId) {
-  return request(`/development-plans/${planId}/archive`, {
+  return productRequest(`/development-plans/${planId}/archive`, {
     method: 'PATCH',
   })
 }
@@ -87,25 +97,25 @@ export function getImprovementRecords(filters = {}) {
 
   const query = params.toString()
 
-  return request(`/improvements${query ? `?${query}` : ''}`)
+  return productRequest(`/improvements${query ? `?${query}` : ''}`)
 }
 
 export function createImprovementRecord(improvement) {
-  return request('/improvements', {
+  return productRequest('/improvements', {
     method: 'POST',
     body: improvement,
   })
 }
 
 export function updateImprovementRecord(improvementId, improvement) {
-  return request(`/improvements/${improvementId}`, {
+  return productRequest(`/improvements/${improvementId}`, {
     method: 'PUT',
     body: improvement,
   })
 }
 
 export function archiveImprovementRecord(improvementId) {
-  return request(`/improvements/${improvementId}/archive`, {
+  return productRequest(`/improvements/${improvementId}/archive`, {
     method: 'PATCH',
   })
 }
@@ -121,25 +131,25 @@ export function getTourismActivities(filters = {}) {
 
   const query = params.toString()
 
-  return request(`/activities${query ? `?${query}` : ''}`)
+  return productRequest(`/activities${query ? `?${query}` : ''}`)
 }
 
 export function createTourismActivity(activity) {
-  return request('/activities', {
+  return productRequest('/activities', {
     method: 'POST',
     body: activity,
   })
 }
 
 export function updateTourismActivity(activityId, activity) {
-  return request(`/activities/${activityId}`, {
+  return productRequest(`/activities/${activityId}`, {
     method: 'PUT',
     body: activity,
   })
 }
 
 export function archiveTourismActivity(activityId) {
-  return request(`/activities/${activityId}/archive`, {
+  return productRequest(`/activities/${activityId}/archive`, {
     method: 'PATCH',
   })
 }
@@ -155,39 +165,39 @@ export function getTourismPackages(filters = {}) {
 
   const query = params.toString()
 
-  return request(`/packages${query ? `?${query}` : ''}`)
+  return productRequest(`/packages${query ? `?${query}` : ''}`)
 }
 
 export function getTourismPackage(packageId) {
-  return request(`/packages/${packageId}`)
+  return productRequest(`/packages/${packageId}`)
 }
 
 export function getReadyForPromotionPackages() {
-  return request('/packages/ready-for-promotion')
+  return productRequest('/packages/ready-for-promotion')
 }
 
 export function createTourismPackage(tourismPackage) {
-  return request('/packages', {
+  return productRequest('/packages', {
     method: 'POST',
     body: tourismPackage,
   })
 }
 
 export function updateTourismPackage(packageId, tourismPackage) {
-  return request(`/packages/${packageId}`, {
+  return productRequest(`/packages/${packageId}`, {
     method: 'PUT',
     body: tourismPackage,
   })
 }
 
 export function archiveTourismPackage(packageId) {
-  return request(`/packages/${packageId}/archive`, {
+  return productRequest(`/packages/${packageId}/archive`, {
     method: 'PATCH',
   })
 }
 
 export function markTourismPackageReady(packageId, remarks) {
-  return request(`/packages/${packageId}/ready-for-promotion`, {
+  return productRequest(`/packages/${packageId}/ready-for-promotion`, {
     method: 'PATCH',
     body: { remarks },
   })

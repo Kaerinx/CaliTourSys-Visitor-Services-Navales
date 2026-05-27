@@ -9,7 +9,7 @@ const router = useRouter()
 const route = useRoute()
 
 const form = reactive({
-  email: '',
+  email: 'officer',
   password: '',
 })
 
@@ -19,8 +19,7 @@ const localError = ref('')
 
 const emailError = computed(() => {
   if (!submitted.value) return ''
-  if (!form.email.trim()) return 'Email is required.'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return 'Enter a valid email address.'
+  if (!form.email.trim()) return 'Username or email is required.'
   return ''
 })
 
@@ -76,12 +75,12 @@ async function submitLogin() {
 
       <form class="cms-login__form" novalidate @submit.prevent="submitLogin">
         <div class="cms-field">
-          <label for="cms-email">Email address</label>
+          <label for="cms-email">Username or email</label>
           <input
             id="cms-email"
             v-model="form.email"
             autocomplete="username"
-            type="email"
+            type="text"
             :aria-invalid="Boolean(emailError)"
             :aria-describedby="emailError ? 'cms-email-error' : undefined"
           />

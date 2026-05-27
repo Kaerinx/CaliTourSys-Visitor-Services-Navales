@@ -25,6 +25,25 @@ const promotionRoutes = [
     props: true,
   },
   {
+    path: '/packages',
+    name: 'promotion-packages',
+    component: () => import('./views/PackagePromotionView.vue'),
+  },
+  {
+    path: '/packages/:slug',
+    name: 'promotion-package-detail',
+    component: () => import('./views/PackageDetailView.vue'),
+    props: true,
+  },
+  {
+    path: '/promotion/packages',
+    redirect: '/packages',
+  },
+  {
+    path: '/promotion/packages/:slug',
+    redirect: (to) => `/packages/${to.params.slug}`,
+  },
+  {
     path: '/promotion/discovery',
     name: 'promotion-discovery',
     component: () => import('./views/TouristDiscoveryView.vue'),

@@ -28,8 +28,27 @@ const visibleItems = computed(() =>
   }),
 )
 
+const groupedItems = computed(() => {
+  const groups = []
+
+  visibleItems.value.forEach((item) => {
+    const label = item.group || 'Workspace'
+    let group = groups.find((candidate) => candidate.label === label)
+
+    if (!group) {
+      group = { label, items: [] }
+      groups.push(group)
+    }
+
+    group.items.push(item)
+  })
+
+  return groups
+})
+
 function isActive(item) {
   if (route.path === item.path) return true
+  if (item.exact) return false
   return item.path !== '/cms/dashboard' && route.path.startsWith(`${item.path}/`)
 }
 
@@ -50,22 +69,26 @@ function permissionLabel(item) {
       </span>
     </div>
 
-    <div class="cms-sidebar__section-label">Workspace</div>
+    <div class="cms-sidebar__nav-groups">
+      <section v-for="group in groupedItems" :key="group.label" class="cms-sidebar__nav-group">
+        <div class="cms-sidebar__section-label">{{ group.label }}</div>
 
-    <nav>
-      <RouterLink
-        v-for="item in visibleItems"
-        :key="item.key || item.path"
-        :to="item.path"
-        class="cms-sidebar__link"
-        :aria-current="isActive(item) ? 'page' : undefined"
-        :title="permissionLabel(item)"
-        @click="$emit('close')"
-      >
-        <span class="cms-sidebar__glyph"><CmsIcon :name="item.icon" /></span>
-        <span class="cms-sidebar__link-text">{{ item.label }}</span>
-      </RouterLink>
-    </nav>
+        <nav>
+          <RouterLink
+            v-for="item in group.items"
+            :key="item.key || item.path"
+            :to="item.path"
+            class="cms-sidebar__link"
+            :aria-current="isActive(item) ? 'page' : undefined"
+            :title="permissionLabel(item)"
+            @click="$emit('close')"
+          >
+            <span class="cms-sidebar__glyph"><CmsIcon :name="item.icon" /></span>
+            <span class="cms-sidebar__link-text">{{ item.label }}</span>
+          </RouterLink>
+        </nav>
+      </section>
+    </div>
 
     <div v-if="!visibleItems.length" class="cms-sidebar__empty">
       <strong>No modules available</strong>
@@ -73,7 +96,7 @@ function permissionLabel(item) {
     </div>
 
     <div class="cms-sidebar__footer">
-      <strong>{{ visibleItems.length }} modules available</strong>
+      <strong>{{ visibleItems.length }} navigation links available</strong>
       <small>Navigation follows your assigned permissions.</small>
     </div>
   </aside>
@@ -137,11 +160,18 @@ small {
   text-transform: uppercase;
 }
 
+.cms-sidebar__nav-groups {
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.cms-sidebar__nav-group + .cms-sidebar__nav-group {
+  margin-top: 12px;
+}
+
 nav {
   display: grid;
   gap: 4px;
-  overflow-y: auto;
-  padding-right: 2px;
 }
 
 .cms-sidebar__link {

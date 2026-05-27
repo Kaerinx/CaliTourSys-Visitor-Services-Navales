@@ -50,6 +50,14 @@ export const PACKAGE_STATUSES = Object.freeze([
   'Archived',
 ])
 
+export const PACKAGE_CATEGORIES = Object.freeze([
+  'Faith & Heritage',
+  'Coastal & Island',
+  'Nature & Eco',
+  'Agri-Tourism & Farm',
+  'Food & Local Products',
+])
+
 export const PACKAGE_ITEM_TYPES = Object.freeze(['Asset', 'Activity'])
 
 export const PRODUCT_OPTION_GROUPS = Object.freeze({
@@ -59,5 +67,6 @@ export const PRODUCT_OPTION_GROUPS = Object.freeze({
   improvementStatuses: IMPROVEMENT_STATUSES,
   activityStatuses: ACTIVITY_STATUSES,
   packageStatuses: PACKAGE_STATUSES,
+  packageCategories: PACKAGE_CATEGORIES,
   packageItemTypes: PACKAGE_ITEM_TYPES,
 })

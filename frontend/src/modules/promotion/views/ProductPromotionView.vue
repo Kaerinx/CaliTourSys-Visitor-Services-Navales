@@ -159,6 +159,7 @@ onMounted(loadProducts)
           <RouterLink to="/promotion/products" class="site-nav__link site-nav__link--active">
             Products
           </RouterLink>
+          <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
           <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
           <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
@@ -342,6 +343,7 @@ onMounted(loadProducts)
           <h4>Explore</h4>
           <RouterLink to="/promotion/map">Map &amp; Discovery</RouterLink>
           <RouterLink to="/promotion/products">Products</RouterLink>
+          <RouterLink to="/packages">Packages</RouterLink>
           <RouterLink to="/promotion/events">Events</RouterLink>
           <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
         </div>

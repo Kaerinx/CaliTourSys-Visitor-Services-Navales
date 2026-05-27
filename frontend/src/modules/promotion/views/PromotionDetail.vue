@@ -214,6 +214,7 @@ watch(() => route.params.slug || route.params.id, loadProduct, { immediate: true
           <RouterLink to="/promotion/products" class="site-nav__link site-nav__link--active">
             Products
           </RouterLink>
+          <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
           <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
           <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
@@ -288,7 +289,7 @@ watch(() => route.params.slug || route.params.id, loadProduct, { immediate: true
           <ul>
             <li>Hand-made in small batches in Calabanga, Camarines Sur</li>
             <li>Supports a registered local producer or cooperative</li>
-            <li>Vetted for public tourism promotion by LGU Calabanga mock data</li>
+            <li>Vetted for public tourism promotion by LGU Calabanga</li>
           </ul>
         </section>
       </div>
