@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import {
   getDestinations,
   getMapLocationGeoJson,
@@ -8,7 +8,8 @@ import {
   saveToItinerary,
   sharePublicItem,
 } from '../services/promotionService'
-import TouristMapBox from '../components/TouristMapBox.vue'
+
+const TouristMapBox = defineAsyncComponent(() => import('../components/TouristMapBox.vue'))
 
 const mapboxToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || ''
 

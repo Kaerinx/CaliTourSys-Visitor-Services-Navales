@@ -1,15 +1,16 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { cmsRoutes, guardCmsRoute } from '@/modules/cms'
-import DevelopmentPlanList from '@/modules/product/views/DevelopmentPlanList.vue'
-import ImprovementMonitoring from '@/modules/product/views/ImprovementMonitoring.vue'
-import ProductDashboard from '@/modules/product/views/ProductDashboard.vue'
-import ProductList from '@/modules/product/views/ProductList.vue'
-import TourismActivityList from '@/modules/product/views/TourismActivityList.vue'
-import TourismPackageList from '@/modules/product/views/TourismPackageList.vue'
 import promotionRoutes from '@/modules/promotion/routes'
 import { useAuthStore } from '@/stores/auth'
 import DashboardView from '@/views/DashboardView.vue'
 import LoginView from '@/views/LoginView.vue'
+
+const ProductDashboard = () => import('@/modules/product/views/ProductDashboard.vue')
+const ProductList = () => import('@/modules/product/views/ProductList.vue')
+const DevelopmentPlanList = () => import('@/modules/product/views/DevelopmentPlanList.vue')
+const ImprovementMonitoring = () => import('@/modules/product/views/ImprovementMonitoring.vue')
+const TourismActivityList = () => import('@/modules/product/views/TourismActivityList.vue')
+const TourismPackageList = () => import('@/modules/product/views/TourismPackageList.vue')
 
 const productRoutes = [
   {
