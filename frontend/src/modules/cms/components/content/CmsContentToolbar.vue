@@ -57,7 +57,7 @@ defineEmits([
       />
     </label>
 
-    <label>
+    <label class="cms-content-toolbar__field">
       <span>Status</span>
       <select :value="status" @change="$emit('update:status', $event.target.value)">
         <option value="">All statuses</option>
@@ -67,7 +67,7 @@ defineEmits([
       </select>
     </label>
 
-    <label v-if="showFeatured">
+    <label v-if="showFeatured" class="cms-content-toolbar__field">
       <span>Featured</span>
       <select :value="featured" @change="$emit('update:featured', $event.target.value)">
         <option value="">All</option>
@@ -76,7 +76,7 @@ defineEmits([
       </select>
     </label>
 
-    <label v-if="showCategory">
+    <label v-if="showCategory" class="cms-content-toolbar__field cms-content-toolbar__field--wide">
       <span>Category</span>
       <select :value="categoryId" @change="$emit('update:categoryId', $event.target.value)">
         <option value="">All categories</option>
@@ -86,7 +86,7 @@ defineEmits([
       </select>
     </label>
 
-    <label v-if="showBusiness">
+    <label v-if="showBusiness" class="cms-content-toolbar__field cms-content-toolbar__field--wide">
       <span>Business</span>
       <select :value="businessId" @change="$emit('update:businessId', $event.target.value)">
         <option value="">All businesses</option>
@@ -96,7 +96,7 @@ defineEmits([
       </select>
     </label>
 
-    <label v-if="showBusinessType">
+    <label v-if="showBusinessType" class="cms-content-toolbar__field">
       <span>Business type</span>
       <select :value="businessType" @change="$emit('update:businessType', $event.target.value)">
         <option value="">All types</option>
@@ -106,7 +106,7 @@ defineEmits([
       </select>
     </label>
 
-    <label v-if="showBarangay">
+    <label v-if="showBarangay" class="cms-content-toolbar__field cms-content-toolbar__field--barangay">
       <span>Barangay</span>
       <input
         :value="barangay"
@@ -115,7 +115,7 @@ defineEmits([
       />
     </label>
 
-    <label v-if="showLocationType">
+    <label v-if="showLocationType" class="cms-content-toolbar__field">
       <span>Location type</span>
       <select :value="locationType" @change="$emit('update:locationType', $event.target.value)">
         <option value="">All types</option>
@@ -134,8 +134,8 @@ defineEmits([
 
 <style scoped>
 .cms-content-toolbar {
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) repeat(auto-fit, minmax(150px, auto));
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: end;
   padding: 16px;
@@ -146,8 +146,19 @@ defineEmits([
 
 label {
   display: grid;
+  flex: 1 0 172px;
   gap: 7px;
-  min-width: 0;
+  min-width: min(100%, 172px);
+}
+
+.cms-content-toolbar__field--wide {
+  flex-basis: 210px;
+  min-width: min(100%, 210px);
+}
+
+.cms-content-toolbar__field--barangay {
+  flex-basis: 220px;
+  min-width: min(100%, 220px);
 }
 
 label > span {
@@ -158,6 +169,8 @@ label > span {
 
 .cms-content-toolbar__search {
   position: relative;
+  flex: 2 0 280px;
+  min-width: min(100%, 280px);
 }
 
 .cms-content-toolbar__search svg {
@@ -172,6 +185,7 @@ label > span {
 input,
 select {
   width: 100%;
+  min-width: 0;
   min-height: 42px;
   padding: 0 12px;
   color: #0f172a;
@@ -181,7 +195,7 @@ select {
   font: inherit;
 }
 
-input {
+.cms-content-toolbar__search input {
   padding-left: 38px;
 }
 
@@ -195,9 +209,12 @@ button:focus-visible {
 
 .cms-content-toolbar__create {
   display: inline-flex;
+  flex: 0 0 auto;
   gap: 8px;
   align-items: center;
   justify-content: center;
+  margin-left: auto;
+  white-space: nowrap;
   min-height: 42px;
   padding: 0 14px;
   color: #fff;
@@ -218,14 +235,24 @@ button:focus-visible {
 }
 
 @media (max-width: 980px) {
-  .cms-content-toolbar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .cms-content-toolbar__create {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .cms-content-toolbar__create {
+    flex-basis: 100%;
+    width: 100%;
   }
 }
 
 @media (max-width: 640px) {
-  .cms-content-toolbar {
-    grid-template-columns: 1fr;
+  label,
+  .cms-content-toolbar__search,
+  .cms-content-toolbar__create {
+    flex-basis: 100%;
+    width: 100%;
   }
 }
 </style>

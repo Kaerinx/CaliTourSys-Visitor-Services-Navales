@@ -1,7 +1,10 @@
 <script setup>
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import CmsIcon from '../CmsIcon.vue'
 
-defineProps({
+const route = useRoute()
+const props = defineProps({
   columns: { type: Array, default: () => [] },
   items: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
@@ -11,6 +14,13 @@ defineProps({
 })
 
 defineEmits(['retry'])
+
+const isSessionError = computed(() => /session expired|sign in again/i.test(props.error))
+const retryLabel = computed(() => (isSessionError.value ? 'Sign in again' : 'Try again'))
+const signInRoute = computed(() => ({
+  name: 'cms-login',
+  query: { redirect: route.fullPath, sessionExpired: '1' },
+}))
 </script>
 
 <template>
@@ -23,7 +33,8 @@ defineEmits(['retry'])
       <CmsIcon name="alert" />
       <strong>Unable to load records</strong>
       <p>{{ error }}</p>
-      <button type="button" @click="$emit('retry')">Try again</button>
+      <RouterLink v-if="isSessionError" :to="signInRoute">{{ retryLabel }}</RouterLink>
+      <button v-else type="button" @click="$emit('retry')">{{ retryLabel }}</button>
     </div>
 
     <div v-else-if="!items.length" class="cms-data-table__state">
@@ -167,14 +178,18 @@ th {
   line-height: 1.5;
 }
 
-.cms-data-table__state button {
+.cms-data-table__state button,
+.cms-data-table__state a {
   min-height: 40px;
+  display: inline-flex;
+  align-items: center;
   padding: 0 14px;
   color: #075985;
   border: 1px solid #bae6fd;
   border-radius: 8px;
   background: #f0f9ff;
   font-weight: 800;
+  text-decoration: none;
 }
 
 .cms-data-table__state--error {

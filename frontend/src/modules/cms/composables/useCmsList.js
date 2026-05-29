@@ -1,5 +1,5 @@
 import { computed, reactive, ref, watch } from 'vue'
-import { ApiError } from '@/services/http'
+import { ApiError, isAuthFailureError } from '@/services/http'
 
 export function useCmsList(loader, initialFilters = {}) {
   const items = ref([])
@@ -82,10 +82,9 @@ export function useCmsList(loader, initialFilters = {}) {
 
 export function friendlyContentError(error) {
   if (error instanceof ApiError) {
+    if (isAuthFailureError(error)) return 'Your session expired. Please sign in again to continue.'
     if (error.code === 'NETWORK_ERROR') return error.message
     if (error.status === 400) return validationMessage(error) || 'Please check the submitted fields.'
-    if (error.status === 401) return 'Your CMS session has expired. Please sign in again.'
-    if (error.status === 403) return 'You do not have permission to perform this CMS action.'
     if (error.status === 404) return 'The requested CMS record was not found.'
     if (error.status === 409) return 'A record with this slug already exists.'
     if (error.status === 429) return 'Too many requests. Please try again shortly.'

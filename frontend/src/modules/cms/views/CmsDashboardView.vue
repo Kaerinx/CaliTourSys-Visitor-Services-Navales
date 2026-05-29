@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { isAuthFailureError } from '@/services/http'
 import CmsIcon from '../components/CmsIcon.vue'
 import CmsQuickActionCard from '../components/CmsQuickActionCard.vue'
 import CmsRecentActivity from '../components/CmsRecentActivity.vue'
@@ -58,14 +59,11 @@ const visibleQuickActions = computed(() =>
 
 onMounted(async () => {
   await loadDashboard()
-  refreshTimer = window.setInterval(() => {
-    if (document.hidden) return
-    loadDashboard({ silent: true })
-  }, DASHBOARD_REFRESH_INTERVAL_MS)
+  if (auth.isAuthenticated) startDashboardRefresh()
 })
 
 onBeforeUnmount(() => {
-  if (refreshTimer) window.clearInterval(refreshTimer)
+  stopDashboardRefresh()
 })
 
 async function loadDashboard({ silent = false } = {}) {
@@ -78,11 +76,30 @@ async function loadDashboard({ silent = false } = {}) {
     lastUpdatedAt.value = new Date()
     error.value = ''
   } catch (err) {
+    if (isAuthFailureError(err)) {
+      stopDashboardRefresh()
+      return
+    }
+
     if (!dashboard.value) error.value = err.message || 'Unable to load CMS dashboard.'
   } finally {
     isLoading.value = false
     isRefreshing.value = false
   }
+}
+
+function startDashboardRefresh() {
+  if (refreshTimer) return
+  refreshTimer = window.setInterval(() => {
+    if (document.hidden || !auth.isAuthenticated) return
+    loadDashboard({ silent: true })
+  }, DASHBOARD_REFRESH_INTERVAL_MS)
+}
+
+function stopDashboardRefresh() {
+  if (!refreshTimer) return
+  window.clearInterval(refreshTimer)
+  refreshTimer = null
 }
 
 function formatLastUpdated(value) {
@@ -119,7 +136,7 @@ function formatLastUpdated(value) {
       <CmsIcon name="alert" />
       <strong>Dashboard could not load</strong>
       <p>{{ error }}</p>
-      <small>Auto-retrying every {{ DASHBOARD_REFRESH_INTERVAL_MS / 1000 }} seconds.</small>
+      <small>Temporary connection issues will be checked again automatically.</small>
     </div>
 
     <template v-else>

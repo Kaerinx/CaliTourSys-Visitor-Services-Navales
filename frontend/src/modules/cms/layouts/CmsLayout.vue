@@ -105,7 +105,7 @@ function resolveNavigationIcon(item) {
 </script>
 
 <template>
-  <div class="cms-layout">
+  <div v-if="auth.isAuthenticated" class="cms-layout">
     <div v-if="sidebarOpen" class="cms-layout__scrim" @click="sidebarOpen = false"></div>
     <CmsSidebar :items="navigationItems" :open="sidebarOpen" @close="sidebarOpen = false" />
 
@@ -116,6 +116,11 @@ function resolveNavigationIcon(item) {
       </main>
     </div>
   </div>
+
+  <main v-else class="cms-layout__handoff" aria-live="polite">
+    <strong>Redirecting to CMS sign in...</strong>
+    <span>Your secure staff session needs to be restored.</span>
+  </main>
 </template>
 
 <style scoped>
@@ -140,6 +145,22 @@ function resolveNavigationIcon(item) {
   inset: 0;
   z-index: 35;
   background: rgba(15, 23, 42, 0.35);
+}
+
+.cms-layout__handoff {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: #475569;
+  background: #f6f8fb;
+  text-align: center;
+}
+
+.cms-layout__handoff strong {
+  color: #0f172a;
+  font-size: 1.1rem;
 }
 
 @media (max-width: 900px) {

@@ -121,12 +121,16 @@ export async function guardCmsRoute(to) {
   }
 
   if (to.meta.requiresAuth || to.path.startsWith('/cms')) {
+    const hadStoredToken = Boolean(auth.accessToken)
     await auth.bootstrap()
 
     if (!auth.isAuthenticated) {
       return {
         name: 'cms-login',
-        query: { redirect: to.fullPath },
+        query: {
+          redirect: to.fullPath,
+          ...(hadStoredToken ? { sessionExpired: '1' } : {}),
+        },
       }
     }
 

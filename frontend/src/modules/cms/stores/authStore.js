@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { ApiError, setAuthTokenGetter } from '@/services/http'
+import { ApiError, isAuthFailureError, setAuthTokenGetter } from '@/services/http'
 import { authApi } from '../services/authApi'
 
 const TOKEN_KEY = 'calitoursys_cms_access_token'
@@ -31,6 +31,13 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
   function clearAuth() {
     persistToken('')
     setUser(null)
+    hasBootstrapped.value = false
+  }
+
+  function expireSession() {
+    clearAuth()
+    error.value = 'Your session expired. Please sign in again to continue.'
+    hasBootstrapped.value = true
   }
 
   async function login(email, password) {
@@ -78,11 +85,17 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
       setUser(data.user)
       return data.user
     } catch (err) {
+      if (isAuthFailureError(err)) {
+        expireSession()
+        return null
+      }
+
       if (accessToken.value) {
         try {
           return await fetchMe()
-        } catch {
-          clearAuth()
+        } catch (meError) {
+          if (isAuthFailureError(meError)) expireSession()
+          else clearAuth()
         }
       } else {
         clearAuth()
@@ -119,6 +132,7 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
     isLoading,
     login,
     logout,
+    expireSession,
     fetchMe,
     refreshSession,
     bootstrap,
