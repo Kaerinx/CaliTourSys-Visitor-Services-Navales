@@ -1,10 +1,11 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 
-import FilterActions from '@/modules/product/components/FilterActions.vue'
-import ModuleStats from '@/modules/product/components/ModuleStats.vue'
+import CmsConfirmDialog from '@/modules/cms/components/content/CmsConfirmDialog.vue'
+import CmsDataTable from '@/modules/cms/components/content/CmsDataTable.vue'
+import CmsIcon from '@/modules/cms/components/CmsIcon.vue'
+import ProductAssetForm from '@/modules/product/components/ProductAssetForm.vue'
 import RoleNotice from '@/modules/product/components/RoleNotice.vue'
-import StatusPill from '@/modules/product/components/StatusPill.vue'
 import { useProductAccess } from '@/modules/product/composables/useProductAccess'
 import { ASSET_CATEGORIES, ASSET_STATUSES } from '@/modules/product/constants/productOptions'
 import {
@@ -19,10 +20,14 @@ const auth = useProductAccess()
 
 const assets = ref([])
 const loading = ref(false)
-const saving = ref(false)
 const error = ref('')
-const success = ref('')
-const editingAssetId = ref(null)
+const notice = ref('')
+const formOpen = ref(false)
+const selectedAsset = ref(null)
+const formError = ref('')
+const saving = ref(false)
+const confirmAction = ref(null)
+const actionBusy = ref(false)
 
 const filters = reactive({
   search: '',
@@ -32,21 +37,21 @@ const filters = reactive({
   targetMarket: '',
 })
 
-const form = reactive({
-  name: '',
-  description: '',
-  location: '',
-  category: 'Natural',
-  targetMarket: '',
-  developmentStatus: 'Draft',
-  remarks: '',
-})
+const columns = [
+  { key: 'asset', label: 'Asset' },
+  { key: 'category', label: 'Category' },
+  { key: 'location', label: 'Location' },
+  { key: 'targetMarket', label: 'Target market' },
+  { key: 'status', label: 'Status' },
+  { key: 'actions', label: 'Actions' },
+]
 
 const canEditAssets = computed(() =>
   [USER_ROLES.TOURISM_STAFF, USER_ROLES.TOURISM_OFFICER, USER_ROLES.SYSTEM_ADMINISTRATOR].includes(
     auth.user?.role,
   ),
 )
+
 const canArchiveAssets = computed(() =>
   [USER_ROLES.TOURISM_OFFICER, USER_ROLES.SYSTEM_ADMINISTRATOR].includes(auth.user?.role),
 )
@@ -54,25 +59,23 @@ const canArchiveAssets = computed(() =>
 const activeAssets = computed(() =>
   assets.value.filter((asset) => asset.developmentStatus !== 'Archived').length,
 )
+
 const archivedAssets = computed(() =>
   assets.value.filter((asset) => asset.developmentStatus === 'Archived').length,
 )
-const assetStats = computed(() => [
-  { label: 'Total assets', value: assets.value.length },
-  { label: 'Active assets', value: activeAssets.value },
-  { label: 'Archived assets', value: archivedAssets.value },
-  { label: 'Your role', value: auth.user?.role || 'Guest' },
-])
 
-function resetForm() {
-  editingAssetId.value = null
-  form.name = ''
-  form.description = ''
-  form.location = ''
-  form.category = 'Natural'
-  form.targetMarket = ''
-  form.developmentStatus = 'Draft'
-  form.remarks = ''
+onMounted(loadAssets)
+
+function openCreate() {
+  selectedAsset.value = null
+  formError.value = ''
+  formOpen.value = true
+}
+
+function openEdit(asset) {
+  selectedAsset.value = asset
+  formError.value = ''
+  formOpen.value = true
 }
 
 function clearFilters() {
@@ -84,419 +87,430 @@ function clearFilters() {
   loadAssets()
 }
 
-function editAsset(asset) {
-  editingAssetId.value = asset.id
-  form.name = asset.name
-  form.description = asset.description
-  form.location = asset.location
-  form.category = asset.category
-  form.targetMarket = asset.targetMarket
-  form.developmentStatus = asset.developmentStatus
-  form.remarks = asset.remarks || ''
-}
-
 async function loadAssets() {
   loading.value = true
   error.value = ''
 
   try {
     const response = await getTourismAssets(filters)
-    assets.value = response.data
+    assets.value = response.data || []
   } catch (err) {
-    error.value = err.message
+    error.value = err.message || 'Unable to load tourism assets.'
   } finally {
     loading.value = false
   }
 }
 
-async function saveAsset() {
+async function submitAsset(payload) {
   saving.value = true
-  error.value = ''
-  success.value = ''
+  formError.value = ''
+  notice.value = ''
 
   try {
-    if (editingAssetId.value) {
-      await updateTourismAsset(editingAssetId.value, form)
-      success.value = 'Tourism asset updated successfully.'
+    if (selectedAsset.value?.id) {
+      await updateTourismAsset(selectedAsset.value.id, payload)
+      notice.value = 'Asset updated.'
     } else {
-      await createTourismAsset(form)
-      success.value = 'Tourism asset created successfully.'
+      await createTourismAsset(payload)
+      notice.value = 'Asset created.'
     }
 
-    resetForm()
+    formOpen.value = false
     await loadAssets()
   } catch (err) {
-    error.value = err.message
+    formError.value = err.message || 'Unable to save asset.'
   } finally {
     saving.value = false
   }
 }
 
-async function archiveAsset(asset) {
-  const confirmed = window.confirm(`Archive "${asset.name}"?`)
-
-  if (!confirmed) {
-    return
-  }
-
-  error.value = ''
-  success.value = ''
-
-  try {
-    await archiveTourismAsset(asset.id)
-    success.value = 'Tourism asset archived successfully.'
-    await loadAssets()
-  } catch (err) {
-    error.value = err.message
-  }
+function askArchive(asset) {
+  confirmAction.value = asset
 }
 
-onMounted(loadAssets)
+async function archiveAsset() {
+  if (!confirmAction.value) return
+  actionBusy.value = true
+  error.value = ''
+  notice.value = ''
+
+  try {
+    await archiveTourismAsset(confirmAction.value.id)
+    notice.value = 'Asset archived.'
+    confirmAction.value = null
+    await loadAssets()
+  } catch (err) {
+    error.value = err.message || 'Unable to archive asset.'
+  } finally {
+    actionBusy.value = false
+  }
+}
 </script>
 
 <template>
-  <section class="page-section">
-    <div class="section-heading">
-      <p class="eyebrow">Asset Records</p>
-      <h1>Tourism Asset Management</h1>
-      <p>
-        Maintain the tourism assets that can become the foundation for development plans,
-        improvement work, activities, and future packages.
-      </p>
-    </div>
-
-    <ModuleStats :items="assetStats" />
+  <section class="cms-content-page" aria-labelledby="cms-assets-title">
+    <header class="cms-content-page__header">
+      <div>
+        <p>Product Development</p>
+        <h1 id="cms-assets-title">Assets</h1>
+        <span>Maintain tourism sites, attractions, and local resources before planning work starts.</span>
+      </div>
+    </header>
 
     <RoleNotice v-if="auth.isViewOnly">
       LGU Officials can view and filter assets, but cannot create, edit, or archive records.
     </RoleNotice>
 
-    <div class="asset-layout">
-      <form v-if="canEditAssets" class="asset-form" @submit.prevent="saveAsset">
-        <div>
-          <p class="eyebrow">{{ editingAssetId ? 'Edit asset' : 'New asset' }}</p>
-          <h2>{{ editingAssetId ? 'Update tourism asset' : 'Create tourism asset' }}</h2>
-        </div>
+    <div v-if="notice" class="cms-content-page__notice" role="status">{{ notice }}</div>
 
-        <label>
-          Asset Name
-          <input v-model="form.name" required placeholder="Example: Calabanga Mangrove Area" />
-        </label>
+    <section class="asset-toolbar" aria-label="Asset filters">
+      <label class="asset-toolbar__search">
+        <span>Search</span>
+        <CmsIcon name="search" />
+        <input
+          v-model="filters.search"
+          type="search"
+          placeholder="Search by name, description, or location"
+          @keyup.enter="loadAssets"
+        />
+      </label>
 
-        <label>
-          Description
-          <textarea
-            v-model="form.description"
-            required
-            placeholder="Describe the tourism value, current condition, or development potential."
-          ></textarea>
-        </label>
+      <label>
+        <span>Status</span>
+        <select v-model="filters.status" @change="loadAssets">
+          <option value="">All statuses</option>
+          <option v-for="status in ASSET_STATUSES" :key="status" :value="status">
+            {{ status }}
+          </option>
+        </select>
+      </label>
 
-        <div class="form-grid">
-          <label>
-            Location
-            <input v-model="form.location" required placeholder="Barangay or site location" />
-          </label>
+      <label>
+        <span>Category</span>
+        <select v-model="filters.category" @change="loadAssets">
+          <option value="">All categories</option>
+          <option v-for="category in ASSET_CATEGORIES" :key="category" :value="category">
+            {{ category }}
+          </option>
+        </select>
+      </label>
 
-          <label>
-            Category
-            <select v-model="form.category" required>
-              <option v-for="category in ASSET_CATEGORIES" :key="category" :value="category">
-                {{ category }}
-              </option>
-            </select>
-          </label>
-        </div>
+      <label>
+        <span>Location</span>
+        <input v-model="filters.location" placeholder="Filter by location" @keyup.enter="loadAssets" />
+      </label>
 
-        <div class="form-grid">
-          <label>
-            Target Market
-            <input v-model="form.targetMarket" required placeholder="Families, students, eco-tourists" />
-          </label>
+      <label>
+        <span>Target market</span>
+        <input v-model="filters.targetMarket" placeholder="Filter by market" @keyup.enter="loadAssets" />
+      </label>
 
-          <label>
-            Development Status
-            <select v-model="form.developmentStatus" required>
-              <option v-for="status in ASSET_STATUSES" :key="status" :value="status">
-                {{ status }}
-              </option>
-            </select>
-          </label>
-        </div>
+      <div class="asset-toolbar__actions">
+        <button type="button" @click="loadAssets">Apply</button>
+        <button type="button" @click="clearFilters">Clear</button>
+        <button v-if="canEditAssets" class="asset-toolbar__create" type="button" @click="openCreate">
+          <span aria-hidden="true">+</span>
+          Create asset
+        </button>
+      </div>
+    </section>
 
-        <label>
-          Remarks
-          <textarea v-model="form.remarks" placeholder="Optional notes for the Tourism Office"></textarea>
-        </label>
+    <CmsDataTable
+      :columns="columns"
+      :items="assets"
+      :loading="loading"
+      :error="error"
+      empty-title="No assets found"
+      empty-text="Create the first tourism asset draft or adjust your filters."
+      @retry="loadAssets"
+    >
+      <template #rows="{ items: tableItems }">
+        <tr v-for="asset in tableItems" :key="asset.id">
+          <td>
+            <span class="cms-table-title">
+              <strong>{{ asset.name }}</strong>
+              <span>{{ asset.description }}</span>
+              <span v-if="asset.remarks">{{ asset.remarks }}</span>
+            </span>
+          </td>
+          <td>{{ asset.category }}</td>
+          <td>{{ asset.location }}</td>
+          <td>{{ asset.targetMarket }}</td>
+          <td>
+            <span class="asset-status" :data-status="asset.developmentStatus">
+              {{ asset.developmentStatus }}
+            </span>
+          </td>
+          <td>
+            <span class="cms-table-actions">
+              <button
+                v-if="canEditAssets && asset.developmentStatus !== 'Archived'"
+                type="button"
+                @click="openEdit(asset)"
+              >
+                Edit
+              </button>
+              <button
+                v-if="canArchiveAssets && asset.developmentStatus !== 'Archived'"
+                class="is-danger"
+                type="button"
+                @click="askArchive(asset)"
+              >
+                Archive
+              </button>
+              <span v-if="auth.isViewOnly">View only</span>
+            </span>
+          </td>
+        </tr>
+      </template>
 
-        <div class="form-actions">
-          <button class="primary-button" :disabled="saving" type="submit">
-            {{ saving ? 'Saving...' : editingAssetId ? 'Save Changes' : 'Create Asset' }}
-          </button>
-          <button v-if="editingAssetId" class="secondary-button" type="button" @click="resetForm">
-            Cancel Edit
-          </button>
-        </div>
-      </form>
+      <template #cards="{ items: cardItems }">
+        <article v-for="asset in cardItems" :key="asset.id" class="cms-mobile-card">
+          <span class="cms-table-title">
+            <strong>{{ asset.name }}</strong>
+            <span>{{ asset.description }}</span>
+          </span>
+          <div class="cms-mobile-meta">
+            <span class="asset-status" :data-status="asset.developmentStatus">
+              {{ asset.developmentStatus }}
+            </span>
+            <span>{{ asset.category }}</span>
+            <span>{{ asset.location }}</span>
+          </div>
+          <span>{{ asset.targetMarket }}</span>
+          <div class="cms-mobile-card__actions cms-table-actions">
+            <button
+              v-if="canEditAssets && asset.developmentStatus !== 'Archived'"
+              type="button"
+              @click="openEdit(asset)"
+            >
+              Edit
+            </button>
+            <button
+              v-if="canArchiveAssets && asset.developmentStatus !== 'Archived'"
+              class="is-danger"
+              type="button"
+              @click="askArchive(asset)"
+            >
+              Archive
+            </button>
+          </div>
+        </article>
+      </template>
+    </CmsDataTable>
 
-      <section class="asset-panel">
-        <div class="filter-panel">
-          <label>
-            Search
-            <input v-model="filters.search" placeholder="Search by name, description, or location" />
-          </label>
-          <label>
-            Category
-            <select v-model="filters.category">
-              <option value="">All categories</option>
-              <option v-for="category in ASSET_CATEGORIES" :key="category" :value="category">
-                {{ category }}
-              </option>
-            </select>
-          </label>
-          <label>
-            Status
-            <select v-model="filters.status">
-              <option value="">All statuses</option>
-              <option v-for="status in ASSET_STATUSES" :key="status" :value="status">
-                {{ status }}
-              </option>
-            </select>
-          </label>
-          <label>
-            Location
-            <input v-model="filters.location" placeholder="Filter by location" />
-          </label>
-          <label>
-            Target Market
-            <input v-model="filters.targetMarket" placeholder="Filter by target market" />
-          </label>
-          <FilterActions @apply="loadAssets" @clear="clearFilters" />
-        </div>
-
-        <p v-if="error" class="form-error">{{ error }}</p>
-        <p v-if="success" class="form-success">{{ success }}</p>
-
-        <div v-if="loading" class="empty-state compact">
-          <h2>Loading assets...</h2>
-        </div>
-
-        <div v-else-if="!assets.length" class="empty-state compact">
-          <h2>No tourism assets found</h2>
-          <p>Create the first tourism asset or adjust the filters.</p>
-        </div>
-
-        <div v-else class="asset-table-wrap">
-          <table class="asset-table">
-            <thead>
-              <tr>
-                <th>Asset</th>
-                <th>Category</th>
-                <th>Location</th>
-                <th>Target Market</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="asset in assets" :key="asset.id">
-                <td>
-                  <strong>{{ asset.name }}</strong>
-                  <span>{{ asset.description }}</span>
-                  <small v-if="asset.remarks">{{ asset.remarks }}</small>
-                </td>
-                <td>{{ asset.category }}</td>
-                <td>{{ asset.location }}</td>
-                <td>{{ asset.targetMarket }}</td>
-                <td>
-                  <StatusPill :status="asset.developmentStatus" />
-                </td>
-                <td>
-                  <div class="table-actions">
-                    <button
-                      v-if="canEditAssets && asset.developmentStatus !== 'Archived'"
-                      class="secondary-button"
-                      type="button"
-                      @click="editAsset(asset)"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      v-if="canArchiveAssets && asset.developmentStatus !== 'Archived'"
-                      class="danger-button"
-                      type="button"
-                      @click="archiveAsset(asset)"
-                    >
-                      Archive
-                    </button>
-                    <span v-if="auth.isViewOnly">View only</span>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+    <div class="asset-pagination">
+      <div>
+        <strong>{{ assets.length }} records</strong>
+        <span>{{ activeAssets }} active, {{ archivedAssets }} archived</span>
+      </div>
     </div>
+
+    <ProductAssetForm
+      :open="formOpen"
+      :value="selectedAsset"
+      :busy="saving"
+      :server-error="formError"
+      @close="formOpen = false"
+      @submit="submitAsset"
+    />
+
+    <CmsConfirmDialog
+      :open="Boolean(confirmAction)"
+      title="Archive this asset?"
+      message="Archived assets are hidden from active Product Development work but remain available for records."
+      confirm-label="Archive"
+      tone="danger"
+      :busy="actionBusy"
+      @cancel="confirmAction = null"
+      @confirm="archiveAsset"
+    />
   </section>
 </template>
 
 <style scoped>
-.asset-form,
-.asset-panel {
-  border: 1px solid var(--color-line);
-  border-radius: 18px;
-  background: var(--color-panel);
-  box-shadow: var(--shadow-soft);
+@import '@/modules/cms/views/content/cms-content-page.css';
+
+.asset-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
 }
 
-.asset-panel {
-  overflow: hidden;
-}
-
-.asset-layout {
+.asset-toolbar label {
   display: grid;
-  grid-template-columns: minmax(320px, 0.8fr) minmax(0, 1.4fr);
-  gap: 18px;
-  align-items: start;
+  flex: 1 0 172px;
+  gap: 7px;
+  min-width: min(100%, 172px);
 }
 
-.asset-form,
-.asset-panel {
-  padding: 22px;
+.asset-toolbar__search {
+  position: relative;
+  flex: 2 0 280px;
+  min-width: min(100%, 280px);
 }
 
-.asset-form {
-  display: grid;
-  gap: 16px;
-}
-
-.asset-form label {
-  display: grid;
-  gap: 8px;
-  color: var(--color-muted);
-  font-size: 13px;
+.asset-toolbar span {
+  color: #475569;
+  font-size: 0.78rem;
   font-weight: 800;
 }
 
-.asset-form input,
-.asset-form select,
-.asset-form textarea,
-.filter-panel input,
-.filter-panel select {
+.asset-toolbar__search svg {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  width: 18px;
+  height: 18px;
+  color: #64748b;
+}
+
+.asset-toolbar input,
+.asset-toolbar select {
   width: 100%;
-  border: 1px solid var(--color-line);
-  border-radius: 12px;
-  padding: 11px 12px;
-  background: white;
-  color: var(--color-ink);
-}
-
-.asset-form textarea {
-  min-height: 96px;
-  resize: vertical;
-}
-
-.form-grid,
-.form-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.filter-panel {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  align-items: end;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.filter-panel label {
-  display: grid;
-  gap: 7px;
   min-width: 0;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
+  min-height: 42px;
+  padding: 0 12px;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
 }
 
-.filter-panel label:first-child {
-  grid-column: span 2;
+.asset-toolbar__search input {
+  padding-left: 38px;
 }
 
-.asset-table-wrap {
-  overflow-x: auto;
+.asset-toolbar input:focus,
+.asset-toolbar select:focus,
+.asset-toolbar button:focus-visible {
+  border-color: #0ea5e9;
+  outline: 3px solid rgba(14, 165, 233, 0.16);
+  outline-offset: 1px;
 }
 
-.asset-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.asset-table th,
-.asset-table td {
-  border-bottom: 1px solid var(--color-line);
-  padding: 14px 10px;
-  text-align: left;
-  vertical-align: top;
-}
-
-.asset-table th {
-  color: var(--color-muted);
-  font-size: 12px;
-  text-transform: uppercase;
-}
-
-.asset-table td strong,
-.asset-table td span,
-.asset-table td small {
-  display: block;
-}
-
-.asset-table td strong {
-  margin-bottom: 4px;
-}
-
-.asset-table td span,
-.asset-table td small {
-  color: var(--color-muted);
-  line-height: 1.5;
-}
-
-.table-actions {
+.asset-toolbar__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  margin-left: auto;
 }
 
-.table-actions span {
-  color: var(--color-muted);
-  font-size: 13px;
+.asset-toolbar button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 14px;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
   font-weight: 800;
 }
 
-.compact {
-  max-width: none;
-  box-shadow: none;
+.asset-toolbar__create {
+  color: #fff !important;
+  border-color: #0f766e !important;
+  background: #0f766e !important;
+  white-space: nowrap;
 }
 
-@media (max-width: 1200px) {
-  .asset-layout {
-    grid-template-columns: 1fr;
-  }
+.asset-toolbar__create:hover {
+  background: #115e59 !important;
+}
 
-  .form-grid,
-  .form-actions {
-    grid-template-columns: 1fr;
+.asset-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.asset-status[data-status='Draft'] {
+  color: #075985;
+  border-color: #bae6fd;
+  background: #e0f2fe;
+}
+
+.asset-status[data-status='Validated'],
+.asset-status[data-status='Ready for Promotion'] {
+  color: #0f766e;
+  border-color: #99f6e4;
+  background: #ccfbf1;
+}
+
+.asset-status[data-status='In Development'],
+.asset-status[data-status='For Review'] {
+  color: #92400e;
+  border-color: #fed7aa;
+  background: #ffedd5;
+}
+
+.asset-status[data-status='Archived'] {
+  color: #991b1b;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.asset-pagination {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.asset-pagination div {
+  display: grid;
+  gap: 2px;
+}
+
+.asset-pagination strong {
+  color: #0f172a;
+}
+
+.asset-pagination span {
+  color: #64748b;
+  font-size: 0.84rem;
+}
+
+@media (max-width: 980px) {
+  .asset-toolbar__actions {
+    margin-left: 0;
   }
 }
 
-@media (max-width: 700px) {
-  .filter-panel label:first-child {
-    grid-column: span 1;
+@media (max-width: 760px) {
+  .asset-toolbar__actions,
+  .asset-toolbar__actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .asset-toolbar label,
+  .asset-toolbar__search {
+    flex-basis: 100%;
+    width: 100%;
   }
 }
 </style>

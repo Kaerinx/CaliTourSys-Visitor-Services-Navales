@@ -1,10 +1,11 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 
-import FilterActions from '@/modules/product/components/FilterActions.vue'
-import ModuleStats from '@/modules/product/components/ModuleStats.vue'
+import CmsConfirmDialog from '@/modules/cms/components/content/CmsConfirmDialog.vue'
+import CmsDataTable from '@/modules/cms/components/content/CmsDataTable.vue'
+import CmsIcon from '@/modules/cms/components/CmsIcon.vue'
+import ProductActivityForm from '@/modules/product/components/ProductActivityForm.vue'
 import RoleNotice from '@/modules/product/components/RoleNotice.vue'
-import StatusPill from '@/modules/product/components/StatusPill.vue'
 import { useProductAccess } from '@/modules/product/composables/useProductAccess'
 import { ACTIVITY_STATUSES } from '@/modules/product/constants/productOptions'
 import {
@@ -23,10 +24,14 @@ const assets = ref([])
 const plans = ref([])
 const activities = ref([])
 const loading = ref(false)
-const saving = ref(false)
 const error = ref('')
-const success = ref('')
-const editingActivityId = ref(null)
+const notice = ref('')
+const formOpen = ref(false)
+const selectedActivity = ref(null)
+const formError = ref('')
+const saving = ref(false)
+const confirmAction = ref(null)
+const actionBusy = ref(false)
 
 const filters = reactive({
   search: '',
@@ -36,37 +41,33 @@ const filters = reactive({
   targetMarket: '',
 })
 
-const form = reactive({
-  assetId: '',
-  planId: '',
-  name: '',
-  description: '',
-  duration: '',
-  targetMarket: '',
-  activityStatus: 'Draft',
-  remarks: '',
-})
+const columns = [
+  { key: 'activity', label: 'Activity' },
+  { key: 'asset', label: 'Linked asset' },
+  { key: 'plan', label: 'Plan' },
+  { key: 'duration', label: 'Duration' },
+  { key: 'status', label: 'Status' },
+  { key: 'actions', label: 'Actions' },
+]
 
 const canEditActivities = computed(() =>
   [USER_ROLES.TOURISM_STAFF, USER_ROLES.TOURISM_OFFICER, USER_ROLES.SYSTEM_ADMINISTRATOR].includes(
     auth.user?.role,
   ),
 )
+
 const canArchiveActivities = computed(() =>
   [USER_ROLES.TOURISM_OFFICER, USER_ROLES.SYSTEM_ADMINISTRATOR].includes(auth.user?.role),
 )
+
 const selectableAssets = computed(() =>
   assets.value.filter((asset) => asset.developmentStatus !== 'Archived'),
 )
-const selectablePlans = computed(() =>
-  plans.value.filter(
-    (plan) =>
-      plan.planStatus !== 'Archived' &&
-      plan.assetStatus !== 'Archived' &&
-      (!form.assetId || plan.assetId === form.assetId),
-  ),
+
+const activePlans = computed(() =>
+  plans.value.filter((plan) => plan.planStatus !== 'Archived' && plan.assetStatus !== 'Archived'),
 )
-const selectedAsset = computed(() => selectableAssets.value.find((asset) => asset.id === form.assetId))
+
 const activeActivities = computed(() =>
   activities.value.filter((activity) => activity.activityStatus !== 'Archived').length,
 )
@@ -76,23 +77,32 @@ const readyActivities = computed(() =>
 const archivedActivities = computed(() =>
   activities.value.filter((activity) => activity.activityStatus === 'Archived').length,
 )
-const activityStats = computed(() => [
-  { label: 'Total activities', value: activities.value.length },
-  { label: 'Active activities', value: activeActivities.value },
-  { label: 'Ready', value: readyActivities.value },
-  { label: 'Archived', value: archivedActivities.value },
-])
 
-function resetForm() {
-  editingActivityId.value = null
-  form.assetId = ''
-  form.planId = ''
-  form.name = ''
-  form.description = ''
-  form.duration = ''
-  form.targetMarket = ''
-  form.activityStatus = 'Draft'
-  form.remarks = ''
+onMounted(loadPageData)
+
+function canEditActivity(activity) {
+  return (
+    canEditActivities.value &&
+    activity.activityStatus !== 'Archived' &&
+    activity.assetStatus !== 'Archived' &&
+    activity.planStatus !== 'Archived'
+  )
+}
+
+function canArchiveActivity(activity) {
+  return canArchiveActivities.value && activity.activityStatus !== 'Archived'
+}
+
+function openCreate() {
+  selectedActivity.value = null
+  formError.value = ''
+  formOpen.value = true
+}
+
+function openEdit(activity) {
+  selectedActivity.value = activity
+  formError.value = ''
+  formOpen.value = true
 }
 
 function clearFilters() {
@@ -104,44 +114,14 @@ function clearFilters() {
   loadActivities()
 }
 
-function syncFromAsset() {
-  if (selectedAsset.value && !form.targetMarket) {
-    form.targetMarket = selectedAsset.value.targetMarket
-  }
-
-  if (form.planId && !selectablePlans.value.some((plan) => plan.id === form.planId)) {
-    form.planId = ''
-  }
-}
-
-function canEditActivity(activity) {
-  return canEditActivities.value && activity.activityStatus !== 'Archived' && activity.assetStatus !== 'Archived'
-}
-
-function canArchiveActivity(activity) {
-  return canArchiveActivities.value && activity.activityStatus !== 'Archived'
-}
-
-function editActivity(activity) {
-  editingActivityId.value = activity.id
-  form.assetId = activity.assetId
-  form.planId = activity.planId || ''
-  form.name = activity.name
-  form.description = activity.description
-  form.duration = activity.duration
-  form.targetMarket = activity.targetMarket
-  form.activityStatus = activity.activityStatus
-  form.remarks = activity.remarks || ''
-}
-
 async function loadAssets() {
   const response = await getTourismAssets()
-  assets.value = response.data
+  assets.value = response.data || []
 }
 
 async function loadPlans() {
   const response = await getDevelopmentPlans()
-  plans.value = response.data
+  plans.value = response.data || []
 }
 
 async function loadActivities() {
@@ -149,10 +129,16 @@ async function loadActivities() {
   error.value = ''
 
   try {
-    const response = await getTourismActivities(filters)
-    activities.value = response.data
+    const response = await getTourismActivities({
+      search: filters.search,
+      assetId: filters.assetId,
+      planId: filters.planId,
+      status: filters.status,
+      targetMarket: filters.targetMarket,
+    })
+    activities.value = response.data || []
   } catch (err) {
-    error.value = err.message
+    error.value = err.message || 'Unable to load tourism activities.'
   } finally {
     loading.value = false
   }
@@ -165,414 +151,474 @@ async function loadPageData() {
   try {
     await Promise.all([loadAssets(), loadPlans(), loadActivities()])
   } catch (err) {
-    error.value = err.message
+    error.value = err.message || 'Unable to load tourism activity data.'
   } finally {
     loading.value = false
   }
 }
 
-async function saveActivity() {
+async function submitActivity(payload) {
   saving.value = true
-  error.value = ''
-  success.value = ''
+  formError.value = ''
+  notice.value = ''
 
   try {
-    if (editingActivityId.value) {
-      await updateTourismActivity(editingActivityId.value, form)
-      success.value = 'Tourism activity updated successfully.'
+    if (selectedActivity.value?.id) {
+      await updateTourismActivity(selectedActivity.value.id, payload)
+      notice.value = 'Tourism activity updated.'
     } else {
-      await createTourismActivity(form)
-      success.value = 'Tourism activity created successfully.'
+      await createTourismActivity(payload)
+      notice.value = 'Tourism activity created.'
     }
 
-    resetForm()
+    formOpen.value = false
     await loadPageData()
   } catch (err) {
-    error.value = err.message
+    formError.value = err.message || 'Unable to save tourism activity.'
   } finally {
     saving.value = false
   }
 }
 
-async function archiveActivity(activity) {
-  const confirmed = window.confirm(`Archive "${activity.name}"?`)
-
-  if (!confirmed) {
-    return
-  }
-
-  error.value = ''
-  success.value = ''
-
-  try {
-    await archiveTourismActivity(activity.id)
-    success.value = 'Tourism activity archived successfully.'
-    await loadPageData()
-  } catch (err) {
-    error.value = err.message
-  }
+function askArchive(activity) {
+  confirmAction.value = activity
 }
 
-onMounted(loadPageData)
+async function archiveActivity() {
+  if (!confirmAction.value) return
+  actionBusy.value = true
+  error.value = ''
+  notice.value = ''
+
+  try {
+    await archiveTourismActivity(confirmAction.value.id)
+    notice.value = 'Tourism activity archived.'
+    confirmAction.value = null
+    await loadPageData()
+  } catch (err) {
+    error.value = err.message || 'Unable to archive tourism activity.'
+  } finally {
+    actionBusy.value = false
+  }
+}
 </script>
 
 <template>
-  <section class="page-section">
-    <div class="section-heading">
-      <p class="eyebrow">Activity Records</p>
-      <h1>Tourism Activity Management</h1>
-      <p>
-        Maintain tourism activities connected to active assets and optional development plans for
-        future package creation.
-      </p>
-    </div>
-
-    <ModuleStats :items="activityStats" />
+  <section class="cms-content-page" aria-labelledby="cms-activities-title">
+    <header class="cms-content-page__header">
+      <div>
+        <p>Product Development</p>
+        <h1 id="cms-activities-title">Activities</h1>
+        <span>Design visitor-ready tourism activities linked to assets and optional development plans.</span>
+      </div>
+    </header>
 
     <RoleNotice v-if="auth.isViewOnly">
-      LGU Officials can view and filter tourism activities, but cannot create, edit, or archive
-      records.
+      LGU Officials can view and filter tourism activities, but cannot create, edit, or archive records.
     </RoleNotice>
 
-    <div class="activity-layout">
-      <form v-if="canEditActivities" class="activity-form" @submit.prevent="saveActivity">
-        <div>
-          <p class="eyebrow">{{ editingActivityId ? 'Edit activity' : 'New activity' }}</p>
-          <h2>{{ editingActivityId ? 'Update tourism activity' : 'Create tourism activity' }}</h2>
-        </div>
+    <div v-if="notice" class="cms-content-page__notice" role="status">{{ notice }}</div>
 
-        <p v-if="!selectableAssets.length" class="form-error">
-          Add or restore a non-archived tourism asset before creating tourism activities.
-        </p>
+    <section class="activity-toolbar" aria-label="Activity filters">
+      <label class="activity-toolbar__search">
+        <span>Search</span>
+        <CmsIcon name="search" />
+        <input
+          v-model="filters.search"
+          type="search"
+          placeholder="Search activity, description, asset, or plan"
+          @keyup.enter="loadActivities"
+        />
+      </label>
 
-        <label>
-          Tourism Asset
-          <select v-model="form.assetId" required @change="syncFromAsset">
-            <option value="">Select non-archived asset</option>
-            <option v-for="asset in selectableAssets" :key="asset.id" :value="asset.id">
-              {{ asset.name }} - {{ asset.developmentStatus }}
-            </option>
-          </select>
-        </label>
+      <label class="activity-toolbar__field--wide">
+        <span>Asset</span>
+        <select v-model="filters.assetId" @change="loadActivities">
+          <option value="">All assets</option>
+          <option v-for="asset in assets" :key="asset.id" :value="asset.id">
+            {{ asset.name }}
+          </option>
+        </select>
+      </label>
 
-        <label>
-          Development Plan
-          <select v-model="form.planId">
-            <option value="">No linked plan</option>
-            <option v-for="plan in selectablePlans" :key="plan.id" :value="plan.id">
-              {{ plan.planTitle }}
-            </option>
-          </select>
-        </label>
+      <label class="activity-toolbar__field--wide">
+        <span>Plan</span>
+        <select v-model="filters.planId" @change="loadActivities">
+          <option value="">All plans</option>
+          <option v-for="plan in plans" :key="plan.id" :value="plan.id">
+            {{ plan.title || plan.planTitle }}
+          </option>
+        </select>
+      </label>
 
-        <label>
-          Activity Name
-          <input v-model="form.name" required placeholder="Example: Guided mangrove walk" />
-        </label>
+      <label>
+        <span>Status</span>
+        <select v-model="filters.status" @change="loadActivities">
+          <option value="">All statuses</option>
+          <option v-for="status in ACTIVITY_STATUSES" :key="status" :value="status">
+            {{ status }}
+          </option>
+        </select>
+      </label>
 
-        <label>
-          Description
-          <textarea
-            v-model="form.description"
-            required
-            placeholder="Describe the tourism activity experience and purpose."
-          ></textarea>
-        </label>
+      <label>
+        <span>Target market</span>
+        <input v-model="filters.targetMarket" placeholder="Filter by market" @keyup.enter="loadActivities" />
+      </label>
 
-        <div class="form-grid">
-          <label>
-            Duration
-            <input v-model="form.duration" required placeholder="Example: 2 hours" />
-          </label>
+      <div class="activity-toolbar__actions">
+        <button type="button" @click="loadActivities">Apply</button>
+        <button type="button" @click="clearFilters">Clear</button>
+        <button
+          v-if="canEditActivities"
+          class="activity-toolbar__create"
+          type="button"
+          :disabled="!selectableAssets.length"
+          @click="openCreate"
+        >
+          <span aria-hidden="true">+</span>
+          Create activity
+        </button>
+      </div>
+    </section>
 
-          <label>
-            Target Market
-            <input v-model="form.targetMarket" required placeholder="Families, students, eco-tourists" />
-          </label>
-        </div>
-
-        <label>
-          Activity Status
-          <select v-model="form.activityStatus" required>
-            <option v-for="status in ACTIVITY_STATUSES" :key="status" :value="status">
-              {{ status }}
-            </option>
-          </select>
-        </label>
-
-        <label>
-          Remarks
-          <textarea v-model="form.remarks" placeholder="Optional activity notes"></textarea>
-        </label>
-
-        <div class="form-actions">
-          <button class="primary-button" :disabled="saving || !selectableAssets.length" type="submit">
-            {{ saving ? 'Saving...' : editingActivityId ? 'Save Changes' : 'Create Activity' }}
-          </button>
-          <button v-if="editingActivityId" class="secondary-button" type="button" @click="resetForm">
-            Cancel Edit
-          </button>
-        </div>
-      </form>
-
-      <section class="activity-panel">
-        <div class="filter-panel">
-          <label>
-            Search
-            <input v-model="filters.search" placeholder="Search activity, description, or asset" />
-          </label>
-          <label>
-            Asset
-            <select v-model="filters.assetId">
-              <option value="">All assets</option>
-              <option v-for="asset in assets" :key="asset.id" :value="asset.id">
-                {{ asset.name }}
-              </option>
-            </select>
-          </label>
-          <label>
-            Status
-            <select v-model="filters.status">
-              <option value="">All statuses</option>
-              <option v-for="status in ACTIVITY_STATUSES" :key="status" :value="status">
-                {{ status }}
-              </option>
-            </select>
-          </label>
-          <label>
-            Target Market
-            <input v-model="filters.targetMarket" placeholder="Filter by target market" />
-          </label>
-          <FilterActions @apply="loadActivities" @clear="clearFilters" />
-        </div>
-
-        <p v-if="error" class="form-error">{{ error }}</p>
-        <p v-if="success" class="form-success">{{ success }}</p>
-
-        <div v-if="loading" class="empty-state compact">
-          <h2>Loading tourism activities...</h2>
-        </div>
-
-        <div v-else-if="!activities.length" class="empty-state compact">
-          <h2>No tourism activities found</h2>
-          <p>Create the first activity from an active tourism asset or adjust the filters.</p>
-        </div>
-
-        <div v-else class="activity-table-wrap">
-          <table class="activity-table">
-            <thead>
-              <tr>
-                <th>Activity</th>
-                <th>Asset</th>
-                <th>Plan</th>
-                <th>Duration</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="activity in activities" :key="activity.id">
-                <td>
-                  <strong>{{ activity.name }}</strong>
-                  <span>{{ activity.description }}</span>
-                  <small>{{ activity.targetMarket }}</small>
-                </td>
-                <td>
-                  <strong>{{ activity.assetName }}</strong>
-                  <span>{{ activity.assetStatus }}</span>
-                </td>
-                <td>{{ activity.planTitle || 'No linked plan' }}</td>
-                <td>{{ activity.duration }}</td>
-                <td>
-                  <StatusPill :status="activity.activityStatus" />
-                </td>
-                <td>
-                  <div class="table-actions">
-                    <button
-                      v-if="canEditActivity(activity)"
-                      class="secondary-button"
-                      type="button"
-                      @click="editActivity(activity)"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      v-if="canArchiveActivity(activity)"
-                      class="danger-button"
-                      type="button"
-                      @click="archiveActivity(activity)"
-                    >
-                      Archive
-                    </button>
-                    <span v-if="auth.isViewOnly">View only</span>
-                    <span v-else-if="activity.assetStatus === 'Archived'">Asset archived</span>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+    <div v-if="canEditActivities && !selectableAssets.length" class="activity-warning" role="status">
+      Add or restore a non-archived tourism asset before creating tourism activities.
     </div>
+
+    <CmsDataTable
+      :columns="columns"
+      :items="activities"
+      :loading="loading"
+      :error="error"
+      empty-title="No tourism activities found"
+      empty-text="Create the first activity from an active tourism asset or adjust your filters."
+      @retry="loadPageData"
+    >
+      <template #rows="{ items: tableItems }">
+        <tr v-for="activity in tableItems" :key="activity.id">
+          <td>
+            <span class="cms-table-title">
+              <strong>{{ activity.name }}</strong>
+              <span>{{ activity.description }}</span>
+              <span>{{ activity.targetMarket }}</span>
+            </span>
+          </td>
+          <td>
+            <span class="cms-table-title">
+              <strong>{{ activity.assetName }}</strong>
+              <span>{{ activity.assetStatus }}</span>
+            </span>
+          </td>
+          <td>{{ activity.planTitle || 'No linked plan' }}</td>
+          <td>
+            <span class="activity-duration">{{ activity.duration }}</span>
+          </td>
+          <td>
+            <span class="activity-status" :data-status="activity.activityStatus">
+              {{ activity.activityStatus }}
+            </span>
+          </td>
+          <td>
+            <span class="cms-table-actions">
+              <button v-if="canEditActivity(activity)" type="button" @click="openEdit(activity)">Edit</button>
+              <button
+                v-if="canArchiveActivity(activity)"
+                class="is-danger"
+                type="button"
+                @click="askArchive(activity)"
+              >
+                Archive
+              </button>
+              <span v-if="auth.isViewOnly">View only</span>
+              <span v-else-if="activity.assetStatus === 'Archived'">Asset archived</span>
+              <span v-else-if="activity.planStatus === 'Archived'">Plan archived</span>
+            </span>
+          </td>
+        </tr>
+      </template>
+
+      <template #cards="{ items: cardItems }">
+        <article v-for="activity in cardItems" :key="activity.id" class="cms-mobile-card">
+          <span class="cms-table-title">
+            <strong>{{ activity.name }}</strong>
+            <span>{{ activity.description }}</span>
+          </span>
+          <div class="cms-mobile-meta">
+            <span class="activity-status" :data-status="activity.activityStatus">
+              {{ activity.activityStatus }}
+            </span>
+            <span>{{ activity.duration }}</span>
+          </div>
+          <span>{{ activity.assetName }}</span>
+          <span>{{ activity.planTitle || 'No linked plan' }}</span>
+          <span>{{ activity.targetMarket }}</span>
+          <div class="cms-mobile-card__actions cms-table-actions">
+            <button v-if="canEditActivity(activity)" type="button" @click="openEdit(activity)">Edit</button>
+            <button
+              v-if="canArchiveActivity(activity)"
+              class="is-danger"
+              type="button"
+              @click="askArchive(activity)"
+            >
+              Archive
+            </button>
+          </div>
+        </article>
+      </template>
+    </CmsDataTable>
+
+    <div class="activity-pagination">
+      <div>
+        <strong>{{ activities.length }} records</strong>
+        <span>{{ activeActivities }} active, {{ readyActivities }} ready, {{ archivedActivities }} archived</span>
+      </div>
+    </div>
+
+    <ProductActivityForm
+      :open="formOpen"
+      :value="selectedActivity"
+      :assets="selectableAssets"
+      :plans="activePlans"
+      :busy="saving"
+      :server-error="formError"
+      @close="formOpen = false"
+      @submit="submitActivity"
+    />
+
+    <CmsConfirmDialog
+      :open="Boolean(confirmAction)"
+      title="Archive this tourism activity?"
+      message="Archived tourism activities are removed from active package selection but remain available for records."
+      confirm-label="Archive"
+      tone="danger"
+      :busy="actionBusy"
+      @cancel="confirmAction = null"
+      @confirm="archiveActivity"
+    />
   </section>
 </template>
 
 <style scoped>
-.activity-form,
-.activity-panel {
-  border: 1px solid var(--color-line);
-  border-radius: 18px;
-  background: var(--color-panel);
-  box-shadow: var(--shadow-soft);
+@import '@/modules/cms/views/content/cms-content-page.css';
+
+.activity-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
 }
 
-.activity-panel {
-  overflow: hidden;
-}
-
-.activity-layout {
+.activity-toolbar label {
   display: grid;
-  grid-template-columns: minmax(320px, 0.82fr) minmax(0, 1.48fr);
-  gap: 18px;
-  align-items: start;
+  flex: 1 0 172px;
+  gap: 7px;
+  min-width: min(100%, 172px);
 }
 
-.activity-form,
-.activity-panel {
-  padding: 22px;
+.activity-toolbar__field--wide {
+  flex-basis: 230px !important;
+  min-width: min(100%, 230px) !important;
 }
 
-.activity-form {
-  display: grid;
-  gap: 16px;
+.activity-toolbar__search {
+  position: relative;
+  flex: 2 0 280px !important;
+  min-width: min(100%, 280px) !important;
 }
 
-.activity-form label {
-  display: grid;
-  gap: 8px;
-  color: var(--color-muted);
-  font-size: 13px;
+.activity-toolbar span {
+  color: #475569;
+  font-size: 0.78rem;
   font-weight: 800;
 }
 
-.activity-form input,
-.activity-form select,
-.activity-form textarea,
-.filter-panel input,
-.filter-panel select {
+.activity-toolbar__search svg {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  width: 18px;
+  height: 18px;
+  color: #64748b;
+}
+
+.activity-toolbar input,
+.activity-toolbar select {
   width: 100%;
-  border: 1px solid var(--color-line);
-  border-radius: 12px;
-  padding: 11px 12px;
-  background: white;
-  color: var(--color-ink);
-}
-
-.activity-form textarea {
-  min-height: 96px;
-  resize: vertical;
-}
-
-.form-grid,
-.form-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.filter-panel {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  align-items: end;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.filter-panel label {
-  display: grid;
-  gap: 7px;
   min-width: 0;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
+  min-height: 42px;
+  padding: 0 12px;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
 }
 
-.filter-panel label:first-child {
-  grid-column: span 2;
+.activity-toolbar__search input {
+  padding-left: 38px;
 }
 
-.activity-table-wrap {
-  overflow-x: auto;
+.activity-toolbar input:focus,
+.activity-toolbar select:focus,
+.activity-toolbar button:focus-visible {
+  border-color: #0ea5e9;
+  outline: 3px solid rgba(14, 165, 233, 0.16);
+  outline-offset: 1px;
 }
 
-.activity-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.activity-table th,
-.activity-table td {
-  border-bottom: 1px solid var(--color-line);
-  padding: 14px 10px;
-  text-align: left;
-  vertical-align: top;
-}
-
-.activity-table th {
-  color: var(--color-muted);
-  font-size: 12px;
-  text-transform: uppercase;
-}
-
-.activity-table td strong,
-.activity-table td span,
-.activity-table td small {
-  display: block;
-}
-
-.activity-table td strong {
-  margin-bottom: 4px;
-}
-
-.activity-table td span,
-.activity-table td small {
-  color: var(--color-muted);
-  line-height: 1.5;
-}
-
-.table-actions {
+.activity-toolbar__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  margin-left: auto;
 }
 
-.table-actions span {
-  color: var(--color-muted);
-  font-size: 13px;
+.activity-toolbar button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 14px;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
   font-weight: 800;
 }
 
-.compact {
-  max-width: none;
-  box-shadow: none;
+.activity-toolbar__create {
+  color: #fff !important;
+  border-color: #0f766e !important;
+  background: #0f766e !important;
+  white-space: nowrap;
 }
 
-@media (max-width: 1200px) {
-  .activity-layout {
-    grid-template-columns: 1fr;
-  }
+.activity-toolbar__create:hover {
+  background: #115e59 !important;
+}
 
-  .form-grid,
-  .form-actions {
-    grid-template-columns: 1fr;
+.activity-toolbar__create:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.activity-warning {
+  padding: 12px 14px;
+  color: #92400e;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #ffedd5;
+  font-weight: 800;
+}
+
+.activity-duration {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  font-size: 0.82rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.activity-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.activity-status[data-status='Draft'] {
+  color: #075985;
+  border-color: #bae6fd;
+  background: #e0f2fe;
+}
+
+.activity-status[data-status='In Development'] {
+  color: #0f766e;
+  border-color: #99f6e4;
+  background: #ccfbf1;
+}
+
+.activity-status[data-status='For Review'] {
+  color: #92400e;
+  border-color: #fed7aa;
+  background: #ffedd5;
+}
+
+.activity-status[data-status='Ready for Promotion'] {
+  color: #166534;
+  border-color: #bbf7d0;
+  background: #dcfce7;
+}
+
+.activity-status[data-status='Archived'] {
+  color: #991b1b;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.activity-pagination {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.activity-pagination div {
+  display: grid;
+  gap: 2px;
+}
+
+.activity-pagination strong {
+  color: #0f172a;
+}
+
+.activity-pagination span {
+  color: #64748b;
+  font-size: 0.84rem;
+}
+
+@media (max-width: 980px) {
+  .activity-toolbar__actions {
+    margin-left: 0;
   }
 }
 
-@media (max-width: 700px) {
-  .filter-panel label:first-child {
-    grid-column: span 1;
+@media (max-width: 760px) {
+  .activity-toolbar__actions,
+  .activity-toolbar__actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .activity-toolbar label,
+  .activity-toolbar__search {
+    flex-basis: 100% !important;
+    width: 100%;
   }
 }
 </style>

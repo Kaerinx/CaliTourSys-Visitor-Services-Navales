@@ -1,10 +1,12 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 
-import FilterActions from '@/modules/product/components/FilterActions.vue'
-import ModuleStats from '@/modules/product/components/ModuleStats.vue'
+import CmsConfirmDialog from '@/modules/cms/components/content/CmsConfirmDialog.vue'
+import CmsDataTable from '@/modules/cms/components/content/CmsDataTable.vue'
+import CmsIcon from '@/modules/cms/components/CmsIcon.vue'
+import ProductPackageForm from '@/modules/product/components/ProductPackageForm.vue'
+import ProductPackageReadinessDialog from '@/modules/product/components/ProductPackageReadinessDialog.vue'
 import RoleNotice from '@/modules/product/components/RoleNotice.vue'
-import StatusPill from '@/modules/product/components/StatusPill.vue'
 import { useProductAccess } from '@/modules/product/composables/useProductAccess'
 import { PACKAGE_CATEGORIES, PACKAGE_STATUSES } from '@/modules/product/constants/productOptions'
 import {
@@ -25,111 +27,82 @@ const assets = ref([])
 const activities = ref([])
 const packages = ref([])
 const loading = ref(false)
-const saving = ref(false)
 const error = ref('')
-const success = ref('')
-const editingPackageId = ref(null)
+const notice = ref('')
+const formOpen = ref(false)
+const selectedPackage = ref(null)
+const formError = ref('')
+const saving = ref(false)
+const confirmAction = ref(null)
+const actionBusy = ref(false)
+const reviewOpen = ref(false)
 const reviewPackage = ref(null)
-const readinessRemarks = ref('')
+const reviewLoading = ref(false)
+const reviewError = ref('')
 const readinessSaving = ref(false)
 const readinessErrors = ref([])
 
 const filters = reactive({
   search: '',
+  category: '',
   status: '',
   targetMarket: '',
 })
 
-const form = reactive({
-  name: '',
-  description: '',
-  category: 'Nature & Eco',
-  targetMarket: '',
-  estimatedDuration: '',
-  packageStatus: 'Draft',
-  remarks: '',
-  assetIds: [],
-  activityIds: [],
-})
+const columns = [
+  { key: 'package', label: 'Package' },
+  { key: 'category', label: 'Category' },
+  { key: 'targetMarket', label: 'Target market' },
+  { key: 'items', label: 'Items' },
+  { key: 'status', label: 'Status' },
+  { key: 'actions', label: 'Actions' },
+]
 
 const canEditPackages = computed(() =>
   [USER_ROLES.TOURISM_STAFF, USER_ROLES.TOURISM_OFFICER, USER_ROLES.SYSTEM_ADMINISTRATOR].includes(
     auth.user?.role,
   ),
 )
+
 const canArchivePackages = computed(() =>
   [USER_ROLES.TOURISM_OFFICER, USER_ROLES.SYSTEM_ADMINISTRATOR].includes(auth.user?.role),
 )
+
 const canApproveReadiness = computed(() =>
   [USER_ROLES.TOURISM_OFFICER, USER_ROLES.SYSTEM_ADMINISTRATOR].includes(auth.user?.role),
 )
+
 const editablePackageStatuses = computed(() =>
   PACKAGE_STATUSES.filter((status) => status !== 'Ready for Promotion'),
 )
+
 const selectableAssets = computed(() =>
   assets.value.filter((asset) => asset.developmentStatus !== 'Archived'),
 )
+
 const selectableActivities = computed(() =>
   activities.value.filter(
     (activity) => activity.activityStatus !== 'Archived' && activity.assetStatus !== 'Archived',
   ),
 )
-const selectedItemCount = computed(() => form.assetIds.length + form.activityIds.length)
+
+const hasSelectableItems = computed(() => selectableAssets.value.length || selectableActivities.value.length)
+
 const activePackages = computed(() =>
   packages.value.filter((tourismPackage) => tourismPackage.packageStatus !== 'Archived').length,
-)
-const archivedPackages = computed(() =>
-  packages.value.filter((tourismPackage) => tourismPackage.packageStatus === 'Archived').length,
 )
 const readyPackages = computed(() =>
   packages.value.filter((tourismPackage) => tourismPackage.packageStatus === 'Ready for Promotion').length,
 )
-const packageStats = computed(() => [
-  { label: 'Total packages', value: packages.value.length },
-  { label: 'Active packages', value: activePackages.value },
-  { label: 'Ready packages', value: readyPackages.value },
-  { label: 'Archived packages', value: archivedPackages.value },
-])
+const archivedPackages = computed(() =>
+  packages.value.filter((tourismPackage) => tourismPackage.packageStatus === 'Archived').length,
+)
 
 const reviewReadinessIssues = computed(() =>
   reviewPackage.value ? getReadinessIssues(reviewPackage.value) : [],
 )
 
-function resetForm() {
-  editingPackageId.value = null
-  form.name = ''
-  form.description = ''
-  form.category = 'Nature & Eco'
-  form.targetMarket = ''
-  form.estimatedDuration = ''
-  form.packageStatus = 'Draft'
-  form.remarks = ''
-  form.assetIds = []
-  form.activityIds = []
-}
-
-function clearFilters() {
-  filters.search = ''
-  filters.status = ''
-  filters.targetMarket = ''
-  loadPackages()
-}
-
-function buildPackagePayload() {
-  return {
-    name: form.name,
-    description: form.description,
-    category: form.category,
-    targetMarket: form.targetMarket,
-    estimatedDuration: form.estimatedDuration,
-    packageStatus: form.packageStatus,
-    remarks: form.remarks,
-    items: [
-      ...form.assetIds.map((assetId) => ({ itemType: 'Asset', referenceId: assetId })),
-      ...form.activityIds.map((activityId) => ({ itemType: 'Activity', referenceId: activityId })),
-    ],
-  }
-}
+onMounted(loadPageData)
 
 function canEditPackage(tourismPackage) {
   return (
@@ -143,124 +116,46 @@ function canArchivePackage(tourismPackage) {
   return canArchivePackages.value && tourismPackage.packageStatus !== 'Archived'
 }
 
-async function editPackage(tourismPackage) {
+function canReviewPackage(tourismPackage) {
+  return tourismPackage.packageStatus !== 'Archived'
+}
+
+function openCreate() {
+  selectedPackage.value = null
+  formError.value = ''
+  formOpen.value = true
+}
+
+async function openEdit(tourismPackage) {
+  formError.value = ''
   error.value = ''
-  success.value = ''
+  notice.value = ''
 
   try {
     const response = await getTourismPackage(tourismPackage.id)
-    const packageDetail = response.data
-
-    editingPackageId.value = packageDetail.id
-    form.name = packageDetail.name
-    form.description = packageDetail.description
-    form.category = packageDetail.category || 'Nature & Eco'
-    form.targetMarket = packageDetail.targetMarket
-    form.estimatedDuration = packageDetail.estimatedDuration
-    form.packageStatus = packageDetail.packageStatus
-    form.remarks = packageDetail.remarks || ''
-    form.assetIds = packageDetail.items
-      .filter((item) => item.itemType === 'Asset' && item.status !== 'Archived')
-      .map((item) => item.referenceId)
-    form.activityIds = packageDetail.items
-      .filter(
-        (item) =>
-          item.itemType === 'Activity' &&
-          item.status !== 'Archived' &&
-          item.assetStatus !== 'Archived',
-      )
-      .map((item) => item.referenceId)
+    selectedPackage.value = response.data
+    formOpen.value = true
   } catch (err) {
-    error.value = err.message
+    error.value = err.message || 'Unable to load package details.'
   }
 }
 
-function getReadinessIssues(packageDetail) {
-  const issues = []
-
-  if (packageDetail.packageStatus === 'Archived') {
-    issues.push('Archived packages cannot be marked Ready for Promotion.')
-  }
-
-  if (!packageDetail.name) {
-    issues.push('Package name is required.')
-  }
-
-  if (!packageDetail.description) {
-    issues.push('Description is required.')
-  }
-
-  if (!packageDetail.targetMarket) {
-    issues.push('Target market is required.')
-  }
-
-  if (!packageDetail.estimatedDuration) {
-    issues.push('Estimated duration is required.')
-  }
-
-  if (!packageDetail.items?.length) {
-    issues.push('At least one linked asset or activity is required.')
-  }
-
-  ;(packageDetail.items || []).forEach((item) => {
-    if (item.status === 'Archived') {
-      issues.push(`${item.itemType} "${item.name || item.referenceId}" is archived.`)
-    }
-
-    if (item.assetStatus === 'Archived') {
-      issues.push(`${item.itemType} "${item.name || item.referenceId}" belongs to an archived asset.`)
-    }
-  })
-
-  return issues
-}
-
-async function reviewReadiness(tourismPackage) {
-  error.value = ''
-  success.value = ''
-  readinessErrors.value = []
-  readinessRemarks.value = ''
-
-  try {
-    const response = await getTourismPackage(tourismPackage.id)
-    reviewPackage.value = response.data
-  } catch (err) {
-    error.value = err.message
-  }
-}
-
-async function markReadyForPromotion() {
-  if (!reviewPackage.value) {
-    return
-  }
-
-  readinessSaving.value = true
-  readinessErrors.value = []
-  error.value = ''
-  success.value = ''
-
-  try {
-    const response = await markTourismPackageReady(reviewPackage.value.id, readinessRemarks.value)
-    reviewPackage.value = response.data
-    readinessRemarks.value = ''
-    success.value = 'Tourism package marked Ready for Promotion.'
-    await loadPageData()
-  } catch (err) {
-    readinessErrors.value = err.details || []
-    error.value = err.message
-  } finally {
-    readinessSaving.value = false
-  }
+function clearFilters() {
+  filters.search = ''
+  filters.category = ''
+  filters.status = ''
+  filters.targetMarket = ''
+  loadPackages()
 }
 
 async function loadAssets() {
   const response = await getTourismAssets()
-  assets.value = response.data
+  assets.value = response.data || []
 }
 
 async function loadActivities() {
   const response = await getTourismActivities()
-  activities.value = response.data
+  activities.value = response.data || []
 }
 
 async function loadPackages() {
@@ -268,10 +163,15 @@ async function loadPackages() {
   error.value = ''
 
   try {
-    const response = await getTourismPackages(filters)
-    packages.value = response.data
+    const response = await getTourismPackages({
+      search: filters.search,
+      category: filters.category,
+      status: filters.status,
+      targetMarket: filters.targetMarket,
+    })
+    packages.value = response.data || []
   } catch (err) {
-    error.value = err.message
+    error.value = err.message || 'Unable to load tourism packages.'
   } finally {
     loading.value = false
   }
@@ -284,640 +184,560 @@ async function loadPageData() {
   try {
     await Promise.all([loadAssets(), loadActivities(), loadPackages()])
   } catch (err) {
-    error.value = err.message
+    error.value = err.message || 'Unable to load tourism package data.'
   } finally {
     loading.value = false
   }
 }
 
-async function savePackage() {
+async function submitPackage(payload) {
   saving.value = true
-  error.value = ''
-  success.value = ''
+  formError.value = ''
+  notice.value = ''
 
   try {
-    const payload = buildPackagePayload()
-
-    if (editingPackageId.value) {
-      await updateTourismPackage(editingPackageId.value, payload)
-      success.value = 'Tourism package updated successfully.'
+    if (selectedPackage.value?.id) {
+      await updateTourismPackage(selectedPackage.value.id, payload)
+      notice.value = 'Tourism package updated.'
     } else {
       await createTourismPackage(payload)
-      success.value = 'Tourism package created successfully.'
+      notice.value = 'Tourism package created.'
     }
 
-    resetForm()
+    formOpen.value = false
     await loadPageData()
   } catch (err) {
-    error.value = err.message
+    formError.value = err.message || 'Unable to save tourism package.'
   } finally {
     saving.value = false
   }
 }
 
-async function archivePackage(tourismPackage) {
-  const confirmed = window.confirm(`Archive "${tourismPackage.name}"?`)
+function askArchive(tourismPackage) {
+  confirmAction.value = tourismPackage
+}
 
-  if (!confirmed) {
-    return
-  }
-
+async function archivePackage() {
+  if (!confirmAction.value) return
+  actionBusy.value = true
   error.value = ''
-  success.value = ''
+  notice.value = ''
 
   try {
-    await archiveTourismPackage(tourismPackage.id)
-    success.value = 'Tourism package archived successfully.'
+    await archiveTourismPackage(confirmAction.value.id)
+    notice.value = 'Tourism package archived.'
+    confirmAction.value = null
     await loadPageData()
   } catch (err) {
-    error.value = err.message
+    error.value = err.message || 'Unable to archive tourism package.'
+  } finally {
+    actionBusy.value = false
   }
 }
 
-onMounted(loadPageData)
+async function openReadinessReview(tourismPackage) {
+  reviewOpen.value = true
+  reviewPackage.value = null
+  reviewError.value = ''
+  readinessErrors.value = []
+  reviewLoading.value = true
+
+  try {
+    const response = await getTourismPackage(tourismPackage.id)
+    reviewPackage.value = response.data
+  } catch (err) {
+    reviewError.value = err.message || 'Unable to load readiness review.'
+  } finally {
+    reviewLoading.value = false
+  }
+}
+
+async function submitReadinessReview(remarks) {
+  if (!reviewPackage.value) return
+  readinessSaving.value = true
+  readinessErrors.value = []
+  reviewError.value = ''
+  notice.value = ''
+
+  try {
+    await markTourismPackageReady(reviewPackage.value.id, remarks)
+    reviewOpen.value = false
+    reviewPackage.value = null
+    notice.value = 'Tourism package marked Ready for Promotion.'
+    await loadPageData()
+  } catch (err) {
+    readinessErrors.value = err.details || []
+    reviewError.value = err.message || 'Unable to mark package Ready for Promotion.'
+  } finally {
+    readinessSaving.value = false
+  }
+}
+
+function getReadinessIssues(packageDetail) {
+  const issues = []
+
+  if (packageDetail.packageStatus === 'Archived') {
+    issues.push('Archived packages cannot be marked Ready for Promotion.')
+  }
+
+  if (!packageDetail.name) issues.push('Package name is required.')
+  if (!packageDetail.description) issues.push('Description is required.')
+  if (!packageDetail.targetMarket) issues.push('Target market is required.')
+  if (!packageDetail.estimatedDuration) issues.push('Estimated duration is required.')
+  if (!packageDetail.items?.length) issues.push('At least one linked asset or activity is required.')
+
+  ;(packageDetail.items || []).forEach((item) => {
+    if (item.itemType === 'Asset' && item.status === 'Archived') {
+      issues.push(`Linked asset "${item.name || item.referenceId}" is archived.`)
+    }
+
+    if (item.itemType === 'Activity' && item.status === 'Archived') {
+      issues.push(`Linked activity "${item.name || item.referenceId}" is archived.`)
+    }
+
+    if (item.assetStatus === 'Archived') {
+      issues.push(`Linked item "${item.name || item.referenceId}" belongs to an archived asset.`)
+    }
+  })
+
+  return issues
+}
 </script>
 
 <template>
-  <section class="page-section">
-    <div class="section-heading">
-      <p class="eyebrow">Package Records</p>
-      <h1>Tourism Package Creation</h1>
-      <p>
-        Combine active tourism assets and tourism activities into package records for future review,
-        promotion readiness, and group module consolidation.
-      </p>
-    </div>
-
-    <ModuleStats :items="packageStats" />
+  <section class="cms-content-page" aria-labelledby="cms-packages-title">
+    <header class="cms-content-page__header">
+      <div>
+        <p>Product Development</p>
+        <h1 id="cms-packages-title">Packages</h1>
+        <span>Combine assets and activities into tourism packages, then run readiness review for promotion.</span>
+      </div>
+    </header>
 
     <RoleNotice v-if="auth.isViewOnly">
-      LGU Officials can view and filter tourism packages, but cannot create, edit, or archive
-      records.
+      LGU Officials can view and filter tourism packages, but cannot create, edit, or archive records.
     </RoleNotice>
 
-    <div class="package-layout">
-      <form v-if="canEditPackages" class="package-form" @submit.prevent="savePackage">
-        <div>
-          <p class="eyebrow">{{ editingPackageId ? 'Edit package' : 'New package' }}</p>
-          <h2>{{ editingPackageId ? 'Update tourism package' : 'Create tourism package' }}</h2>
-        </div>
+    <div v-if="notice" class="cms-content-page__notice" role="status">{{ notice }}</div>
 
-        <p v-if="!selectableAssets.length && !selectableActivities.length" class="form-error">
-          Add or restore a non-archived tourism asset or activity before creating packages.
-        </p>
+    <section class="package-toolbar" aria-label="Package filters">
+      <label class="package-toolbar__search">
+        <span>Search</span>
+        <CmsIcon name="search" />
+        <input
+          v-model="filters.search"
+          type="search"
+          placeholder="Search package, description, market, or category"
+          @keyup.enter="loadPackages"
+        />
+      </label>
 
-        <label>
-          Package Name
-          <input v-model="form.name" required placeholder="Example: Calabanga Eco Day Package" />
-        </label>
+      <label class="package-toolbar__field--wide">
+        <span>Category</span>
+        <select v-model="filters.category" @change="loadPackages">
+          <option value="">All categories</option>
+          <option v-for="category in PACKAGE_CATEGORIES" :key="category" :value="category">
+            {{ category }}
+          </option>
+        </select>
+      </label>
 
-        <label>
-          Description
-          <textarea
-            v-model="form.description"
-            required
-            placeholder="Describe the package experience, purpose, and visitor value."
-          ></textarea>
-        </label>
+      <label>
+        <span>Status</span>
+        <select v-model="filters.status" @change="loadPackages">
+          <option value="">All statuses</option>
+          <option v-for="status in PACKAGE_STATUSES" :key="status" :value="status">
+            {{ status }}
+          </option>
+        </select>
+      </label>
 
-        <label>
-          Package Category
-          <select v-model="form.category" required>
-            <option v-for="category in PACKAGE_CATEGORIES" :key="category" :value="category">
-              {{ category }}
-            </option>
-          </select>
-        </label>
+      <label>
+        <span>Target market</span>
+        <input v-model="filters.targetMarket" placeholder="Filter by market" @keyup.enter="loadPackages" />
+      </label>
 
-        <div class="form-grid">
-          <label>
-            Target Market
-            <input v-model="form.targetMarket" required placeholder="Families, students, eco-tourists" />
-          </label>
+      <div class="package-toolbar__actions">
+        <button type="button" @click="loadPackages">Apply</button>
+        <button type="button" @click="clearFilters">Clear</button>
+        <button
+          v-if="canEditPackages"
+          class="package-toolbar__create"
+          type="button"
+          :disabled="!hasSelectableItems"
+          @click="openCreate"
+        >
+          <span aria-hidden="true">+</span>
+          Create package
+        </button>
+      </div>
+    </section>
 
-          <label>
-            Estimated Duration
-            <input v-model="form.estimatedDuration" required placeholder="Example: Half day" />
-          </label>
-        </div>
+    <div v-if="canEditPackages && !hasSelectableItems" class="package-warning" role="status">
+      Add or restore a non-archived tourism asset or activity before creating packages.
+    </div>
 
-        <label>
-          Package Status
-          <select v-model="form.packageStatus" required>
-            <option v-for="status in editablePackageStatuses" :key="status" :value="status">
-              {{ status }}
-            </option>
-          </select>
-        </label>
+    <CmsDataTable
+      :columns="columns"
+      :items="packages"
+      :loading="loading"
+      :error="error"
+      empty-title="No tourism packages found"
+      empty-text="Create the first package from active assets and activities or adjust your filters."
+      @retry="loadPageData"
+    >
+      <template #rows="{ items: tableItems }">
+        <tr v-for="tourismPackage in tableItems" :key="tourismPackage.id">
+          <td>
+            <span class="cms-table-title">
+              <strong>{{ tourismPackage.name }}</strong>
+              <span>{{ tourismPackage.description }}</span>
+              <span v-if="tourismPackage.remarks">{{ tourismPackage.remarks }}</span>
+            </span>
+          </td>
+          <td>{{ tourismPackage.category }}</td>
+          <td>
+            <span class="package-market">
+              <span>{{ tourismPackage.targetMarket }}</span>
+              <strong>{{ tourismPackage.estimatedDuration }}</strong>
+            </span>
+          </td>
+          <td>
+            <span class="package-items">
+              <strong>{{ tourismPackage.itemCount }} item(s)</strong>
+              <span>{{ tourismPackage.assetCount }} asset(s)</span>
+              <span>{{ tourismPackage.activityCount }} activity item(s)</span>
+            </span>
+          </td>
+          <td>
+            <span class="package-status" :data-status="tourismPackage.packageStatus">
+              {{ tourismPackage.packageStatus }}
+            </span>
+          </td>
+          <td>
+            <span class="cms-table-actions">
+              <button v-if="canReviewPackage(tourismPackage)" type="button" @click="openReadinessReview(tourismPackage)">
+                Review
+              </button>
+              <button v-if="canEditPackage(tourismPackage)" type="button" @click="openEdit(tourismPackage)">
+                Edit
+              </button>
+              <button
+                v-if="canArchivePackage(tourismPackage)"
+                class="is-danger"
+                type="button"
+                @click="askArchive(tourismPackage)"
+              >
+                Archive
+              </button>
+              <span v-if="auth.isViewOnly">View only</span>
+              <span v-else-if="tourismPackage.packageStatus === 'Ready for Promotion'">Ready</span>
+            </span>
+          </td>
+        </tr>
+      </template>
 
-        <div class="package-item-picker">
-          <section>
-            <h3>Tourism Assets</h3>
-            <p>Select non-archived assets to include in this package.</p>
-            <label v-for="asset in selectableAssets" :key="asset.id" class="check-option">
-              <input v-model="form.assetIds" type="checkbox" :value="asset.id" />
-              <span>
-                <strong>{{ asset.name }}</strong>
-                <small>{{ asset.location }} - {{ asset.developmentStatus }}</small>
-              </span>
-            </label>
-          </section>
-
-          <section>
-            <h3>Tourism Activities</h3>
-            <p>Select non-archived activities to include in this package.</p>
-            <label v-for="activity in selectableActivities" :key="activity.id" class="check-option">
-              <input v-model="form.activityIds" type="checkbox" :value="activity.id" />
-              <span>
-                <strong>{{ activity.name }}</strong>
-                <small>{{ activity.assetName }} - {{ activity.activityStatus }}</small>
-              </span>
-            </label>
-          </section>
-        </div>
-
-        <p class="selected-count">{{ selectedItemCount }} selected package item(s)</p>
-
-        <label>
-          Remarks
-          <textarea v-model="form.remarks" placeholder="Optional package notes"></textarea>
-        </label>
-
-        <div class="form-actions">
-          <button
-            class="primary-button"
-            :disabled="saving || selectedItemCount === 0"
-            type="submit"
-          >
-            {{ saving ? 'Saving...' : editingPackageId ? 'Save Changes' : 'Create Package' }}
-          </button>
-          <button v-if="editingPackageId" class="secondary-button" type="button" @click="resetForm">
-            Cancel Edit
-          </button>
-        </div>
-      </form>
-
-      <section class="package-panel">
-        <div class="filter-panel">
-          <label>
-            Search
-            <input v-model="filters.search" placeholder="Search package, description, or market" />
-          </label>
-          <label>
-            Status
-            <select v-model="filters.status">
-              <option value="">All statuses</option>
-              <option v-for="status in PACKAGE_STATUSES" :key="status" :value="status">
-                {{ status }}
-              </option>
-            </select>
-          </label>
-          <label>
-            Target Market
-            <input v-model="filters.targetMarket" placeholder="Filter by target market" />
-          </label>
-          <FilterActions @apply="loadPackages" @clear="clearFilters" />
-        </div>
-
-        <p v-if="error" class="form-error">{{ error }}</p>
-        <p v-if="success" class="form-success">{{ success }}</p>
-
-        <div v-if="loading" class="empty-state compact">
-          <h2>Loading tourism packages...</h2>
-        </div>
-
-        <div v-else-if="!packages.length" class="empty-state compact">
-          <h2>No tourism packages found</h2>
-          <p>Create the first package from active assets and activities or adjust the filters.</p>
-        </div>
-
-        <div v-else class="package-table-wrap">
-          <table class="package-table">
-            <thead>
-              <tr>
-                <th>Package</th>
-                <th>Target Market</th>
-                <th>Duration</th>
-                <th>Items</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="tourismPackage in packages" :key="tourismPackage.id">
-                <td>
-                  <strong>{{ tourismPackage.name }}</strong>
-                  <small>{{ tourismPackage.category }}</small>
-                  <span>{{ tourismPackage.description }}</span>
-                  <small v-if="tourismPackage.remarks">{{ tourismPackage.remarks }}</small>
-                </td>
-                <td>{{ tourismPackage.targetMarket }}</td>
-                <td>{{ tourismPackage.estimatedDuration }}</td>
-                <td>
-                  <strong>{{ tourismPackage.itemCount }} item(s)</strong>
-                  <span>{{ tourismPackage.assetCount }} asset(s)</span>
-                  <span>{{ tourismPackage.activityCount }} activity item(s)</span>
-                </td>
-                <td>
-                  <StatusPill :status="tourismPackage.packageStatus" />
-                </td>
-                <td>
-                  <div class="table-actions">
-                    <button
-                      class="secondary-button"
-                      type="button"
-                      @click="reviewReadiness(tourismPackage)"
-                    >
-                      Review
-                    </button>
-                    <button
-                      v-if="canEditPackage(tourismPackage)"
-                      class="secondary-button"
-                      type="button"
-                      @click="editPackage(tourismPackage)"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      v-if="canArchivePackage(tourismPackage)"
-                      class="danger-button"
-                      type="button"
-                      @click="archivePackage(tourismPackage)"
-                    >
-                      Archive
-                    </button>
-                    <span v-if="auth.isViewOnly">View only</span>
-                    <span v-else-if="tourismPackage.packageStatus === 'Ready for Promotion'">
-                      Ready
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <section v-if="reviewPackage" class="readiness-panel">
-          <div class="readiness-heading">
-            <div>
-              <p class="eyebrow">Readiness Review</p>
-              <h2>{{ reviewPackage.name }}</h2>
-            </div>
-            <StatusPill :status="reviewPackage.packageStatus" />
+      <template #cards="{ items: cardItems }">
+        <article v-for="tourismPackage in cardItems" :key="tourismPackage.id" class="cms-mobile-card">
+          <span class="cms-table-title">
+            <strong>{{ tourismPackage.name }}</strong>
+            <span>{{ tourismPackage.description }}</span>
+          </span>
+          <div class="cms-mobile-meta">
+            <span class="package-status" :data-status="tourismPackage.packageStatus">
+              {{ tourismPackage.packageStatus }}
+            </span>
+            <span>{{ tourismPackage.category }}</span>
           </div>
-
-          <div class="readiness-grid">
-            <article>
-              <span>Linked items</span>
-              <strong>{{ reviewPackage.items.length }}</strong>
-            </article>
-            <article>
-              <span>Asset items</span>
-              <strong>{{ reviewPackage.assetCount }}</strong>
-            </article>
-            <article>
-              <span>Activity items</span>
-              <strong>{{ reviewPackage.activityCount }}</strong>
-            </article>
-          </div>
-
-          <div v-if="reviewReadinessIssues.length" class="readiness-issues">
-            <strong>Readiness issues</strong>
-            <ul>
-              <li v-for="issue in reviewReadinessIssues" :key="issue">{{ issue }}</li>
-            </ul>
-          </div>
-          <p v-else class="form-success">This package has the required information for readiness approval.</p>
-
-          <div class="linked-items">
-            <h3>Linked package items</h3>
-            <p v-for="item in reviewPackage.items" :key="item.id">
-              <strong>{{ item.itemType }}:</strong> {{ item.name }}
-              <span>{{ item.status }}</span>
-            </p>
-          </div>
-
-          <div class="status-history">
-            <h3>Status history</h3>
-            <p v-if="!reviewPackage.statusHistory.length">No status changes recorded yet.</p>
-            <article v-for="history in reviewPackage.statusHistory" :key="history.id">
-              <strong>{{ history.previousStatus }} to {{ history.newStatus }}</strong>
-              <span>
-                {{ history.changedByName || 'Unknown user' }} · {{ history.changedByRole }} ·
-                {{ history.changedAt }}
-              </span>
-              <small v-if="history.remarks">{{ history.remarks }}</small>
-            </article>
-          </div>
-
-          <div v-if="canApproveReadiness && reviewPackage.packageStatus !== 'Ready for Promotion'">
-            <label>
-              Approval Remarks
-              <textarea
-                v-model="readinessRemarks"
-                placeholder="Optional reason or note for readiness approval"
-              ></textarea>
-            </label>
+          <span>{{ tourismPackage.targetMarket }}</span>
+          <span>{{ tourismPackage.estimatedDuration }}</span>
+          <span>{{ tourismPackage.itemCount }} item(s)</span>
+          <div class="cms-mobile-card__actions cms-table-actions">
+            <button v-if="canReviewPackage(tourismPackage)" type="button" @click="openReadinessReview(tourismPackage)">
+              Review
+            </button>
+            <button v-if="canEditPackage(tourismPackage)" type="button" @click="openEdit(tourismPackage)">
+              Edit
+            </button>
             <button
-              class="primary-button"
-              :disabled="readinessSaving || reviewReadinessIssues.length > 0"
+              v-if="canArchivePackage(tourismPackage)"
+              class="is-danger"
               type="button"
-              @click="markReadyForPromotion"
+              @click="askArchive(tourismPackage)"
             >
-              {{ readinessSaving ? 'Marking ready...' : 'Mark Ready for Promotion' }}
+              Archive
             </button>
           </div>
+        </article>
+      </template>
+    </CmsDataTable>
 
-          <div v-if="readinessErrors.length" class="readiness-issues">
-            <strong>Backend validation</strong>
-            <ul>
-              <li v-for="issue in readinessErrors" :key="issue">{{ issue }}</li>
-            </ul>
-          </div>
-        </section>
-      </section>
+    <div class="package-pagination">
+      <div>
+        <strong>{{ packages.length }} records</strong>
+        <span>{{ activePackages }} active, {{ readyPackages }} ready, {{ archivedPackages }} archived</span>
+      </div>
     </div>
+
+    <ProductPackageForm
+      :open="formOpen"
+      :value="selectedPackage"
+      :assets="selectableAssets"
+      :activities="selectableActivities"
+      :statuses="editablePackageStatuses"
+      :busy="saving"
+      :server-error="formError"
+      @close="formOpen = false"
+      @submit="submitPackage"
+    />
+
+    <ProductPackageReadinessDialog
+      :open="reviewOpen"
+      :package-detail="reviewPackage"
+      :issues="reviewReadinessIssues"
+      :backend-errors="readinessErrors"
+      :loading="reviewLoading"
+      :server-error="reviewError"
+      :busy="readinessSaving"
+      :can-approve="canApproveReadiness"
+      @close="reviewOpen = false"
+      @confirm="submitReadinessReview"
+    />
+
+    <CmsConfirmDialog
+      :open="Boolean(confirmAction)"
+      title="Archive this tourism package?"
+      message="Archived tourism packages are removed from active package review and public handoff workflows."
+      confirm-label="Archive"
+      tone="danger"
+      :busy="actionBusy"
+      @cancel="confirmAction = null"
+      @confirm="archivePackage"
+    />
   </section>
 </template>
 
 <style scoped>
-.package-form,
-.package-panel {
-  border: 1px solid var(--color-line);
-  border-radius: 18px;
-  background: var(--color-panel);
-  box-shadow: var(--shadow-soft);
-}
+@import '@/modules/cms/views/content/cms-content-page.css';
 
-.package-panel {
-  overflow: hidden;
-}
-
-.package-layout {
-  display: grid;
-  grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.4fr);
-  gap: 18px;
-  align-items: start;
-}
-
-.package-form,
-.package-panel {
-  padding: 22px;
-}
-
-.package-form {
-  display: grid;
-  gap: 16px;
-}
-
-.readiness-panel {
-  display: grid;
-  gap: 16px;
-  margin-top: 20px;
-  border-top: 1px solid var(--color-line);
-  padding-top: 20px;
-}
-
-.readiness-heading,
-.readiness-grid {
+.package-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.readiness-grid article {
-  flex: 1;
-  min-width: 140px;
-  border: 1px solid var(--color-line);
-  border-radius: 14px;
-  padding: 14px;
-  background: #f8fbf9;
-}
-
-.readiness-grid span,
-.linked-items span,
-.status-history span,
-.status-history small {
-  display: block;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.readiness-grid strong {
-  font-size: 24px;
-}
-
-.readiness-issues {
-  border-left: 5px solid #b42318;
-  border-radius: 12px;
-  padding: 12px 14px;
-  background: #fff5f5;
-  color: #7a271a;
-}
-
-.readiness-issues ul {
-  margin: 8px 0 0;
-  padding-left: 18px;
-}
-
-.linked-items,
-.status-history {
-  display: grid;
-  gap: 10px;
-}
-
-.linked-items p,
-.status-history article {
-  margin: 0;
-  border: 1px solid var(--color-line);
-  border-radius: 12px;
-  padding: 12px;
-}
-
-.package-form label {
-  display: grid;
-  gap: 8px;
-  color: var(--color-muted);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.package-form input,
-.package-form select,
-.package-form textarea,
-.filter-panel input,
-.filter-panel select {
-  width: 100%;
-  border: 1px solid var(--color-line);
-  border-radius: 12px;
-  padding: 11px 12px;
-  background: white;
-  color: var(--color-ink);
-}
-
-.package-form textarea {
-  min-height: 96px;
-  resize: vertical;
-}
-
-.form-grid,
-.form-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.package-item-picker {
-  display: grid;
-  gap: 12px;
-}
-
-.package-item-picker section {
-  display: grid;
-  gap: 10px;
-  border: 1px solid var(--color-line);
-  border-radius: 14px;
-  padding: 14px;
-  background: #f8fbf9;
-}
-
-.package-item-picker h3 {
-  margin-bottom: 0;
-  font-size: 16px;
-}
-
-.package-item-picker p,
-.selected-count {
-  margin: 0;
-  color: var(--color-muted);
-  line-height: 1.5;
-}
-
-.check-option {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 10px;
-  align-items: start;
-  border-radius: 12px;
-  padding: 10px;
-  background: white;
-}
-
-.check-option input {
-  width: auto;
-  margin-top: 3px;
-}
-
-.check-option span,
-.check-option small {
-  display: block;
-}
-
-.check-option small {
-  color: var(--color-muted);
-  line-height: 1.5;
-}
-
-.selected-count {
-  font-weight: 800;
-}
-
-.filter-panel {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   align-items: end;
-  gap: 12px;
-  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
 }
 
-.filter-panel label {
+.package-toolbar label {
   display: grid;
+  flex: 1 0 172px;
   gap: 7px;
-  min-width: 0;
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
+  min-width: min(100%, 172px);
 }
 
-.filter-panel label:first-child {
-  grid-column: span 2;
+.package-toolbar__field--wide {
+  flex-basis: 230px !important;
+  min-width: min(100%, 230px) !important;
 }
 
-.package-table-wrap {
-  overflow-x: auto;
+.package-toolbar__search {
+  position: relative;
+  flex: 2 0 280px !important;
+  min-width: min(100%, 280px) !important;
 }
 
-.package-table {
+.package-toolbar span {
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.package-toolbar__search svg {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  width: 18px;
+  height: 18px;
+  color: #64748b;
+}
+
+.package-toolbar input,
+.package-toolbar select {
   width: 100%;
-  border-collapse: collapse;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 12px;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
 }
 
-.package-table th,
-.package-table td {
-  border-bottom: 1px solid var(--color-line);
-  padding: 14px 10px;
-  text-align: left;
-  vertical-align: top;
+.package-toolbar__search input {
+  padding-left: 38px;
 }
 
-.package-table th {
-  color: var(--color-muted);
-  font-size: 12px;
-  text-transform: uppercase;
+.package-toolbar input:focus,
+.package-toolbar select:focus,
+.package-toolbar button:focus-visible {
+  border-color: #0ea5e9;
+  outline: 3px solid rgba(14, 165, 233, 0.16);
+  outline-offset: 1px;
 }
 
-.package-table td strong,
-.package-table td span,
-.package-table td small {
-  display: block;
-}
-
-.package-table td strong {
-  margin-bottom: 4px;
-}
-
-.package-table td span,
-.package-table td small {
-  color: var(--color-muted);
-  line-height: 1.5;
-}
-
-.table-actions {
+.package-toolbar__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  margin-left: auto;
 }
 
-.table-actions span {
-  color: var(--color-muted);
-  font-size: 13px;
+.package-toolbar button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 14px;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
   font-weight: 800;
 }
 
-.compact {
-  max-width: none;
-  box-shadow: none;
+.package-toolbar__create {
+  color: #fff !important;
+  border-color: #0f766e !important;
+  background: #0f766e !important;
+  white-space: nowrap;
 }
 
-@media (max-width: 1200px) {
-  .package-layout {
-    grid-template-columns: 1fr;
-  }
+.package-toolbar__create:hover {
+  background: #115e59 !important;
+}
 
-  .form-grid,
-  .form-actions {
-    grid-template-columns: 1fr;
+.package-toolbar__create:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.package-warning {
+  padding: 12px 14px;
+  color: #92400e;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #ffedd5;
+  font-weight: 800;
+}
+
+.package-market,
+.package-items {
+  display: grid;
+  gap: 3px;
+}
+
+.package-market strong,
+.package-items span {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.package-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.package-status[data-status='Draft'] {
+  color: #075985;
+  border-color: #bae6fd;
+  background: #e0f2fe;
+}
+
+.package-status[data-status='In Development'],
+.package-status[data-status='Approved'],
+.package-status[data-status='Published'] {
+  color: #0f766e;
+  border-color: #99f6e4;
+  background: #ccfbf1;
+}
+
+.package-status[data-status='For Review'] {
+  color: #92400e;
+  border-color: #fed7aa;
+  background: #ffedd5;
+}
+
+.package-status[data-status='Ready for Promotion'] {
+  color: #166534;
+  border-color: #bbf7d0;
+  background: #dcfce7;
+}
+
+.package-status[data-status='Archived'] {
+  color: #991b1b;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.package-pagination {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.package-pagination div {
+  display: grid;
+  gap: 2px;
+}
+
+.package-pagination strong {
+  color: #0f172a;
+}
+
+.package-pagination span {
+  color: #64748b;
+  font-size: 0.84rem;
+}
+
+@media (max-width: 980px) {
+  .package-toolbar__actions {
+    margin-left: 0;
   }
 }
 
-@media (max-width: 700px) {
-  .filter-panel label:first-child {
-    grid-column: span 1;
+@media (max-width: 760px) {
+  .package-toolbar__actions,
+  .package-toolbar__actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .package-toolbar label,
+  .package-toolbar__search {
+    flex-basis: 100% !important;
+    width: 100%;
   }
 }
 </style>
