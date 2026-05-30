@@ -15,11 +15,12 @@ const fallbackNavigation = [
   { key: 'dashboard', label: 'Dashboard', path: '/cms/dashboard', permission: 'dashboard.view', icon: 'dashboard' },
   { key: 'promotions', label: 'Promotions', path: '/cms/promotions', permission: 'promotions.view', icon: 'message' },
   { key: 'events', label: 'Events', path: '/cms/events', permission: 'events.view', icon: 'calendar' },
+  { key: 'categories', label: 'Categories', path: '/cms/categories', permissions: ['events.view', 'products.view', 'destinations.view', 'museum.view'], icon: 'audit' },
   { key: 'products', label: 'Products / OTOP', path: '/cms/products', permission: 'products.view', icon: 'package' },
   { key: 'destinations', label: 'Destinations', path: '/cms/destinations', permission: 'destinations.view', icon: 'destinations' },
   { key: 'businesses', label: 'Businesses', path: '/cms/businesses', permission: 'businesses.view', icon: 'building' },
   { key: 'map', label: 'Map Locations', path: '/cms/map-locations', permission: 'map_locations.view', icon: 'map' },
-  { key: 'museum', label: 'Museum', path: '/cms/museum/artifacts', permission: 'museum.view', icon: 'museum' },
+  { key: 'museum', label: 'Museum', path: '/cms/museum', permission: 'museum.view', icon: 'museum' },
   { key: 'media', label: 'Media', path: '/cms/media', permission: 'media.view', icon: 'image' },
   { key: 'inquiries', label: 'Inquiries', path: '/cms/inquiries', permission: 'inquiries.view', icon: 'message' },
   { key: 'newsletter', label: 'Newsletter', path: '/cms/newsletter-subscribers', permission: 'newsletter.view', icon: 'mail' },
@@ -29,7 +30,7 @@ const fallbackNavigation = [
 
 const navigationItems = computed(() => {
   if (!backendNavigation.value.length) return fallbackNavigation
-  return backendNavigation.value.map((item) => ({
+  const mapped = backendNavigation.value.map((item) => ({
     key: item.key,
     label: item.label,
     path: normalizeNavigationPath(item),
@@ -37,6 +38,18 @@ const navigationItems = computed(() => {
     permissions: item.requiredPermissions || item.permissions,
     icon: resolveNavigationIcon(item),
   }))
+
+  if (!mapped.some((item) => item.key === 'categories')) {
+    mapped.splice(3, 0, {
+      key: 'categories',
+      label: 'Categories',
+      path: '/cms/categories',
+      permissions: ['events.view', 'products.view', 'destinations.view', 'museum.view'],
+      icon: 'audit',
+    })
+  }
+
+  return mapped
 })
 
 onMounted(async () => {
@@ -56,7 +69,7 @@ async function logout() {
 function normalizeNavigationPath(item) {
   const overrides = {
     newsletter: '/cms/newsletter-subscribers',
-    museum: '/cms/museum/artifacts',
+    museum: '/cms/museum',
     'visitor-services': '/cms/inquiries',
     'content-management': '/cms/promotions',
     'otop-support': '/cms/products',
@@ -73,6 +86,7 @@ function resolveNavigationIcon(item) {
     audit: 'audit',
     businesses: 'building',
     dashboard: 'dashboard',
+    categories: 'audit',
     destinations: 'destinations',
     events: 'calendar',
     inquiries: 'message',
@@ -91,7 +105,7 @@ function resolveNavigationIcon(item) {
 </script>
 
 <template>
-  <div class="cms-layout">
+  <div v-if="auth.isAuthenticated" class="cms-layout">
     <div v-if="sidebarOpen" class="cms-layout__scrim" @click="sidebarOpen = false"></div>
     <CmsSidebar :items="navigationItems" :open="sidebarOpen" @close="sidebarOpen = false" />
 
@@ -102,6 +116,11 @@ function resolveNavigationIcon(item) {
       </main>
     </div>
   </div>
+
+  <main v-else class="cms-layout__handoff" aria-live="polite">
+    <strong>Redirecting to CMS sign in...</strong>
+    <span>Your secure staff session needs to be restored.</span>
+  </main>
 </template>
 
 <style scoped>
@@ -126,6 +145,22 @@ function resolveNavigationIcon(item) {
   inset: 0;
   z-index: 35;
   background: rgba(15, 23, 42, 0.35);
+}
+
+.cms-layout__handoff {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: #475569;
+  background: #f6f8fb;
+  text-align: center;
+}
+
+.cms-layout__handoff strong {
+  color: #0f172a;
+  font-size: 1.1rem;
 }
 
 @media (max-width: 900px) {

@@ -29,6 +29,78 @@ const cmsRoutes = [
         meta: { permission: 'dashboard.view' },
       },
       {
+        path: 'promotions',
+        name: 'cms-promotions',
+        component: () => import('./views/content/CmsPromotionsView.vue'),
+        meta: { permission: 'promotions.view' },
+      },
+      {
+        path: 'events',
+        name: 'cms-events',
+        component: () => import('./views/content/CmsEventsView.vue'),
+        meta: { permission: 'events.view' },
+      },
+      {
+        path: 'categories',
+        name: 'cms-categories',
+        component: () => import('./views/content/CmsCategoriesView.vue'),
+        meta: { permissionsAny: ['events.view', 'products.view', 'destinations.view', 'museum.view'] },
+      },
+      {
+        path: 'categories/events',
+        name: 'cms-event-categories',
+        component: () => import('./views/content/CmsEventCategoriesView.vue'),
+        meta: { permission: 'events.view' },
+      },
+      {
+        path: 'categories/products',
+        name: 'cms-product-categories',
+        component: () => import('./views/content/CmsProductCategoriesView.vue'),
+        meta: { permission: 'products.view' },
+      },
+      {
+        path: 'categories/destinations',
+        name: 'cms-destination-categories',
+        component: () => import('./views/content/CmsDestinationCategoriesView.vue'),
+        meta: { permission: 'destinations.view' },
+      },
+      {
+        path: 'categories/museum',
+        name: 'cms-museum-categories',
+        component: () => import('./views/content/CmsMuseumCategoriesView.vue'),
+        meta: { permission: 'museum.view' },
+      },
+      {
+        path: 'products',
+        name: 'cms-products',
+        component: () => import('./views/content/CmsProductsView.vue'),
+        meta: { permission: 'products.view' },
+      },
+      {
+        path: 'destinations',
+        name: 'cms-destinations',
+        component: () => import('./views/content/CmsDestinationsView.vue'),
+        meta: { permission: 'destinations.view' },
+      },
+      {
+        path: 'businesses',
+        name: 'cms-businesses',
+        component: () => import('./views/content/CmsBusinessesView.vue'),
+        meta: { permission: 'businesses.view' },
+      },
+      {
+        path: 'museum',
+        name: 'cms-museum',
+        component: () => import('./views/content/CmsMuseumArtifactsView.vue'),
+        meta: { permission: 'museum.view' },
+      },
+      {
+        path: 'map-locations',
+        name: 'cms-map-locations',
+        component: () => import('./views/content/CmsMapLocationsView.vue'),
+        meta: { permission: 'map_locations.view' },
+      },
+      {
         path: ':pathMatch(.*)*',
         name: 'cms-not-found',
         component: () => import('./views/CmsNotFoundView.vue'),
@@ -49,17 +121,26 @@ export async function guardCmsRoute(to) {
   }
 
   if (to.meta.requiresAuth || to.path.startsWith('/cms')) {
+    const hadStoredToken = Boolean(auth.accessToken)
     await auth.bootstrap()
 
     if (!auth.isAuthenticated) {
       return {
         name: 'cms-login',
-        query: { redirect: to.fullPath },
+        query: {
+          redirect: to.fullPath,
+          ...(hadStoredToken ? { sessionExpired: '1' } : {}),
+        },
       }
     }
 
     const requiredPermission = to.meta.permission
     if (requiredPermission && !auth.hasPermission(requiredPermission)) {
+      return { name: 'cms-unauthorized' }
+    }
+
+    const requiredAny = to.meta.permissionsAny
+    if (requiredAny?.length && !auth.hasAnyPermission(requiredAny)) {
       return { name: 'cms-unauthorized' }
     }
   }

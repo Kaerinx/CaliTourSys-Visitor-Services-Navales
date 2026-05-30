@@ -1,0 +1,209 @@
+.cms-form-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.46);
+}
+
+.cms-form-modal__dialog {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+}
+
+header,
+footer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+footer {
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 0;
+}
+
+p,
+h2 {
+  margin: 0;
+}
+
+p {
+  color: #0f766e;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+h2 {
+  color: #0f172a;
+  font-size: 1.35rem;
+}
+
+form {
+  display: grid;
+  gap: 16px;
+}
+
+form > label,
+.cms-form-modal__grid label {
+  display: grid;
+  gap: 7px;
+}
+
+form > :deep(label),
+.cms-form-modal__grid :deep(label) {
+  display: grid;
+  gap: 7px;
+}
+
+form > label,
+form > :deep(label),
+.cms-form-modal__grid,
+.cms-form-modal__error {
+  margin-inline: 20px;
+}
+
+.cms-form-modal__grid :deep(label) {
+  margin-inline: 0;
+}
+
+form > label:first-child,
+.cms-form-modal__grid--top {
+  margin-top: 20px;
+}
+
+label > span {
+  color: #334155;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+:deep(label > span) {
+  color: #334155;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+}
+
+:deep(input),
+:deep(select),
+:deep(textarea) {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+}
+
+textarea {
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible {
+  border-color: #0ea5e9;
+  outline: 3px solid rgba(14, 165, 233, 0.16);
+}
+
+input[aria-invalid='true'],
+select[aria-invalid='true'] {
+  border-color: #dc2626;
+}
+
+:deep(input[aria-invalid='true']),
+:deep(select[aria-invalid='true']) {
+  border-color: #dc2626;
+}
+
+small {
+  color: #b91c1c;
+}
+
+:deep(small) {
+  color: #b91c1c;
+}
+
+.cms-form-modal__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.cms-form-modal__check {
+  align-content: center;
+  grid-template-columns: auto 1fr;
+  margin-top: 22px;
+}
+
+.cms-form-modal__check input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.cms-form-modal__error {
+  padding: 12px;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+}
+
+button {
+  min-height: 40px;
+  padding: 0 14px;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-weight: 800;
+}
+
+.cms-form-modal__primary {
+  color: #fff;
+  border-color: #0f766e;
+  background: #0f766e;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@media (max-width: 640px) {
+  .cms-form-modal {
+    padding: 12px;
+  }
+
+  .cms-form-modal__grid {
+    grid-template-columns: 1fr;
+  }
+}
