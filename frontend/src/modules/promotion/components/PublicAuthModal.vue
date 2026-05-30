@@ -6,9 +6,13 @@ const props = defineProps({
     type: String,
     default: 'login',
   },
+  intent: {
+    type: String,
+    default: '',
+  },
 })
 
-const emit = defineEmits(['close', 'change-mode'])
+const emit = defineEmits(['authenticated', 'close', 'change-mode'])
 
 const submitted = ref(false)
 const message = ref('')
@@ -20,6 +24,19 @@ const form = reactive({
 })
 
 const isRegister = computed(() => props.mode === 'register')
+const isSaveIntent = computed(() => props.intent === 'save')
+const title = computed(() => {
+  if (isSaveIntent.value) return 'Sign in to save this place'
+  return isRegister.value ? 'Create account' : 'Welcome back'
+})
+const helperMessage = computed(() => {
+  if (isSaveIntent.value) {
+    return 'Create an account or log in to save destinations, products, and events to your itinerary.'
+  }
+  return isRegister.value
+    ? 'Sign up to start planning your Calabanga trip.'
+    : 'Log in to save locations to your itinerary.'
+})
 
 const emailError = computed(() => {
   if (!submitted.value) return ''
@@ -57,9 +74,16 @@ function submitAuth() {
   message.value = ''
   if (hasErrors()) return
 
-  message.value = isRegister.value
-    ? 'Account registration UI is ready. Visitor registration API is not connected yet.'
-    : 'Visitor login UI is ready. Visitor login API is not connected yet.'
+  const visitorSession = {
+    email: form.email.trim().toLowerCase(),
+    name: form.name.trim(),
+    mode: props.mode,
+    signedInAt: new Date().toISOString(),
+  }
+
+  window.localStorage.setItem('calitoursys_public_visitor', JSON.stringify(visitorSession))
+  window.dispatchEvent(new CustomEvent('calitoursys:visitor-authenticated', { detail: visitorSession }))
+  emit('authenticated', visitorSession)
 }
 
 function switchMode(nextMode) {
@@ -106,9 +130,8 @@ onBeforeUnmount(() => {
       </button>
 
       <header class="public-auth__header">
-        <h2 v-if="!isRegister" id="public-login-title">Welcome back</h2>
-        <h2 v-else id="public-register-title">Create account</h2>
-        <p>{{ isRegister ? 'Sign up to start planning your Calabanga trip.' : 'Log in to save locations to your itinerary.' }}</p>
+        <h2 :id="isRegister ? 'public-register-title' : 'public-login-title'">{{ title }}</h2>
+        <p>{{ helperMessage }}</p>
       </header>
 
       <form class="public-auth__form" novalidate @submit.prevent="submitAuth">
@@ -173,18 +196,30 @@ onBeforeUnmount(() => {
         <p v-if="message" class="public-auth__message" role="status">{{ message }}</p>
 
         <button class="public-auth__submit" type="submit">
-          {{ isRegister ? 'Create account' : 'Log in' }}
+          {{ isRegister ? 'Create Account' : isSaveIntent ? 'Login' : 'Log in' }}
         </button>
       </form>
 
       <footer class="public-auth__footer">
         <span v-if="!isRegister">
-          Don't have an account?
-          <button type="button" @click="switchMode('register')">Register</button>
+          <template v-if="isSaveIntent">
+            <button type="button" @click="switchMode('register')">Create Account</button>
+            <button type="button" @click="$emit('close')">Continue Browsing</button>
+          </template>
+          <template v-else>
+            Don't have an account?
+            <button type="button" @click="switchMode('register')">Register</button>
+          </template>
         </span>
         <span v-else>
-          Already have an account?
-          <button type="button" @click="switchMode('login')">Back to login</button>
+          <template v-if="isSaveIntent">
+            <button type="button" @click="switchMode('login')">Login</button>
+            <button type="button" @click="$emit('close')">Continue Browsing</button>
+          </template>
+          <template v-else>
+            Already have an account?
+            <button type="button" @click="switchMode('login')">Back to login</button>
+          </template>
         </span>
       </footer>
     </section>
