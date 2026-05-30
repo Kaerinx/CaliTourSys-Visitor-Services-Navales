@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { ApiError, setAuthTokenGetter } from '@/services/http'
+import { ApiError, isAuthFailureError, setAuthTokenGetter } from '@/services/http'
 import { useAuthStore } from '@/stores/auth'
 import { authApi } from '../services/authApi'
 
@@ -39,6 +39,14 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
     setUser(null)
     window.localStorage.removeItem(PRODUCT_TOKEN_KEY)
     window.localStorage.removeItem(PRODUCT_USER_KEY)
+    useAuthStore().logout()
+    hasBootstrapped.value = false
+  }
+
+  function expireSession() {
+    clearAuth()
+    error.value = 'Your session expired. Please sign in again to continue.'
+    hasBootstrapped.value = true
   }
 
   async function login(email, password) {
@@ -89,11 +97,17 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
       syncProductSession(cmsUserToProductSession(data.user, data.accessToken))
       return data.user
     } catch (err) {
+      if (isAuthFailureError(err)) {
+        expireSession()
+        return null
+      }
+
       if (accessToken.value) {
         try {
           return await fetchMe()
-        } catch {
-          clearAuth()
+        } catch (meError) {
+          if (isAuthFailureError(meError)) expireSession()
+          else clearAuth()
         }
       } else {
         clearAuth()
@@ -135,6 +149,7 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
     isLoading,
     login,
     logout,
+    expireSession,
     fetchMe,
     refreshSession,
     bootstrap,

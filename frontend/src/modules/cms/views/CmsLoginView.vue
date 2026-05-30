@@ -16,6 +16,13 @@ const form = reactive({
 const showPassword = ref(false)
 const submitted = ref(false)
 const localError = ref('')
+const sessionNotice = computed(() =>
+  route.query.sessionExpired ? 'Your session expired. Please sign in again to continue.' : '',
+)
+const submitLabel = computed(() => {
+  if (auth.isLoading) return 'Signing in...'
+  return sessionNotice.value ? 'Sign in again' : 'Sign in'
+})
 
 const emailError = computed(() => {
   if (!submitted.value) return ''
@@ -36,10 +43,19 @@ async function submitLogin() {
 
   try {
     await auth.login(form.email.trim(), form.password)
-    router.replace(route.query.redirect || '/cms/dashboard')
+    router.replace(resolveRedirect())
   } catch {
     localError.value = auth.error || 'Unable to sign in.'
   }
+}
+
+function resolveRedirect() {
+  const redirect = Array.isArray(route.query.redirect) ? route.query.redirect[0] : route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/cms') && redirect !== '/cms/login') {
+    return redirect
+  }
+
+  return '/cms/dashboard'
 }
 </script>
 
@@ -70,10 +86,15 @@ async function submitLogin() {
     <section class="cms-login__panel" aria-labelledby="cms-login-title">
       <div class="cms-login__intro">
         <p>Welcome back</p>
-        <h2 id="cms-login-title">Sign in to continue</h2>
+        <h2 id="cms-login-title">{{ sessionNotice ? 'Sign in again to continue' : 'Sign in to continue' }}</h2>
       </div>
 
       <form class="cms-login__form" novalidate @submit.prevent="submitLogin">
+        <div v-if="sessionNotice" class="cms-login__notice" role="status">
+          <CmsIcon name="lock" />
+          <span>{{ sessionNotice }}</span>
+        </div>
+
         <div class="cms-field">
           <label for="cms-email">Username or email</label>
           <input
@@ -113,7 +134,7 @@ async function submitLogin() {
 
         <button class="cms-login__submit" type="submit" :disabled="auth.isLoading">
           <span v-if="auth.isLoading" class="cms-login__spinner" aria-hidden="true"></span>
-          {{ auth.isLoading ? 'Signing in...' : 'Sign in' }}
+          {{ submitLabel }}
         </button>
       </form>
     </section>
@@ -361,7 +382,24 @@ input[aria-invalid='true'] {
   background: #fef2f2;
 }
 
+.cms-login__notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  color: #075985;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  background: #f0f9ff;
+}
+
 .cms-login__error svg {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.cms-login__notice svg {
   flex: 0 0 18px;
   width: 18px;
   height: 18px;

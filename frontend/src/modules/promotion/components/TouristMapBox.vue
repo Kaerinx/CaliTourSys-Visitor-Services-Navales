@@ -4,6 +4,12 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 const DEFAULT_CENTER = [123.2469, 13.7069]
+const CLUSTER_THRESHOLD = 60
+const CLUSTER_SOURCE_ID = 'tourist-public-locations'
+const CLUSTER_LAYER_ID = 'tourist-public-clusters'
+const CLUSTER_COUNT_LAYER_ID = 'tourist-public-cluster-count'
+const UNCLUSTERED_LAYER_ID = 'tourist-public-unclustered'
+const SELECTED_LAYER_ID = 'tourist-public-selected'
 
 const props = defineProps({
   accessToken: {
@@ -26,6 +32,14 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  emptyTitle: {
+    type: String,
+    default: 'No map locations yet',
+  },
+  emptyText: {
+    type: String,
+    default: 'Published map-ready locations will appear here.',
+  },
 })
 
 const emit = defineEmits(['select', 'map-error'])
@@ -39,6 +53,7 @@ let map = null
 let activePopup = null
 let resizeObserver = null
 const markers = new Map()
+let clusterLayersReady = false
 
 const features = computed(() =>
   Array.isArray(props.featureCollection?.features) ? props.featureCollection.features : [],
@@ -150,6 +165,9 @@ function selectFeature(feature, shouldEmit = true) {
   markers.forEach(({ element }, markerId) => {
     element.classList.toggle('tourist-map-marker--selected', markerId === id)
   })
+  if (map?.getLayer(SELECTED_LAYER_ID)) {
+    map.setFilter(SELECTED_LAYER_ID, ['==', ['to-string', ['coalesce', ['get', 'slug'], ['get', 'id']]], id])
+  }
 
   flyToFeature(feature)
 
@@ -188,12 +206,140 @@ function clearMarkers() {
   markers.clear()
 }
 
+function ensureClusterLayers() {
+  if (!map || clusterLayersReady) return
+
+  map.addSource(CLUSTER_SOURCE_ID, {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+    cluster: true,
+    clusterMaxZoom: 13,
+    clusterRadius: 48,
+  })
+
+  map.addLayer({
+    id: CLUSTER_LAYER_ID,
+    type: 'circle',
+    source: CLUSTER_SOURCE_ID,
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': '#1b4332',
+      'circle-radius': ['step', ['get', 'point_count'], 20, 25, 26, 75, 34],
+      'circle-opacity': 0.92,
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 2,
+    },
+  })
+
+  map.addLayer({
+    id: CLUSTER_COUNT_LAYER_ID,
+    type: 'symbol',
+    source: CLUSTER_SOURCE_ID,
+    filter: ['has', 'point_count'],
+    layout: {
+      'text-field': ['get', 'point_count_abbreviated'],
+      'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+      'text-size': 13,
+    },
+    paint: {
+      'text-color': '#ffffff',
+    },
+  })
+
+  map.addLayer({
+    id: UNCLUSTERED_LAYER_ID,
+    type: 'circle',
+    source: CLUSTER_SOURCE_ID,
+    filter: ['!', ['has', 'point_count']],
+    paint: {
+      'circle-color': ['coalesce', ['get', 'markerColor'], '#1b4332'],
+      'circle-radius': 8,
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 2,
+    },
+  })
+
+  map.addLayer({
+    id: SELECTED_LAYER_ID,
+    type: 'circle',
+    source: CLUSTER_SOURCE_ID,
+    filter: ['==', ['to-string', ['coalesce', ['get', 'slug'], ['get', 'id']]], props.selectedId || ''],
+    paint: {
+      'circle-color': '#b5451b',
+      'circle-radius': 13,
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 3,
+    },
+  })
+
+  map.on('click', CLUSTER_LAYER_ID, (event) => {
+    const featuresAtPoint = map.queryRenderedFeatures(event.point, { layers: [CLUSTER_LAYER_ID] })
+    const clusterId = featuresAtPoint[0]?.properties?.cluster_id
+    const source = map.getSource(CLUSTER_SOURCE_ID)
+    if (clusterId === undefined || !source) return
+
+    source.getClusterExpansionZoom(clusterId, (error, zoom) => {
+      if (error) return
+      map.easeTo({ center: featuresAtPoint[0].geometry.coordinates, zoom })
+    })
+  })
+
+  map.on('click', UNCLUSTERED_LAYER_ID, (event) => {
+    const feature = event.features?.[0]
+    if (feature) selectFeature(feature)
+  })
+
+  map.on('mouseenter', CLUSTER_LAYER_ID, () => {
+    map.getCanvas().style.cursor = 'pointer'
+  })
+  map.on('mouseleave', CLUSTER_LAYER_ID, () => {
+    map.getCanvas().style.cursor = ''
+  })
+  map.on('mouseenter', UNCLUSTERED_LAYER_ID, () => {
+    map.getCanvas().style.cursor = 'pointer'
+  })
+  map.on('mouseleave', UNCLUSTERED_LAYER_ID, () => {
+    map.getCanvas().style.cursor = ''
+  })
+
+  clusterLayersReady = true
+}
+
+function setClusterVisibility(visible) {
+  if (!map || !clusterLayersReady) return
+  const visibility = visible ? 'visible' : 'none'
+  ;[CLUSTER_LAYER_ID, CLUSTER_COUNT_LAYER_ID, UNCLUSTERED_LAYER_ID, SELECTED_LAYER_ID].forEach((layerId) => {
+    if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visibility)
+  })
+}
+
+function syncClusterSource(mappedFeatures) {
+  ensureClusterLayers()
+  const source = map?.getSource(CLUSTER_SOURCE_ID)
+  if (!source) return
+  source.setData({ type: 'FeatureCollection', features: mappedFeatures })
+  setClusterVisibility(true)
+}
+
 function syncMarkers() {
   if (!map || !mapReady.value) return
 
+  const mappedFeatures = validFeatures()
+
+  if (mappedFeatures.length >= CLUSTER_THRESHOLD) {
+    clearMarkers()
+    syncClusterSource(mappedFeatures)
+    fitToFeatures()
+
+    const selectedFeature = mappedFeatures.find((feature) => featureId(feature) === props.selectedId)
+    if (selectedFeature) selectFeature(selectedFeature, false)
+    return
+  }
+
+  setClusterVisibility(false)
   clearMarkers()
 
-  validFeatures().forEach((feature) => {
+  mappedFeatures.forEach((feature) => {
     const id = featureId(feature)
     const properties = feature.properties || {}
     const coordinates = featureCoordinates(feature)
@@ -217,7 +363,7 @@ function syncMarkers() {
 
   fitToFeatures()
 
-  const selectedFeature = validFeatures().find((feature) => featureId(feature) === props.selectedId)
+  const selectedFeature = mappedFeatures.find((feature) => featureId(feature) === props.selectedId)
   if (selectedFeature) selectFeature(selectedFeature, false)
 }
 
@@ -297,6 +443,7 @@ onBeforeUnmount(() => {
   clearMarkers()
   map?.remove()
   map = null
+  clusterLayersReady = false
 })
 </script>
 
@@ -334,8 +481,8 @@ onBeforeUnmount(() => {
     </div>
 
     <div v-else-if="features.length === 0" class="tourist-mapbox__state tourist-mapbox__state--floating">
-      <strong>No map locations yet</strong>
-      <span>Published map-ready locations will appear here.</span>
+      <strong>{{ emptyTitle }}</strong>
+      <span>{{ emptyText }}</span>
     </div>
   </div>
 </template>

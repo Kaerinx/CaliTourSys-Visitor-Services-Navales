@@ -12,10 +12,17 @@ const router = useRouter()
 const isProductShell = computed(
   () => route.path === '/login' || route.path === '/dashboard' || route.path.startsWith('/product'),
 )
-const showPublicItinerary = computed(() => !route.path.startsWith('/cms') && !isProductShell.value)
+const isCmsRoute = computed(() => route.path.startsWith('/cms'))
+const isMuseumRoute = computed(() => route.path.startsWith('/promotion/museum'))
+const showPublicItinerary = computed(() => !isCmsRoute.value && !isMuseumRoute.value && !isProductShell.value)
+const showPublicAuth = computed(() => !isCmsRoute.value && !isProductShell.value)
 const publicAuthMode = computed(() => {
   const mode = route.query.auth
   return mode === 'register' ? 'register' : mode === 'login' ? 'login' : ''
+})
+const publicAuthIntent = computed(() => {
+  const intent = route.query.authIntent
+  return intent === 'save' ? 'save' : ''
 })
 
 function setPublicAuthMode(mode) {
@@ -31,6 +38,7 @@ function setPublicAuthMode(mode) {
 function closePublicAuth() {
   const nextQuery = { ...route.query }
   delete nextQuery.auth
+  delete nextQuery.authIntent
   router.replace({
     path: route.path,
     query: nextQuery,
@@ -50,10 +58,12 @@ function closePublicAuth() {
     <RouterView />
     <FloatingItinerary v-if="showPublicItinerary" />
     <PublicAuthModal
-      v-if="showPublicItinerary && publicAuthMode"
+      v-if="showPublicAuth && publicAuthMode"
       :mode="publicAuthMode"
+      :intent="publicAuthIntent"
       @close="closePublicAuth"
       @change-mode="setPublicAuthMode"
+      @authenticated="closePublicAuth"
     />
   </template>
 </template>

@@ -1,6 +1,6 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   getBusinessById,
   getProductById,
@@ -12,7 +12,10 @@ import {
 } from '../services/promotionService'
 import { validateInquiryForm } from '../utils/formValidation'
 
+const VISITOR_SESSION_KEY = 'calitoursys_public_visitor'
+const PENDING_SAVE_KEY = 'calitoursys_pending_product_save'
 const route = useRoute()
+const router = useRouter()
 const product = ref(null)
 const business = ref(null)
 const isLoading = ref(true)
@@ -25,6 +28,7 @@ const isContactSubmitting = ref(false)
 const contactTouched = ref(false)
 const contactMessage = ref('')
 const selectedGalleryIndex = ref(0)
+const isVisitorAuthenticated = ref(hasVisitorSession())
 const contactForm = reactive({
   fullName: '',
   email: '',
@@ -100,10 +104,7 @@ async function loadProduct() {
     product.value = await getProductById(route.params.slug || route.params.id)
     selectedGalleryIndex.value = 0
     business.value = product.value.businessProfile || await getBusinessById(product.value.businessId)
-    const itinerary = await loadItinerary()
-    isSaved.value = itinerary.items.some(
-      (item) => item.itemType === 'product' && item.targetId === product.value.apiId,
-    )
+    await refreshSavedProduct()
   } catch (error) {
     errorMessage.value = error.message || 'Unable to load product.'
   } finally {
@@ -112,6 +113,17 @@ async function loadProduct() {
 }
 
 async function toggleItinerary() {
+  if (!product.value) return
+
+  if (!isVisitorAuthenticated.value) {
+    promptForSaveAuth()
+    return
+  }
+
+  await performProductItineraryToggle()
+}
+
+async function performProductItineraryToggle() {
   if (!product.value) return
 
   isSaving.value = true
@@ -136,6 +148,50 @@ async function toggleItinerary() {
   } finally {
     isSaving.value = false
   }
+}
+
+async function refreshSavedProduct() {
+  if (!isVisitorAuthenticated.value || !product.value) {
+    isSaved.value = false
+    return
+  }
+
+  try {
+    const itinerary = await loadItinerary()
+    isSaved.value = itinerary.items.some(
+      (item) => item.itemType === 'product' && item.targetId === product.value.apiId,
+    )
+  } catch {
+    isSaved.value = false
+  }
+}
+
+function hasVisitorSession() {
+  try {
+    return Boolean(window.localStorage.getItem(VISITOR_SESSION_KEY))
+  } catch {
+    return false
+  }
+}
+
+function promptForSaveAuth() {
+  if (!product.value) return
+  sessionStorage.setItem(PENDING_SAVE_KEY, product.value.id)
+  router.replace({
+    path: route.path,
+    query: { ...route.query, auth: 'login', authIntent: 'save', product: product.value.id },
+  })
+}
+
+async function resumePendingSave() {
+  isVisitorAuthenticated.value = hasVisitorSession()
+  if (!isVisitorAuthenticated.value) return
+  await refreshSavedProduct()
+
+  const pendingId = sessionStorage.getItem(PENDING_SAVE_KEY)
+  if (!pendingId || pendingId !== product.value?.id) return
+  sessionStorage.removeItem(PENDING_SAVE_KEY)
+  await performProductItineraryToggle()
 }
 
 function selectGalleryItem(index) {
@@ -194,6 +250,14 @@ async function submitProducerInquiry() {
 }
 
 watch(() => route.params.slug || route.params.id, loadProduct, { immediate: true })
+
+onMounted(() => {
+  window.addEventListener('calitoursys:visitor-authenticated', resumePendingSave)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('calitoursys:visitor-authenticated', resumePendingSave)
+})
 </script>
 
 <template>

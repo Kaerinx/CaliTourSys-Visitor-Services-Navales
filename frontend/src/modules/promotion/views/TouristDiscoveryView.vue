@@ -1,5 +1,6 @@
 <script setup>
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   getDestinations,
   getMapLocationGeoJson,
@@ -12,6 +13,11 @@ import {
 const TouristMapBox = defineAsyncComponent(() => import('../components/TouristMapBox.vue'))
 
 const mapboxToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || ''
+const VISITOR_SESSION_KEY = 'calitoursys_public_visitor'
+const PENDING_SAVE_KEY = 'calitoursys_pending_destination_save'
+
+const route = useRoute()
+const router = useRouter()
 
 const categories = computed(() => {
   const grouped = new Map()
@@ -112,28 +118,26 @@ const locations = ref([
 ])
 
 const searchQuery = ref('')
-const selectedId = ref('quipayo')
-const enabledCategories = ref({
-  Nature: true,
-  Beach: true,
-  Food: true,
-  Cultural: true,
-})
-const accreditedOnly = ref(true)
+const selectedId = ref('')
+const enabledCategories = ref({})
+const accreditedOnly = ref(false)
+const hasFilterInteraction = ref(false)
 const showDetail = ref(false)
-const savedIds = ref(new Set(['sabang']))
+const savedIds = ref(new Set())
 const isSaving = ref(false)
 const feedbackMessage = ref('')
 const isLoading = ref(true)
 const errorMessage = ref('')
 const mapRuntimeError = ref('')
 const mapGeoJson = ref({ type: 'FeatureCollection', features: [] })
+const isVisitorAuthenticated = ref(hasVisitorSession())
 
 const visibleLocations = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
 
   return locations.value.filter((location) => {
     const matchesCategory = enabledCategories.value[location.category]
+    const matchesAccreditation = !accreditedOnly.value || location.accredited
     const matchesQuery =
       !query ||
       [location.name, location.category, location.distance]
@@ -141,8 +145,13 @@ const visibleLocations = computed(() => {
         .toLowerCase()
         .includes(query)
 
-    return matchesCategory && matchesQuery
+    return matchesCategory && matchesAccreditation && matchesQuery
   })
+})
+
+const hasActiveFilters = computed(() => {
+  const allCategoriesChecked = categories.value.every((category) => enabledCategories.value[category.key])
+  return Boolean(searchQuery.value.trim()) || !allCategoriesChecked || accreditedOnly.value
 })
 
 const selectedLocation = computed(
@@ -199,15 +208,24 @@ function locationFromFeature(feature, index, destinationBySlug) {
     longitude,
     locationType: properties.locationType,
     imageUrl: properties.primaryImage || destination?.imageUrl,
-    accredited: true,
+    accredited: properties.accredited ?? destination?.accredited ?? true,
   }
 }
 
 function selectLocation(id) {
   selectedId.value = id
+  if (!id) return
+  router.replace({
+    path: route.path,
+    query: {
+      ...route.query,
+      location: id,
+    },
+  })
 }
 
 function toggleCategory(category) {
+  hasFilterInteraction.value = true
   enabledCategories.value = {
     ...enabledCategories.value,
     [category]: !enabledCategories.value[category],
@@ -215,9 +233,28 @@ function toggleCategory(category) {
 }
 
 function resetFilters() {
+  hasFilterInteraction.value = true
   searchQuery.value = ''
   enabledCategories.value = Object.fromEntries(categories.value.map((category) => [category.key, true]))
-  accreditedOnly.value = true
+  accreditedOnly.value = false
+}
+
+function clearCategories() {
+  hasFilterInteraction.value = true
+  enabledCategories.value = Object.fromEntries(categories.value.map((category) => [category.key, false]))
+}
+
+function toggleAccreditedOnly() {
+  hasFilterInteraction.value = true
+  accreditedOnly.value = !accreditedOnly.value
+}
+
+function hasVisitorSession() {
+  try {
+    return Boolean(window.localStorage.getItem(VISITOR_SESSION_KEY))
+  } catch {
+    return false
+  }
 }
 
 async function loadLocations() {
@@ -240,13 +277,8 @@ async function loadLocations() {
     enabledCategories.value = Object.fromEntries(
       [...new Set(locationData.map((location) => location.category))].map((category) => [category, true]),
     )
-    selectedId.value = locationData[0]?.id || ''
-    const itinerary = await loadItinerary()
-    savedIds.value = new Set(
-      itinerary.items
-        .filter((item) => item.itemType === 'destination')
-        .map((item) => item.summary?.slug || item.itemId || item.targetId),
-    )
+    selectedId.value = String(route.query.location || locationData[0]?.id || '')
+    await refreshSavedDestinations()
   } catch (error) {
     errorMessage.value = error.message || 'Unable to load public map locations.'
   } finally {
@@ -260,6 +292,17 @@ async function toggleItinerary(location) {
     feedbackMessage.value = 'This map location is not available for itinerary saving yet.'
     return
   }
+
+  if (!isVisitorAuthenticated.value) {
+    promptForSaveAuth(location)
+    return
+  }
+
+  await performItineraryToggle(location)
+}
+
+async function performItineraryToggle(location) {
+  if (!location?.apiId) return
 
   isSaving.value = true
   feedbackMessage.value = ''
@@ -292,6 +335,55 @@ async function toggleItinerary(location) {
   isSaving.value = false
 }
 
+async function refreshSavedDestinations() {
+  if (!isVisitorAuthenticated.value) {
+    savedIds.value = new Set()
+    return
+  }
+
+  try {
+    const itinerary = await loadItinerary()
+    savedIds.value = new Set(
+      itinerary.items
+        .filter((item) => item.itemType === 'destination')
+        .map((item) => item.summary?.slug || item.itemId || item.targetId),
+    )
+  } catch {
+    savedIds.value = new Set()
+  }
+}
+
+function promptForSaveAuth(location) {
+  sessionStorage.setItem(PENDING_SAVE_KEY, location.id)
+  selectedId.value = location.id
+  router.replace({
+    path: route.path,
+    query: {
+      ...route.query,
+      auth: 'login',
+      authIntent: 'save',
+      location: location.id,
+    },
+  })
+}
+
+async function resumePendingSave() {
+  isVisitorAuthenticated.value = hasVisitorSession()
+  if (!isVisitorAuthenticated.value) return
+
+  await refreshSavedDestinations()
+
+  const pendingId = sessionStorage.getItem(PENDING_SAVE_KEY)
+  if (!pendingId) return
+
+  const pendingLocation = locations.value.find((location) => location.id === pendingId)
+  if (!pendingLocation) return
+
+  sessionStorage.removeItem(PENDING_SAVE_KEY)
+  selectedId.value = pendingId
+  await performItineraryToggle(pendingLocation)
+}
+
 async function shareLocation(location) {
   if (!location) return
 
@@ -311,7 +403,18 @@ function getDirections(location) {
   feedbackMessage.value = `Directions ready for ${location.name}`
 }
 
-onMounted(loadLocations)
+watch(searchQuery, () => {
+  if (searchQuery.value.trim()) hasFilterInteraction.value = true
+})
+
+onMounted(() => {
+  loadLocations()
+  window.addEventListener('calitoursys:visitor-authenticated', resumePendingSave)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('calitoursys:visitor-authenticated', resumePendingSave)
+})
 </script>
 
 <template>
@@ -371,7 +474,10 @@ onMounted(loadLocations)
         <section class="sidebar-block">
           <div class="filter-heading">
             <h2>Filter results</h2>
-            <button type="button" @click="resetFilters">Reset</button>
+            <span>
+              <button type="button" @click="clearCategories">Clear all</button>
+              <button type="button" @click="resetFilters">Reset</button>
+            </span>
           </div>
 
           <div class="filter-list">
@@ -403,13 +509,13 @@ onMounted(loadLocations)
           <div class="toggle-row">
             <span>
               <strong>LGU Accredited only</strong>
-              <small>Vetted producers &amp; sites</small>
+              <small>{{ accreditedOnly ? 'Showing accredited records' : 'Showing all public records' }}</small>
             </span>
             <button
               type="button"
               :aria-label="accreditedOnly ? 'LGU Accredited only enabled' : 'LGU Accredited only disabled'"
               :class="{ 'toggle-off': !accreditedOnly }"
-              @click="accreditedOnly = !accreditedOnly"
+              @click="toggleAccreditedOnly"
             >
               <span></span>
             </button>
@@ -421,9 +527,13 @@ onMounted(loadLocations)
           <p v-else-if="errorMessage">{{ errorMessage }}</p>
           <p v-else>Showing {{ visibleLocations.length }} locations</p>
           <div class="result-list">
-            <div v-if="!isLoading && visibleLocations.length === 0" class="map-empty-state">
-              <strong>No locations found</strong>
-              <span>Try another search or reset filters.</span>
+            <div v-if="!isLoading && visibleLocations.length === 0 && (hasFilterInteraction || hasActiveFilters)" class="map-empty-state">
+              <strong>No locations match your filters.</strong>
+              <span>Try selecting more categories.</span>
+            </div>
+            <div v-else-if="!isLoading && visibleLocations.length === 0" class="map-empty-state">
+              <strong>No published map locations yet</strong>
+              <span>Published tourism places will appear here once available.</span>
             </div>
             <button
               v-for="location in visibleLocations"
@@ -452,6 +562,8 @@ onMounted(loadLocations)
           :selected-id="selectedLocation?.id || ''"
           :loading="isLoading"
           :error="errorMessage"
+          :empty-title="hasFilterInteraction || hasActiveFilters ? 'No locations match your filters.' : 'No published map locations yet'"
+          :empty-text="hasFilterInteraction || hasActiveFilters ? 'Try selecting more categories.' : 'Published tourism places will appear here once available.'"
           @select="selectLocation"
           @map-error="mapRuntimeError = $event"
         />
@@ -858,6 +970,11 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.filter-heading span {
+  display: inline-flex;
+  gap: 10px;
 }
 
 .filter-heading h2 {

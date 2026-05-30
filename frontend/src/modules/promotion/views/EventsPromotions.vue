@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   getEvents,
   loadItinerary,
@@ -8,6 +9,11 @@ import {
   sharePublicItem,
 } from '../services/promotionService'
 import { useNewsletterForm } from '../composables/useNewsletterForm'
+
+const VISITOR_SESSION_KEY = 'calitoursys_public_visitor'
+const PENDING_SAVE_KEY = 'calitoursys_pending_event_save'
+const route = useRoute()
+const router = useRouter()
 
 const events = ref([
   {
@@ -63,6 +69,7 @@ const feedbackMessage = ref('')
 const isSaving = ref(false)
 const isLoading = ref(true)
 const errorMessage = ref('')
+const isVisitorAuthenticated = ref(hasVisitorSession())
 const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -107,12 +114,7 @@ async function loadEvents() {
 
   try {
     events.value = await getEvents({ limit: 12, sort: 'startsAt' })
-    const itinerary = await loadItinerary()
-    savedEventIds.value = new Set(
-      itinerary.items
-        .filter((item) => item.itemType === 'event')
-        .map((item) => item.summary?.slug || item.itemId || item.targetId),
-    )
+    await refreshSavedEvents()
   } catch (error) {
     errorMessage.value = error.message || 'Unable to load public events.'
   } finally {
@@ -121,6 +123,15 @@ async function loadEvents() {
 }
 
 async function toggleEventItinerary(event) {
+  if (!isVisitorAuthenticated.value) {
+    promptForSaveAuth(event)
+    return
+  }
+
+  await performEventItineraryToggle(event)
+}
+
+async function performEventItineraryToggle(event) {
   isSaving.value = true
   feedbackMessage.value = ''
 
@@ -143,6 +154,53 @@ async function toggleEventItinerary(event) {
   }
 }
 
+async function refreshSavedEvents() {
+  if (!isVisitorAuthenticated.value) {
+    savedEventIds.value = new Set()
+    return
+  }
+
+  try {
+    const itinerary = await loadItinerary()
+    savedEventIds.value = new Set(
+      itinerary.items
+        .filter((item) => item.itemType === 'event')
+        .map((item) => item.summary?.slug || item.itemId || item.targetId),
+    )
+  } catch {
+    savedEventIds.value = new Set()
+  }
+}
+
+function hasVisitorSession() {
+  try {
+    return Boolean(window.localStorage.getItem(VISITOR_SESSION_KEY))
+  } catch {
+    return false
+  }
+}
+
+function promptForSaveAuth(event) {
+  sessionStorage.setItem(PENDING_SAVE_KEY, event.id)
+  router.replace({
+    path: route.path,
+    query: { ...route.query, auth: 'login', authIntent: 'save', event: event.id },
+  })
+}
+
+async function resumePendingSave() {
+  isVisitorAuthenticated.value = hasVisitorSession()
+  if (!isVisitorAuthenticated.value) return
+  await refreshSavedEvents()
+
+  const pendingId = sessionStorage.getItem(PENDING_SAVE_KEY)
+  if (!pendingId) return
+  const pendingEvent = events.value.find((event) => event.id === pendingId)
+  if (!pendingEvent) return
+  sessionStorage.removeItem(PENDING_SAVE_KEY)
+  await performEventItineraryToggle(pendingEvent)
+}
+
 async function shareEvent(event) {
   const result = await sharePublicItem({
     title: event.title,
@@ -154,7 +212,14 @@ async function shareEvent(event) {
     result.method === 'clipboard' ? 'Event link copied' : 'Share action ready'
 }
 
-onMounted(loadEvents)
+onMounted(() => {
+  loadEvents()
+  window.addEventListener('calitoursys:visitor-authenticated', resumePendingSave)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('calitoursys:visitor-authenticated', resumePendingSave)
+})
 </script>
 
 <template>

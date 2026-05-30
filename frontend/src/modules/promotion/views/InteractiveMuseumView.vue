@@ -1,12 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import {
-  getMuseumItems,
-  loadItinerary,
-  removeFromItinerary,
-  saveToItinerary,
-  sharePublicItem,
-} from '../services/promotionService'
+import { getMuseumItems, sharePublicItem } from '../services/promotionService'
 import { useNewsletterForm } from '../composables/useNewsletterForm'
 
 const filters = ['All', 'Pre-colonial', 'Spanish-era', 'Modern']
@@ -61,8 +55,6 @@ const selectedItem = ref(null)
 const feedbackMessage = ref('')
 const isLoading = ref(true)
 const errorMessage = ref('')
-const savedArtifactIds = ref(new Set())
-const isSaving = ref(false)
 const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
 
 const filteredArtifacts = computed(() => {
@@ -77,12 +69,6 @@ async function loadArtifacts() {
 
   try {
     artifacts.value = await getMuseumItems({ limit: 50 })
-    const itinerary = await loadItinerary()
-    savedArtifactIds.value = new Set(
-      itinerary.items
-        .filter((item) => item.itemType === 'artifact')
-        .map((item) => item.summary?.slug || item.itemId || item.targetId),
-    )
   } catch (error) {
     errorMessage.value = error.message || 'Unable to load public museum artifacts.'
   } finally {
@@ -99,35 +85,6 @@ async function shareArtifact(artifact) {
 
   feedbackMessage.value =
     result.method === 'clipboard' ? 'Museum link copied' : 'Share action ready'
-}
-
-async function toggleArtifactItinerary(artifact) {
-  if (!artifact) return
-
-  isSaving.value = true
-
-  try {
-    if (savedArtifactIds.value.has(artifact.id)) {
-      await removeFromItinerary({ id: artifact.id, apiId: artifact.apiId, type: 'artifact' })
-      const next = new Set(savedArtifactIds.value)
-      next.delete(artifact.id)
-      savedArtifactIds.value = next
-      feedbackMessage.value = 'Removed from itinerary'
-    } else {
-      await saveToItinerary({
-        id: artifact.id,
-        apiId: artifact.apiId,
-        type: 'artifact',
-        title: artifact.name,
-      })
-      savedArtifactIds.value = new Set([...savedArtifactIds.value, artifact.id])
-      feedbackMessage.value = 'Saved to itinerary'
-    }
-  } catch (error) {
-    feedbackMessage.value = error.message || 'Unable to update itinerary'
-  } finally {
-    isSaving.value = false
-  }
 }
 
 onMounted(loadArtifacts)
@@ -282,15 +239,6 @@ onMounted(loadArtifacts)
           </p>
           <div class="artifact-modal__actions">
             <button class="artifact-modal__share" type="button" @click="shareArtifact(selectedItem)">Share artifact</button>
-            <button class="artifact-modal__share" type="button" :disabled="isSaving" @click="toggleArtifactItinerary(selectedItem)">
-              {{
-                isSaving
-                  ? 'Saving...'
-                  : savedArtifactIds.has(selectedItem.id)
-                    ? 'Remove from itinerary'
-                    : 'Save to itinerary'
-              }}
-            </button>
           </div>
         </div>
       </article>
@@ -927,7 +875,6 @@ h3 {
   margin-top: 0;
 }
 
-.artifact-modal__share:disabled,
 .subscribe-form button:disabled {
   cursor: wait;
   opacity: 0.72;

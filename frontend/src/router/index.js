@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { cmsRoutes, guardCmsRoute } from '@/modules/cms'
+import { useCmsAuthStore } from '@/modules/cms/stores/authStore'
 import promotionRoutes from '@/modules/promotion/routes'
+import { setAuthFailureHandler } from '@/services/http'
 import { useAuthStore } from '@/stores/auth'
 import DashboardView from '@/views/DashboardView.vue'
 import LoginView from '@/views/LoginView.vue'
@@ -83,6 +85,30 @@ router.beforeEach(async (to) => {
   }
 
   return true
+})
+
+let handlingCmsAuthFailure = false
+
+setAuthFailureHandler(() => {
+  const currentRoute = router.currentRoute.value
+  if (!currentRoute.path.startsWith('/cms') || currentRoute.name === 'cms-login') return
+
+  const auth = useCmsAuthStore()
+  const redirect = currentRoute.fullPath
+  auth.expireSession()
+
+  if (handlingCmsAuthFailure) return
+  handlingCmsAuthFailure = true
+
+  router
+    .replace({
+      name: 'cms-login',
+      query: { redirect, sessionExpired: '1' },
+    })
+    .catch(() => {})
+    .finally(() => {
+      handlingCmsAuthFailure = false
+    })
 })
 
 export default router
