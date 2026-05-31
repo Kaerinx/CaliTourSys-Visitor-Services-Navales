@@ -12,4 +12,18 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      if (window.location.pathname.startsWith("/accreditation/app")) {
+        window.location.assign("/accreditation/login");
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default http;

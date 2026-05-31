@@ -1,5 +1,12 @@
 import { defineStore } from "pinia";
-import { login as loginRequest } from "@/modules/accreditation/services/accreditationApi";
+import { getCurrentUser, login as loginRequest } from "@/modules/accreditation/services/accreditationApi";
+
+const demoModeEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO === "true";
+const storedToken = localStorage.getItem("auth_token");
+if (!demoModeEnabled && String(storedToken || "").startsWith("demo-token")) {
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("auth_user");
+}
 
 const demoAccounts = {
   "john@sunsetresort.com": {
@@ -56,7 +63,7 @@ export const useAuthStore = defineStore("auth", {
       const demoUser = demoAccounts[email];
       const demoPassword = localStorage.getItem(`demo_password_${email}`) || "password123";
 
-      if (demoUser && password === demoPassword) {
+      if (demoModeEnabled && demoUser && password === demoPassword) {
         try {
           const { token, user } = await loginRequest({ email, password });
           this.setSession(token, user);
@@ -78,6 +85,11 @@ export const useAuthStore = defineStore("auth", {
       return user;
     },
     async connectDemoToBackend() {
+      if (!demoModeEnabled && (this.token || "").startsWith("demo-token")) {
+        this.logout();
+        return false;
+      }
+
       if (!(this.token || "").startsWith("demo-token")) return true;
 
       const email = this.user?.email?.toLowerCase();
@@ -93,12 +105,17 @@ export const useAuthStore = defineStore("auth", {
       }
     },
     setSession(token, user) {
+      if (!demoModeEnabled && String(token || "").startsWith("demo-token")) {
+        this.logout();
+        return;
+      }
       this.token = token;
       this.user = user;
       localStorage.setItem("auth_token", token);
       localStorage.setItem("auth_user", JSON.stringify(user));
     },
     useDemoRole(role) {
+      if (!demoModeEnabled) return;
       const demoUser = {
         id: `demo-${role}`,
         firstName: role === "admin" ? "Admin" : role === "tourism_staff" ? "Maria" : "John",
@@ -122,6 +139,12 @@ export const useAuthStore = defineStore("auth", {
       this.user = null;
       localStorage.removeItem("auth_token");
       localStorage.removeItem("auth_user");
+    },
+    async refreshUser() {
+      if (!this.token || (this.token || "").startsWith("demo-token")) return this.user;
+      const { user } = await getCurrentUser();
+      this.updateUser(user);
+      return user;
     },
   },
 });

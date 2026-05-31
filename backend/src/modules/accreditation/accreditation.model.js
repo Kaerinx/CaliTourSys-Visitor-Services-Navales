@@ -1,5 +1,37 @@
 const db = require("../../config/db");
 
+const MAX_PAGE_SIZE = 100;
+
+function pagination(filters = {}) {
+  const page = Math.max(Number(filters.page || 1), 1);
+  const pageSize = Math.min(Math.max(Number(filters.pageSize || 0), 1), MAX_PAGE_SIZE);
+  if (!filters.page && !filters.pageSize) return null;
+  return { page, pageSize, offset: (page - 1) * pageSize };
+}
+
+function appendPagination(sql, params, pageInfo) {
+  if (!pageInfo) return sql;
+  params.push(pageInfo.pageSize, pageInfo.offset);
+  return `${sql} LIMIT $${params.length - 1} OFFSET $${params.length}`;
+}
+
+function paginatedResponse(rows, total, pageInfo) {
+  if (!pageInfo) return rows;
+  return {
+    items: rows,
+    pagination: {
+      page: pageInfo.page,
+      pageSize: pageInfo.pageSize,
+      total,
+      totalPages: Math.ceil(total / pageInfo.pageSize),
+    },
+  };
+}
+
+function auditEventNumber() {
+  return `AUD-${new Date().getFullYear()}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+}
+
 async function createUser(user) {
   const result = await db.query(
     `INSERT INTO users (
@@ -291,18 +323,55 @@ async function updateApplicationDraft(id, ownerId, application) {
 async function listApplications(filters = {}) {
   const params = [];
   const where = [];
+  const pageInfo = pagination(filters);
 
   if (filters.ownerId) {
     params.push(filters.ownerId);
     where.push(`a.owner_id = $${params.length}`);
   }
 
-  if (filters.status) {
+  if (filters.status && filters.status !== "all") {
     params.push(filters.status);
     where.push(`a.status = $${params.length}`);
   }
 
-  const result = await db.query(
+  if (filters.q) {
+    params.push(`%${filters.q}%`);
+    where.push(`(
+      a.application_number ILIKE $${params.length}
+      OR b.business_name ILIKE $${params.length}
+      OR b.business_type ILIKE $${params.length}
+      OR b.business_permit_number ILIKE $${params.length}
+      OR u.first_name ILIKE $${params.length}
+      OR u.last_name ILIKE $${params.length}
+      OR u.email ILIKE $${params.length}
+    )`);
+  }
+
+  if (filters.dateFrom) {
+    params.push(filters.dateFrom);
+    where.push(`COALESCE(a.submitted_at, a.created_at) >= $${params.length}::date`);
+  }
+
+  if (filters.dateTo) {
+    params.push(filters.dateTo);
+    where.push(`COALESCE(a.submitted_at, a.created_at) < ($${params.length}::date + INTERVAL '1 day')`);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const countParams = [...params];
+  const countResult = pageInfo
+    ? await db.query(
+        `SELECT COUNT(DISTINCT a.id)::int AS total
+         FROM accreditation_applications a
+         JOIN business_profiles b ON b.id = a.business_profile_id
+         JOIN users u ON u.id = a.owner_id
+         ${whereSql}`,
+        countParams
+      )
+    : null;
+
+  const sql = appendPagination(
     `SELECT
        a.*,
        COALESCE(
@@ -345,13 +414,15 @@ async function listApplications(filters = {}) {
      JOIN users u ON u.id = a.owner_id
      LEFT JOIN users reviewer ON reviewer.id = a.reviewed_by
      LEFT JOIN application_documents d ON d.application_id = a.id
-     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+     ${whereSql}
      GROUP BY a.id, b.id, u.id, reviewer.id
      ORDER BY COALESCE(a.submitted_at, a.updated_at) DESC`,
-    params
+    params,
+    pageInfo
   );
+  const result = await db.query(sql, params);
 
-  return result.rows;
+  return paginatedResponse(result.rows, countResult?.rows[0]?.total || result.rows.length, pageInfo);
 }
 
 async function getApplicationById(id) {
@@ -409,14 +480,15 @@ async function addApplicationDocument(applicationId, document) {
   const result = await db.query(
     `INSERT INTO application_documents (
       application_id, document_type, original_name, file_path, mime_type,
-      file_size, uploaded_by
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+      file_size, file_checksum, uploaded_by
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
     ON CONFLICT (application_id, document_type)
     DO UPDATE SET
       original_name = EXCLUDED.original_name,
       file_path = EXCLUDED.file_path,
       mime_type = EXCLUDED.mime_type,
       file_size = EXCLUDED.file_size,
+      file_checksum = EXCLUDED.file_checksum,
       uploaded_by = EXCLUDED.uploaded_by,
       status = 'submitted',
       remarks = NULL,
@@ -429,6 +501,7 @@ async function addApplicationDocument(applicationId, document) {
       document.filePath,
       document.mimeType,
       document.fileSize,
+      document.fileChecksum || null,
       document.uploadedBy || null,
     ]
   );
@@ -441,6 +514,22 @@ async function listDocuments(applicationId) {
     [applicationId]
   );
   return result.rows;
+}
+
+async function getDocumentById(id) {
+  const result = await db.query(
+    `SELECT
+       d.*,
+       a.owner_id,
+       a.application_number,
+       b.business_name
+     FROM application_documents d
+     JOIN accreditation_applications a ON a.id = d.application_id
+     JOIN business_profiles b ON b.id = a.business_profile_id
+     WHERE d.id = $1`,
+    [id]
+  );
+  return result.rows[0];
 }
 
 async function createNotification(notification) {
@@ -463,8 +552,50 @@ async function createNotification(notification) {
   return result.rows[0];
 }
 
-async function listAccreditationRecords() {
-  const result = await db.query(
+async function listAccreditationRecords(filters = {}) {
+  const params = [];
+  const where = [];
+  const pageInfo = pagination(filters);
+
+  if (filters.status && filters.status !== "all") {
+    params.push(filters.status);
+    where.push(`r.status = $${params.length}`);
+  }
+
+  if (filters.q) {
+    params.push(`%${filters.q}%`);
+    where.push(`(
+      r.record_number ILIKE $${params.length}
+      OR a.application_number ILIKE $${params.length}
+      OR b.business_name ILIKE $${params.length}
+      OR b.business_permit_number ILIKE $${params.length}
+    )`);
+  }
+
+  if (filters.dateFrom) {
+    params.push(filters.dateFrom);
+    where.push(`r.issued_at >= $${params.length}::date`);
+  }
+
+  if (filters.dateTo) {
+    params.push(filters.dateTo);
+    where.push(`r.issued_at < ($${params.length}::date + INTERVAL '1 day')`);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const countParams = [...params];
+  const countResult = pageInfo
+    ? await db.query(
+        `SELECT COUNT(DISTINCT r.id)::int AS total
+         FROM accreditation_records r
+         JOIN accreditation_applications a ON a.id = r.application_id
+         JOIN business_profiles b ON b.id = r.business_profile_id
+         ${whereSql}`,
+        countParams
+      )
+    : null;
+
+  const sql = appendPagination(
     `SELECT
        r.*,
        a.application_number,
@@ -506,10 +637,14 @@ async function listAccreditationRecords() {
      JOIN users u ON u.id = b.owner_id
      LEFT JOIN users issuer ON issuer.id = r.issued_by
      LEFT JOIN application_documents d ON d.application_id = a.id
+     ${whereSql}
      GROUP BY r.id, a.id, b.id, u.id, issuer.id
-     ORDER BY r.issued_at DESC`
+     ORDER BY r.issued_at DESC`,
+    params,
+    pageInfo
   );
-  return result.rows;
+  const result = await db.query(sql, params);
+  return paginatedResponse(result.rows, countResult?.rows[0]?.total || result.rows.length, pageInfo);
 }
 
 async function createAccreditationRecord(application, issuedBy) {
@@ -538,15 +673,53 @@ async function createAccreditationRecord(application, issuedBy) {
   return result.rows[0];
 }
 
-async function listUsers() {
-  const result = await db.query(
+async function listUsers(filters = {}) {
+  const params = [];
+  const where = [];
+  const pageInfo = pagination(filters);
+
+  if (filters.role && filters.role !== "all") {
+    params.push(filters.role);
+    where.push(`role = $${params.length}`);
+  }
+
+  if (filters.status && filters.status !== "all") {
+    params.push(filters.status);
+    where.push(`status = $${params.length}`);
+  }
+
+  if (filters.q) {
+    params.push(`%${filters.q}%`);
+    where.push(`(
+      first_name ILIKE $${params.length}
+      OR last_name ILIKE $${params.length}
+      OR email ILIKE $${params.length}
+      OR phone ILIKE $${params.length}
+    )`);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const countParams = [...params];
+  const countResult = pageInfo
+    ? await db.query(`SELECT COUNT(*)::int AS total FROM users ${whereSql}`, countParams)
+    : null;
+  const sql = appendPagination(
     `SELECT id, first_name, middle_name, last_name, sex, email, phone, telephone, role, status, last_login_at, created_at
-     FROM users ORDER BY created_at DESC`
+     FROM users ${whereSql} ORDER BY created_at DESC`,
+    params,
+    pageInfo
   );
-  return result.rows;
+  const result = await db.query(sql, params);
+  return paginatedResponse(result.rows, countResult?.rows[0]?.total || result.rows.length, pageInfo);
 }
 
 async function updateUserStatus(id, status) {
+  if (!["active", "inactive", "pending_verification"].includes(status)) {
+    const error = new Error("Invalid user status.");
+    error.statusCode = 400;
+    throw error;
+  }
+
   const result = await db.query(
     "UPDATE users SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, email, role, status",
     [id, status]
@@ -554,9 +727,58 @@ async function updateUserStatus(id, status) {
   return result.rows[0];
 }
 
-async function listAuditLogs() {
-  const result = await db.query("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100");
-  return result.rows;
+async function listAuditLogs(filters = {}) {
+  const params = [];
+  const where = [];
+  const pageInfo = pagination(filters);
+
+  if (filters.module && filters.module !== "all") {
+    params.push(filters.module);
+    where.push(`module = $${params.length}`);
+  }
+
+  if (filters.severity && filters.severity !== "all") {
+    params.push(filters.severity);
+    where.push(`severity = $${params.length}`);
+  }
+
+  if (filters.q) {
+    params.push(`%${filters.q}%`);
+    where.push(`(
+      event_number ILIKE $${params.length}
+      OR action ILIKE $${params.length}
+      OR actor_name ILIKE $${params.length}
+      OR reference_id ILIKE $${params.length}
+      OR details ILIKE $${params.length}
+    )`);
+  }
+
+  if (filters.dateFrom) {
+    params.push(filters.dateFrom);
+    where.push(`created_at >= $${params.length}::date`);
+  }
+
+  if (filters.dateTo) {
+    params.push(filters.dateTo);
+    where.push(`created_at < ($${params.length}::date + INTERVAL '1 day')`);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const countParams = [...params];
+  const countResult = pageInfo
+    ? await db.query(
+        `SELECT COUNT(*)::int AS total FROM audit_logs ${whereSql}`,
+        countParams
+      )
+    : null;
+  const baseSql = `SELECT * FROM audit_logs ${whereSql} ORDER BY created_at DESC`;
+  const sql = pageInfo ? appendPagination(
+    baseSql,
+    params,
+    pageInfo
+  ) : `${baseSql} LIMIT 100`;
+  const result = await db.query(sql, params);
+  return paginatedResponse(result.rows, countResult?.rows[0]?.total || result.rows.length, pageInfo);
 }
 
 async function createAuditLog(log) {
@@ -566,7 +788,7 @@ async function createAuditLog(log) {
       reference_id, outcome, ip_address, user_agent, details
     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
     [
-      log.eventNumber,
+      log.eventNumber || auditEventNumber(),
       log.actorId || null,
       log.actorName || null,
       log.actorRole || null,
@@ -616,6 +838,7 @@ module.exports = {
   findUserById,
   findUserByVerificationToken,
   getApplicationById,
+  getDocumentById,
   getBusinessProfile,
   listAccreditationRecords,
   listApplications,

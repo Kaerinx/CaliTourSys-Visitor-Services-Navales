@@ -14,10 +14,19 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const requiresAuth = to.matched.some((route) => route.meta.requiresAuth);
+  const allowedRoles = to.matched
+    .map((route) => route.meta.allowedRoles)
+    .filter(Boolean)
+    .flat();
   const token = localStorage.getItem("auth_token");
+  const user = JSON.parse(localStorage.getItem("auth_user") || "null");
 
   if (requiresAuth && !token) {
     return "/accreditation/login";
+  }
+
+  if (allowedRoles.length && !allowedRoles.includes(user?.role)) {
+    return "/accreditation/app/dashboard";
   }
 
   return true;

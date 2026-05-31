@@ -28,7 +28,7 @@
           </label>
           <label>Business Type
             <select v-model="form.businessType" required>
-              <option value="">Select business type</option>
+              <option value="" disabled>Select business type</option>
               <optgroup
                 v-for="group in businessTypeGroups"
                 :key="group.label"
@@ -103,9 +103,20 @@
                   {{ uploadButtonLabel(doc) }}
                 </button>
                 <button
+                  v-if="selectedFiles[doc]"
                   class="btn ghost"
                   type="button"
-                  :disabled="!documentViewUrl(doc)"
+                  :disabled="uploadingDocument === doc"
+                  title="Remove selected file"
+                  @click="removeSelectedFile(doc)"
+                >
+                  <X :size="16" />
+                  Remove
+                </button>
+                <button
+                  class="btn ghost"
+                  type="button"
+                  :disabled="!canViewDocument(doc)"
                   @click="viewDocument(doc)"
                 >
                   <Eye :size="16" />
@@ -132,13 +143,14 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
-import { Eye, FileText, Upload } from "@lucide/vue";
+import { Eye, FileText, Upload, X } from "@lucide/vue";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import { businessTypeGroups, requiredDocuments } from "@/modules/accreditation/data/mockData";
 import {
   createApplication,
   getApplication,
   getBusinessProfile,
+  openApplicationDocument,
   saveApplicationDraft,
   submitApplication,
   uploadApplicationDocument,
@@ -276,10 +288,10 @@ async function loadApplicationForRevision(id) {
     for (const document of result.documents || []) {
       const name = document.document_type;
       uploadedDocuments[name] = {
+        id: document.id,
         name: document.original_name,
         status: document.status,
         uploaded_at: document.uploaded_at,
-        url: publicFileUrl(document.file_path),
       };
     }
     saveLocalDraft();
@@ -377,10 +389,10 @@ async function uploadDocumentFile(doc) {
     data.append("documentType", doc);
     const result = await uploadApplicationDocument(applicationId.value, data);
     uploadedDocuments[doc] = {
+      id: result.document.id,
       name: result.document.original_name,
       status: result.document.status,
       uploaded_at: result.document.uploaded_at,
-      url: publicFileUrl(result.document.file_path),
     };
     clearSelectedFile(doc);
     saveLocalDraft();
@@ -416,13 +428,19 @@ function uploadButtonLabel(doc) {
   return applicationId.value ? "Upload" : "Save & Upload";
 }
 
-function documentViewUrl(doc) {
-  return selectedFileUrls[doc] || uploadedDocuments[doc]?.url || "";
+function canViewDocument(doc) {
+  return Boolean(selectedFileUrls[doc] || uploadedDocuments[doc]?.url || uploadedDocuments[doc]?.id);
 }
 
-function viewDocument(doc) {
-  const url = documentViewUrl(doc);
-  if (url) window.open(url, "_blank", "noopener,noreferrer");
+async function viewDocument(doc) {
+  const url = selectedFileUrls[doc] || uploadedDocuments[doc]?.url;
+  if (url) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  if (uploadedDocuments[doc]?.id) {
+    await openApplicationDocument(uploadedDocuments[doc].id);
+  }
 }
 
 function fileInputId(doc) {
@@ -445,22 +463,21 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function publicFileUrl(filePath) {
-  if (!filePath) return "";
-  if (/^https?:\/\//i.test(filePath)) return filePath;
-
-  const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
-  const serverBase = apiBase.replace(/\/api\/?$/, "");
-  const normalizedPath = filePath.replaceAll("\\", "/").replace(/^uploads\//, "/uploads/");
-  return `${serverBase}${normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`}`;
-}
-
 function clearSelectedFile(doc) {
   if (selectedFileUrls[doc]) {
     URL.revokeObjectURL(selectedFileUrls[doc]);
     delete selectedFileUrls[doc];
   }
   delete selectedFiles[doc];
+
+  const input = document.getElementById(fileInputId(doc));
+  if (input) input.value = "";
+}
+
+function removeSelectedFile(doc) {
+  clearSelectedFile(doc);
+  message.value = "";
+  error.value = "";
 }
 
 function ensureRequiredDocumentsUploaded() {

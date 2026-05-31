@@ -1,10 +1,17 @@
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
+const fs = require("fs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const model = require("./accreditation.model");
+const { getJwtSecret } = require("../../config/authConfig");
 
 const REQUIRED_DOCUMENTS = ["Business Permit", "DTI/SEC Registration"];
+const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+]);
 
 function publicUser(user) {
   return {
@@ -27,7 +34,7 @@ function publicUser(user) {
 function signToken(user) {
   return jwt.sign(
     { id: user.id, email: user.email, role: user.role },
-    process.env.JWT_SECRET || "dev-secret",
+    getJwtSecret(),
     { expiresIn: process.env.JWT_EXPIRES_IN || "1d" }
   );
 }
@@ -172,6 +179,16 @@ async function login(email, password) {
   return { token: signToken(user), user: publicUser(user) };
 }
 
+async function getCurrentUser(userId) {
+  const user = await model.findUserById(userId);
+  if (!user) {
+    const error = new Error("Account not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+  return publicUser(user);
+}
+
 async function createApplication(ownerId, payload) {
   return saveApplicationDraft(ownerId, payload);
 }
@@ -238,12 +255,19 @@ async function addDocument(applicationId, file, body, userId) {
     throw error;
   }
 
+  if (!ALLOWED_DOCUMENT_MIME_TYPES.has(file.mimetype)) {
+    const error = new Error("Invalid document file type. Upload PDF, JPG, or PNG files only.");
+    error.statusCode = 400;
+    throw error;
+  }
+
   return model.addApplicationDocument(application.id, {
     documentType: body.documentType,
     originalName: file.originalname,
     filePath: file.path,
     mimeType: file.mimetype,
     fileSize: file.size,
+    fileChecksum: crypto.createHash("sha256").update(fs.readFileSync(file.path)).digest("hex"),
     uploadedBy: userId,
   });
 }
@@ -325,6 +349,29 @@ async function reviewApplication(reviewerId, applicationId, payload) {
   const allowedStatuses = ["under_review", "for_revision", "rejected", "approved"];
   if (!allowedStatuses.includes(payload.status)) {
     const error = new Error("Invalid review status.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const existing = await model.getApplicationById(applicationId);
+  if (!existing) return null;
+
+  const transitions = {
+    submitted: ["under_review", "for_revision", "rejected", "approved"],
+    under_review: ["for_revision", "rejected", "approved"],
+    for_revision: [],
+    approved: [],
+    rejected: [],
+  };
+  const allowedNext = transitions[existing.status] || [];
+  if (!allowedNext.includes(payload.status)) {
+    const error = new Error(`Cannot change application from ${existing.status} to ${payload.status}.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (["for_revision", "rejected"].includes(payload.status) && !String(payload.remarks || "").trim()) {
+    const error = new Error("Review remarks are required when requesting revision or rejecting an application.");
     error.statusCode = 400;
     throw error;
   }
@@ -450,6 +497,7 @@ module.exports = {
   changePassword,
   createManagedUser,
   createApplication,
+  getCurrentUser,
   login,
   registerBusinessOwner,
   reviewApplication,

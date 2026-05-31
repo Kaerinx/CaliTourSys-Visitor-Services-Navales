@@ -33,7 +33,12 @@
       <header class="topbar">
         <div class="search-wrap">
           <Search :size="16" />
-          <input class="search" placeholder="Search applications, businesses..." />
+          <input
+            v-model="searchTerm"
+            class="search"
+            placeholder="Search applications, businesses..."
+            @keydown.enter="submitSearch"
+          />
         </div>
         <div class="topbar-user">
           <RouterLink class="icon-button notification-button" to="/accreditation/app/notifications">
@@ -58,9 +63,10 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/authStore";
+import { getNotifications } from "@/modules/accreditation/services/accreditationApi";
 import {
   BarChart3,
   Bell,
@@ -78,6 +84,8 @@ import {
 
 const router = useRouter();
 const auth = useAuthStore();
+const searchTerm = ref("");
+const unreadNotifications = ref(0);
 
 const roleLabel = computed(() => {
   if (auth.role === "admin") return "System Administrator";
@@ -89,10 +97,19 @@ const displayName = computed(() =>
   auth.user ? `${auth.user.firstName} ${auth.user.lastName}` : "User"
 );
 
-const notificationCount = computed(() => {
-  if (auth.role === "admin") return 3;
-  if (auth.role === "tourism_staff" || auth.role === "tourism_officer") return 2;
-  return 3;
+const notificationCount = computed(() => unreadNotifications.value);
+
+onMounted(async () => {
+  await auth.connectDemoToBackend();
+  if (isDemoSession()) return;
+
+  try {
+    const result = await getNotifications();
+    unreadNotifications.value =
+      result.unreadCount ?? (result.notifications || []).filter((item) => !item.is_read).length;
+  } catch (_error) {
+    unreadNotifications.value = 0;
+  }
 });
 
 const menu = computed(() => {
@@ -131,5 +148,26 @@ const menu = computed(() => {
 function logout() {
   auth.logout();
   router.push("/accreditation");
+}
+
+function submitSearch() {
+  const q = searchTerm.value.trim();
+  if (!q) return;
+
+  if (auth.role === "admin") {
+    router.push({ path: "/accreditation/app/users", query: { q } });
+    return;
+  }
+
+  if (auth.role === "tourism_staff" || auth.role === "tourism_officer") {
+    router.push({ path: "/accreditation/app/staff-dashboard", query: { q } });
+    return;
+  }
+
+  router.push({ path: "/accreditation/app/applications", query: { q } });
+}
+
+function isDemoSession() {
+  return (auth.token || "").startsWith("demo-token");
 }
 </script>

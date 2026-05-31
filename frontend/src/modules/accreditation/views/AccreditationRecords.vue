@@ -95,7 +95,7 @@
               </div>
               <div class="document-review-actions">
                 <StatusBadge :status="doc.status" />
-                <button class="btn ghost" type="button" :disabled="!doc.url" @click="viewDocument(doc)">
+                <button class="btn ghost" type="button" :disabled="!(doc.url || doc.id)" @click="viewDocument(doc)">
                   View
                 </button>
               </div>
@@ -111,7 +111,7 @@
 import { computed, onMounted, ref } from "vue";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import { requiredDocuments } from "@/modules/accreditation/data/mockData";
-import { getRecords } from "@/modules/accreditation/services/accreditationApi";
+import { getRecords, openApplicationDocument } from "@/modules/accreditation/services/accreditationApi";
 import { useAuthStore } from "@/stores/authStore";
 
 const auth = useAuthStore();
@@ -152,7 +152,7 @@ function normalizedDocuments(record) {
       ? {
           ...document,
           name: document.name || document.document_type,
-          url: publicFileUrl(document.file_path || document.url),
+          url: document.url || "",
         }
       : { name, status: "pending", uploaded_at: null, url: "" };
   });
@@ -172,18 +172,9 @@ function address(record) {
     .join(", ");
 }
 
-function viewDocument(doc) {
+async function viewDocument(doc) {
   if (doc.url) window.open(doc.url, "_blank", "noopener,noreferrer");
-}
-
-function publicFileUrl(filePath) {
-  if (!filePath) return "";
-  if (/^https?:\/\//i.test(filePath)) return filePath;
-
-  const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
-  const serverBase = apiBase.replace(/\/api\/?$/, "");
-  const normalizedPath = filePath.replaceAll("\\", "/").replace(/^uploads\//, "/uploads/");
-  return `${serverBase}${normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`}`;
+  else if (doc.id) await openApplicationDocument(doc.id);
 }
 
 function formatDate(value) {

@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { getJwtSecret } = require("../config/authConfig");
 
 function authenticate(req, res, next) {
   const header = req.headers.authorization || "";
@@ -9,7 +10,7 @@ function authenticate(req, res, next) {
   }
 
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET || "dev-secret");
+    req.user = jwt.verify(token, getJwtSecret());
     return next();
   } catch (_error) {
     return res.status(401).json({ message: "Invalid or expired token." });

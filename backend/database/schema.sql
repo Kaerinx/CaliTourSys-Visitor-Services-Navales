@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   status VARCHAR(30) NOT NULL DEFAULT 'pending_verification',
   email_verified_at TIMESTAMPTZ,
   verification_token TEXT,
+  verification_token_expires_at TIMESTAMPTZ,
   last_login_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS application_documents (
   file_path TEXT NOT NULL,
   mime_type VARCHAR(120),
   file_size INTEGER,
+  file_checksum VARCHAR(128),
   status VARCHAR(40) NOT NULL DEFAULT 'submitted',
   remarks TEXT,
   uploaded_by UUID REFERENCES users(id),

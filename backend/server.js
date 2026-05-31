@@ -1,8 +1,16 @@
 require("dotenv").config();
 
 const app = require("./src/app");
+const { assertProductionConfig } = require("./src/config/authConfig");
 
 const port = Number(process.env.PORT || 5000);
+
+try {
+  assertProductionConfig();
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
 
 const server = app.listen(port, () => {
   console.log(`CaliTourSys backend running on port ${port}`);

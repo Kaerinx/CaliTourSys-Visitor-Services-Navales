@@ -22,14 +22,21 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = [".pdf", ".jpg", ".jpeg", ".png"];
+    const allowedMimeTypes = ["application/pdf", "image/jpeg", "image/png"];
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, allowed.includes(ext));
+    if (!allowed.includes(ext) || !allowedMimeTypes.includes(file.mimetype)) {
+      const error = new Error("Only PDF, JPG, and PNG documents are allowed.");
+      error.statusCode = 400;
+      return cb(error);
+    }
+    return cb(null, true);
   },
 });
 
 router.post("/auth/register", controller.register);
 router.get("/auth/verify-email", controller.verifyEmail);
 router.post("/auth/login", controller.login);
+router.get("/auth/me", authenticate, controller.me);
 
 router.get("/dashboard", authenticate, controller.dashboard);
 router.patch("/account", authenticate, controller.updateAccount);
@@ -70,6 +77,7 @@ router.patch(
   authorize("tourism_staff", "tourism_officer", "admin"),
   controller.reviewApplication
 );
+router.get("/documents/:id/download", authenticate, controller.downloadDocument);
 
 router.get(
   "/records",

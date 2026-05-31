@@ -21,7 +21,12 @@
           <h2>Needs Review</h2>
           <RouterLink to="/accreditation/app/staff-dashboard">View Queue</RouterLink>
         </div>
-        <div v-for="app in needsReview" :key="app.id" class="application-card compact-card">
+        <RouterLink
+          v-for="app in needsReview"
+          :key="app.id"
+          class="application-card compact-card"
+          :to="`/accreditation/app/review?application=${app.id}`"
+        >
           <div class="application-icon">A</div>
           <div class="application-body">
             <strong>{{ app.business_name }}</strong>
@@ -29,10 +34,9 @@
             <p>{{ app.owner }} - Submitted {{ formatDate(app.submitted_at) }}</p>
             <div class="application-card-footer">
               <StatusBadge :status="app.status" />
-              <RouterLink :to="`/accreditation/app/review?application=${app.id}`">Review</RouterLink>
             </div>
           </div>
-        </div>
+        </RouterLink>
         <p v-if="needsReview.length === 0" class="muted">No submitted applications waiting for review.</p>
       </div>
 

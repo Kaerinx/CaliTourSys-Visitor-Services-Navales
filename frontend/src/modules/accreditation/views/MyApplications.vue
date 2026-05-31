@@ -122,7 +122,7 @@
                 <button
                   class="btn ghost"
                   type="button"
-                  :disabled="!doc.url"
+                  :disabled="!(doc.url || doc.id)"
                   @click="viewDocument(doc)"
                 >
                   <Eye :size="16" />
@@ -142,14 +142,14 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Eye } from "@lucide/vue";
 import { demoApplications, requiredDocuments } from "@/modules/accreditation/data/mockData";
-import { getApplications } from "@/modules/accreditation/services/accreditationApi";
+import { getApplications, openApplicationDocument } from "@/modules/accreditation/services/accreditationApi";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import { useAuthStore } from "@/stores/authStore";
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
-const search = ref("");
+const search = ref(String(route.query.q || ""));
 const statusFilter = ref("all");
 const selectedApplication = ref(null);
 const applications = ref(demoApplications.map(normalizeApplication));
@@ -186,6 +186,13 @@ watch(
   () => openApplicationFromRoute()
 );
 
+watch(
+  () => route.query.q,
+  (value) => {
+    search.value = String(value || "");
+  }
+);
+
 function normalizeApplication(app) {
   const id = app.application_number || app.id;
   return {
@@ -210,7 +217,7 @@ function normalizedDocuments(app) {
       ? {
           ...document,
           name: document.name || document.document_type,
-          url: publicFileUrl(document.file_path || document.url),
+          url: document.url || "",
         }
       : { name, status: "pending", uploaded_at: null, url: "" };
   });
@@ -259,18 +266,9 @@ function revisionRoute(app) {
   };
 }
 
-function viewDocument(doc) {
+async function viewDocument(doc) {
   if (doc.url) window.open(doc.url, "_blank", "noopener,noreferrer");
-}
-
-function publicFileUrl(filePath) {
-  if (!filePath) return "";
-  if (/^https?:\/\//i.test(filePath)) return filePath;
-
-  const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
-  const serverBase = apiBase.replace(/\/api\/?$/, "");
-  const normalizedPath = filePath.replaceAll("\\", "/").replace(/^uploads\//, "/uploads/");
-  return `${serverBase}${normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`}`;
+  else if (doc.id) await openApplicationDocument(doc.id);
 }
 
 function isDemoSession() {

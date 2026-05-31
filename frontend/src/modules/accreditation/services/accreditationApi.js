@@ -10,6 +10,11 @@ export async function login(payload) {
   return data;
 }
 
+export async function getCurrentUser() {
+  const { data } = await http.get("/accreditation/auth/me");
+  return data;
+}
+
 export async function verifyEmail(token) {
   const { data } = await http.get("/accreditation/auth/verify-email", {
     params: { token },
@@ -42,8 +47,13 @@ export async function updateBusinessProfile(payload) {
   return data;
 }
 
-export async function getApplications() {
-  const { data } = await http.get("/accreditation/applications");
+export async function getApplications(params = {}) {
+  const { data } = await http.get("/accreditation/applications", { params });
+  return data;
+}
+
+export async function searchApplications(params = {}) {
+  const { data } = await http.get("/accreditation/applications", { params });
   return data;
 }
 
@@ -79,13 +89,22 @@ export async function uploadApplicationDocument(id, formData) {
   return data;
 }
 
-export async function getRecords() {
-  const { data } = await http.get("/accreditation/records");
+export async function openApplicationDocument(id) {
+  const { data } = await http.get(`/accreditation/documents/${id}/download`, {
+    responseType: "blob",
+  });
+  const url = URL.createObjectURL(data);
+  window.open(url, "_blank", "noopener,noreferrer");
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+export async function getRecords(params = {}) {
+  const { data } = await http.get("/accreditation/records", { params });
   return data;
 }
 
-export async function getUsers() {
-  const { data } = await http.get("/accreditation/admin/users");
+export async function getUsers(params = {}) {
+  const { data } = await http.get("/accreditation/admin/users", { params });
   return data;
 }
 
@@ -99,8 +118,8 @@ export async function updateUserStatus(id, status) {
   return data;
 }
 
-export async function getAuditLogs() {
-  const { data } = await http.get("/accreditation/admin/audit-logs");
+export async function getAuditLogs(params = {}) {
+  const { data } = await http.get("/accreditation/admin/audit-logs", { params });
   return data;
 }
 

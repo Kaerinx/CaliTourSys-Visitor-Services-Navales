@@ -38,7 +38,14 @@
             <p>Uploaded {{ formatDate(doc.uploaded_at) }}</p>
           </div>
           <div class="button-row compact-actions">
-            <a v-if="doc.file_path" class="btn ghost" :href="fileUrl(doc.file_path)" target="_blank" rel="noopener noreferrer">View</a>
+            <button
+              v-if="doc.id || doc.url"
+              class="btn ghost"
+              type="button"
+              @click="viewDocument(doc)"
+            >
+              View
+            </button>
             <StatusBadge :status="doc.status" />
           </div>
         </div>
@@ -77,7 +84,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import { demoApplications, requiredDocuments } from "@/modules/accreditation/data/mockData";
-import { getApplication, reviewApplication } from "@/modules/accreditation/services/accreditationApi";
+import { getApplication, openApplicationDocument, reviewApplication } from "@/modules/accreditation/services/accreditationApi";
 import { useAuthStore } from "@/stores/authStore";
 
 const route = useRoute();
@@ -180,11 +187,12 @@ function formatDate(value) {
   });
 }
 
-function fileUrl(filePath) {
-  const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
-  const serverBase = apiBase.replace(/\/api\/?$/, "");
-  const normalizedPath = filePath.replaceAll("\\", "/").replace(/^uploads\//, "/uploads/");
-  return `${serverBase}${normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`}`;
+async function viewDocument(doc) {
+  if (doc.url) {
+    window.open(doc.url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  if (doc.id) await openApplicationDocument(doc.id);
 }
 
 function isDemoSession() {

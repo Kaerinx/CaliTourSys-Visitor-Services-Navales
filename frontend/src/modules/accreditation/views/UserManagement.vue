@@ -117,15 +117,17 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import StatCard from "@/modules/accreditation/components/StatCard.vue";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import { createUser, getUsers, updateUserStatus } from "@/modules/accreditation/services/accreditationApi";
 import { useAuthStore } from "@/stores/authStore";
 
 const auth = useAuthStore();
+const route = useRoute();
 const users = ref(demoUsers());
-const search = ref("");
+const search = ref(String(route.query.q || ""));
 const roleFilter = ref("all");
 const message = ref("");
 const error = ref("");
@@ -144,6 +146,13 @@ const newUser = reactive({
 });
 
 onMounted(loadUsers);
+
+watch(
+  () => route.query.q,
+  (value) => {
+    search.value = String(value || "");
+  }
+);
 
 const filteredUsers = computed(() => {
   const term = search.value.trim().toLowerCase();

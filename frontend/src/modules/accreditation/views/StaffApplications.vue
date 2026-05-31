@@ -62,14 +62,16 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import { demoApplications, requiredDocuments } from "@/modules/accreditation/data/mockData";
 import { getApplications } from "@/modules/accreditation/services/accreditationApi";
 import { useAuthStore } from "@/stores/authStore";
 
 const auth = useAuthStore();
-const search = ref("");
+const route = useRoute();
+const search = ref(String(route.query.q || ""));
 const statusFilter = ref("all");
 const applications = ref([]);
 
@@ -89,6 +91,13 @@ onMounted(async () => {
     applications.value = [];
   }
 });
+
+watch(
+  () => route.query.q,
+  (value) => {
+    search.value = String(value || "");
+  }
+);
 
 const filteredApplications = computed(() => {
   const term = search.value.trim().toLowerCase();
