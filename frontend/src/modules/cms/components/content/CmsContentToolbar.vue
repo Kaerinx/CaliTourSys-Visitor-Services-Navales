@@ -21,14 +21,19 @@ defineProps({
   businessTypes: { type: Array, default: () => [] },
   barangay: { type: String, default: '' },
   locationType: { type: String, default: '' },
+  mimeType: { type: String, default: '' },
+  storageProvider: { type: String, default: '' },
   createLabel: { type: String, default: 'Create' },
   canCreate: { type: Boolean, default: false },
+  canRefresh: { type: Boolean, default: false },
   showFeatured: { type: Boolean, default: false },
   showCategory: { type: Boolean, default: false },
   showBusiness: { type: Boolean, default: false },
   showBusinessType: { type: Boolean, default: false },
   showBarangay: { type: Boolean, default: false },
   showLocationType: { type: Boolean, default: false },
+  showMimeType: { type: Boolean, default: false },
+  showStorageProvider: { type: Boolean, default: false },
 })
 
 defineEmits([
@@ -40,7 +45,10 @@ defineEmits([
   'update:businessType',
   'update:barangay',
   'update:locationType',
+  'update:mimeType',
+  'update:storageProvider',
   'create',
+  'refresh',
 ])
 </script>
 
@@ -124,6 +132,32 @@ defineEmits([
         <option value="event">Event</option>
       </select>
     </label>
+
+    <label v-if="showMimeType" class="cms-content-toolbar__field cms-content-toolbar__field--wide">
+      <span>MIME type</span>
+      <input
+        :value="mimeType"
+        placeholder="image/jpeg, video/mp4"
+        @input="$emit('update:mimeType', $event.target.value)"
+      />
+    </label>
+
+    <label v-if="showStorageProvider" class="cms-content-toolbar__field">
+      <span>Storage provider</span>
+      <select :value="storageProvider" @change="$emit('update:storageProvider', $event.target.value)">
+        <option value="">All providers</option>
+        <option value="external">External URL</option>
+        <option value="local">Local</option>
+        <option value="cloudinary">Cloudinary</option>
+        <option value="s3">S3</option>
+        <option value="supabase">Supabase</option>
+      </select>
+    </label>
+
+    <button v-if="canRefresh" class="cms-content-toolbar__refresh" type="button" aria-label="Refresh list" @click="$emit('refresh')">
+      <CmsIcon name="refresh" />
+      Refresh
+    </button>
 
     <button v-if="canCreate" class="cms-content-toolbar__create" type="button" @click="$emit('create')">
       <span aria-hidden="true">+</span>
@@ -225,6 +259,27 @@ button:focus-visible {
   font-weight: 800;
 }
 
+.cms-content-toolbar__refresh {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 13px;
+  color: #075985;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  background: #f0f9ff;
+  font: inherit;
+  font-weight: 800;
+}
+
+.cms-content-toolbar__refresh svg {
+  width: 17px;
+  height: 17px;
+}
+
 .cms-content-toolbar__create:hover {
   background: #115e59;
 }
@@ -241,6 +296,7 @@ button:focus-visible {
 }
 
 @media (max-width: 760px) {
+  .cms-content-toolbar__refresh,
   .cms-content-toolbar__create {
     flex-basis: 100%;
     width: 100%;
@@ -250,6 +306,7 @@ button:focus-visible {
 @media (max-width: 640px) {
   label,
   .cms-content-toolbar__search,
+  .cms-content-toolbar__refresh,
   .cms-content-toolbar__create {
     flex-basis: 100%;
     width: 100%;

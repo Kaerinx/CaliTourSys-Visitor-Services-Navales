@@ -1,6 +1,6 @@
 # CMS Frontend Module
 
-Scope: CMS frontend shell/auth integration plus Phase 07G-1 and Phase 07G-2 content pages.
+Scope: CMS frontend shell/auth integration plus Phase 07G-1, Phase 07G-2, and Phase 07G-3B media page work.
 
 This module is isolated under `/cms`. Public `/promotion` routes are intentionally left untouched by CMS page work.
 
@@ -21,6 +21,7 @@ This module is isolated under `/cms`. Public `/promotion` routes are intentional
 - `/cms/businesses`
 - `/cms/museum`
 - `/cms/map-locations`
+- `/cms/media`
 - `/cms/*` CMS-only not found placeholder
 
 ## Phase 07G-1 Pages
@@ -41,6 +42,30 @@ This module is isolated under `/cms`. Public `/promotion` routes are intentional
 - Museum artifacts
 - Map locations
 
+## Phase 07G-3B Pages
+
+- Media Assets metadata library at `/cms/media`
+
+The media page is metadata-first. It creates and edits media records using external `fileUrl` values and related descriptive metadata. It does not upload binary files.
+
+Implemented media page features:
+
+- responsive media card grid
+- image thumbnail preview with larger image preview
+- non-image fallback preview
+- search
+- status filter: active, archived
+- MIME type filter
+- storage provider filter
+- pagination
+- refresh action
+- add media URL form
+- edit media metadata form
+- archive confirmation
+- copy media URL action
+- loading, empty, no-results, and error states
+- permission-aware create, edit, and archive buttons
+
 ## API Services Used
 
 `services/cmsContentApi.js` centralizes protected CMS content API calls:
@@ -56,6 +81,10 @@ This module is isolated under `/cms`. Public `/promotion` routes are intentional
 - businesses: list, detail, create, update
 - museum artifacts: list, detail, create, update, publish, archive
 - map locations: list, detail, create, update, delete
+
+`services/cmsOperationsApi.js` centralizes protected CMS operations API calls:
+
+- media: list, detail, create metadata, update metadata, archive
 
 All methods use the shared HTTP client and existing CMS auth token handling.
 
@@ -88,6 +117,9 @@ All methods use the shared HTTP client and existing CMS auth token handling.
 - Museum artifact create/edit/publish/archive: `museum.create`, `museum.update`, `museum.publish`, `museum.archive`
 - Map locations page: `map_locations.view`
 - Map location create/edit/delete: `map_locations.create`, `map_locations.update`
+- Media page: `media.view`
+- Media create/edit metadata: `media.upload`
+- Media archive: `media.archive`
 
 Frontend buttons are hidden by permission, while backend RBAC remains the final authority.
 
@@ -107,6 +139,8 @@ Frontend buttons are hidden by permission, while backend RBAC remains the final 
 - `components/content/CmsBusinessForm.vue`
 - `components/content/CmsMuseumArtifactForm.vue`
 - `components/content/CmsMapLocationForm.vue`
+- `components/content/CmsMediaForm.vue`
+- `components/content/CmsMediaPreview.vue`
 - `components/content/CmsImagePreviewField.vue`
 - `components/content/CmsCoordinateField.vue`
 - `components/content/CmsRelationSelect.vue`
@@ -154,6 +188,14 @@ Manual checks:
 - open `/cms/map-locations`
 - create, edit, and delete a map location
 - test invalid coordinates and map target validation
+- open `/cms/media`
+- create a media asset using an image URL
+- confirm image preview appears
+- edit alt text and caption
+- copy the media URL
+- archive the media asset
+- filter media by active and archived
+- test invalid media URL validation
 - test duplicate slug handling
 - confirm buttons hide for users without matching permissions
 - refresh a CMS page and confirm auth bootstrap still works
@@ -161,11 +203,15 @@ Manual checks:
 
 ## Postponed
 
-- Phase 07G-3 pages
-- media, inquiry, newsletter, users, roles, reports, and audit-log CMS pages
+- inquiry, newsletter, users, roles, reports, and audit-log CMS pages
 - approval workflows
 - business owner portal
 - media binary upload
+- multipart upload
+- Cloudinary/S3/Supabase upload integration
+- image cropping and bulk upload
+- folder management
+- media usage tracking and picker integration inside content forms
 - visitor-facing auth API wiring
 - dedicated category permissions beyond the current backend module permissions
 
@@ -174,3 +220,5 @@ Manual checks:
 The events API does not currently expose a server-side category filter. The event category filter is applied to the currently loaded page of results until the API contract adds `categoryId` filtering for `/cms/events`.
 
 Map location list records expose target IDs but not joined target labels. The CMS displays the linked ID in the table until the backend list response includes joined destination/business/event names.
+
+Media metadata update has one backend limitation: nullable optional fields cannot be cleared back to `NULL` yet because the current backend update query uses `COALESCE`. The media form warns editors and leaves blank edited optional fields unchanged.

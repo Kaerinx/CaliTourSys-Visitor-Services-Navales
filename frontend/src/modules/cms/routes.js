@@ -141,6 +141,12 @@ const cmsRoutes = [
         meta: { permission: 'map_locations.view' },
       },
       {
+        path: 'media',
+        name: 'cms-media',
+        component: () => import('./views/content/CmsMediaView.vue'),
+        meta: { permission: 'media.view' },
+      },
+      {
         path: ':pathMatch(.*)*',
         name: 'cms-not-found',
         component: () => import('./views/CmsNotFoundView.vue'),

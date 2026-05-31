@@ -60,6 +60,8 @@ export function useCmsList(loader, initialFilters = {}) {
       filters.businessType,
       filters.barangay,
       filters.locationType,
+      filters.mimeType,
+      filters.storageProvider,
     ],
     () => {
       filters.page = 1
