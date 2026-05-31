@@ -110,7 +110,7 @@ onMounted(loadPackages)
   <div class="packages-page">
     <header class="site-nav">
       <div class="site-nav__inner">
-        <RouterLink to="/promotion" class="brand" aria-label="TWBIS Home">
+        <RouterLink to="/" class="brand" aria-label="TWBIS Home">
           <span class="brand__mark">T</span>
           <span class="brand__copy">
             <span class="brand__name">TWBIS</span>
@@ -119,13 +119,13 @@ onMounted(loadPackages)
         </RouterLink>
 
         <nav class="site-nav__links" aria-label="Primary navigation">
-          <RouterLink to="/promotion" class="site-nav__link">Home</RouterLink>
-          <RouterLink to="/promotion/map" class="site-nav__link">Destination</RouterLink>
-          <RouterLink to="/promotion/products" class="site-nav__link">Products</RouterLink>
+          <RouterLink to="/" class="site-nav__link">Home</RouterLink>
+          <RouterLink to="/destinations" class="site-nav__link">Destination</RouterLink>
+          <RouterLink to="/products" class="site-nav__link">Products</RouterLink>
           <RouterLink to="/packages" class="site-nav__link site-nav__link--active">
             Packages
           </RouterLink>
-          <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
+          <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
           <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
@@ -303,7 +303,7 @@ onMounted(loadPackages)
           </div>
           <div class="visit-actions">
             <RouterLink to="/promotion/inquiry">Send inquiry</RouterLink>
-            <RouterLink to="/promotion/map">Explore destinations</RouterLink>
+            <RouterLink to="/destinations">Explore destinations</RouterLink>
           </div>
         </div>
       </section>
@@ -332,10 +332,10 @@ onMounted(loadPackages)
 
         <div>
           <h4>Explore</h4>
-          <RouterLink to="/promotion/map">Map &amp; Discovery</RouterLink>
-          <RouterLink to="/promotion/products">Products</RouterLink>
+          <RouterLink to="/destinations">Destinations &amp; Map</RouterLink>
+          <RouterLink to="/products">Products</RouterLink>
           <RouterLink to="/packages">Packages</RouterLink>
-          <RouterLink to="/promotion/events">Events</RouterLink>
+          <RouterLink to="/events">Events</RouterLink>
           <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
         </div>
 
@@ -1326,3 +1326,5 @@ h1 {
   }
 }
 </style>
+
+

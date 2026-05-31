@@ -13,7 +13,11 @@ const message = ref('')
 const items = ref([])
 const isVisitorAuthenticated = ref(hasVisitorSession())
 
-const isPromotionRoute = computed(() => route.path.startsWith('/promotion'))
+const isPromotionRoute = computed(() =>
+  ['/', '/destinations', '/products', '/packages', '/events'].some((path) =>
+    route.path === path || route.path.startsWith(`${path}/`),
+  ) || route.path.startsWith('/promotion'),
+)
 const itemCount = computed(() => items.value.length)
 
 async function refreshItinerary() {
@@ -76,9 +80,9 @@ async function removeItem(item) {
 }
 
 function targetPath(item) {
-  if (item.itemType === 'product' && item.slug) return `/promotion/products/${item.slug}`
-  if (item.itemType === 'event') return '/promotion/events'
-  if (item.itemType === 'destination') return '/promotion/map'
+  if (item.itemType === 'product' && item.slug) return `/products/${item.slug}`
+  if (item.itemType === 'event') return '/events'
+  if (item.itemType === 'destination') return '/destinations'
   if (item.itemType === 'artifact') return '/promotion/museum'
   return '/promotion'
 }

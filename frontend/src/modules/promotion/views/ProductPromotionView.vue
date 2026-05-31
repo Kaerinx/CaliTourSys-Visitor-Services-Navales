@@ -3,8 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 import { getPromotionalProducts } from '../services/promotionService'
 import { useNewsletterForm } from '../composables/useNewsletterForm'
 
-const chips = ['All', 'Sweets', 'Crafts', 'Pantry', 'Textiles', 'Beverages', 'Skincare']
-
 const products = ref([
   {
     id: 'pili-candy',
@@ -90,39 +88,63 @@ const products = ref([
 ])
 
 const searchQuery = ref('')
-const activeChip = ref('All')
+const activeCategory = ref('All categories')
+const activeProducer = ref('All producers')
+const accreditedOnly = ref(false)
 const isLoading = ref(false)
 const errorMessage = ref('')
-const showEmptyPreview = ref(false)
+const failedProductImages = ref(new Set())
 const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
 
-const filteredProducts = computed(() => {
-  if (showEmptyPreview.value) return []
+const categoryOptions = computed(() => [
+  'All categories',
+  ...new Set(products.value.map((product) => product.category).filter(Boolean)),
+])
 
+const producerOptions = computed(() => [
+  'All producers',
+  ...new Set(products.value.map((product) => product.producer).filter(Boolean)),
+])
+
+const filteredProducts = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
 
   return products.value.filter((product) => {
-    const matchesCategory = activeChip.value === 'All' || product.category === activeChip.value
+    const matchesCategory =
+      activeCategory.value === 'All categories' || product.category === activeCategory.value
+    const matchesProducer =
+      activeProducer.value === 'All producers' || product.producer === activeProducer.value
+    const matchesAccreditation = !accreditedOnly.value || product.accredited
     const matchesQuery =
       !query ||
-      [product.name, product.producer, product.category]
+      [product.name, product.producer, product.category, product.description, ...(product.tags || [])]
         .join(' ')
         .toLowerCase()
         .includes(query)
 
-    return matchesCategory && matchesQuery
+    return matchesCategory && matchesProducer && matchesAccreditation && matchesQuery
   })
 })
 
-function selectChip(chip) {
-  activeChip.value = chip
-  showEmptyPreview.value = false
+function selectCategory(category) {
+  activeCategory.value = category
 }
 
 function clearFilters() {
   searchQuery.value = ''
-  activeChip.value = 'All'
-  showEmptyPreview.value = false
+  activeCategory.value = 'All categories'
+  activeProducer.value = 'All producers'
+  accreditedOnly.value = false
+}
+
+function markImageFailed(product) {
+  const key = product.apiId || product.id || product.slug || product.name
+  failedProductImages.value = new Set([...failedProductImages.value, key])
+}
+
+function hasProductImage(product) {
+  const key = product.apiId || product.id || product.slug || product.name
+  return Boolean(product.imageUrl) && !failedProductImages.value.has(key)
 }
 
 async function loadProducts() {
@@ -145,7 +167,7 @@ onMounted(loadProducts)
   <div class="otop-page">
     <header class="site-nav">
       <div class="site-nav__inner">
-        <RouterLink to="/promotion" class="brand" aria-label="TWBIS Home">
+        <RouterLink to="/" class="brand" aria-label="TWBIS Home">
           <span class="brand__mark">T</span>
           <span class="brand__copy">
             <span class="brand__name">TWBIS</span>
@@ -154,13 +176,13 @@ onMounted(loadProducts)
         </RouterLink>
 
         <nav class="site-nav__links" aria-label="Primary navigation">
-          <RouterLink to="/promotion" class="site-nav__link">Home</RouterLink>
-          <RouterLink to="/promotion/map" class="site-nav__link">Destination</RouterLink>
-          <RouterLink to="/promotion/products" class="site-nav__link site-nav__link--active">
+          <RouterLink to="/" class="site-nav__link">Home</RouterLink>
+          <RouterLink to="/destinations" class="site-nav__link">Destination</RouterLink>
+          <RouterLink to="/products" class="site-nav__link site-nav__link--active">
             Products
           </RouterLink>
           <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
-          <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
+          <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
           <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
@@ -191,12 +213,11 @@ onMounted(loadProducts)
             <p class="eyebrow">Products · Local Producers</p>
             <h1>Products</h1>
             <p>
-              Explore locally-made products from Calabanga's accredited producers - every item is
-              vetted by the LGU for quality and authenticity.
+              Discover local products, crafts, food items, and accredited producers from Calabanga.
             </p>
           </div>
 
-          <div class="products-toolbar" aria-label="Product search and filters">
+          <div class="products-toolbar" aria-label="Product filters">
             <label class="search-field">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="11" cy="11" r="7" />
@@ -204,19 +225,18 @@ onMounted(loadProducts)
               </svg>
               <input v-model="searchQuery" placeholder="Search products..." />
             </label>
-            <button class="toolbar-button" type="button" disabled title="Sorting will be connected in a later phase">
-              Sort: Featured
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <button class="toolbar-button" type="button" disabled title="Advanced filters will be connected in a later phase">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" />
-                <path d="M14 4v4M8 10v4M16 16v4" />
-              </svg>
-              Filters
-            </button>
+            <label class="select-field">
+              <span>Producer</span>
+              <select v-model="activeProducer">
+                <option v-for="producer in producerOptions" :key="producer" :value="producer">
+                  {{ producer }}
+                </option>
+              </select>
+            </label>
+            <label class="toggle-filter">
+              <input v-model="accreditedOnly" type="checkbox" />
+              <span>LGU accredited only</span>
+            </label>
           </div>
         </div>
 
@@ -224,30 +244,44 @@ onMounted(loadProducts)
           <div class="page-shell chip-bar__inner">
             <div class="chip-row">
               <button
-                v-for="(chip, index) in chips"
-                :key="chip"
+                v-for="category in categoryOptions"
+                :key="category"
                 type="button"
                 class="chip"
-                :class="{ 'chip--active': activeChip === chip }"
-                @click="selectChip(chip)"
+                :class="{ 'chip--active': activeCategory === category }"
+                @click="selectCategory(category)"
               >
-                {{ chip }}
+                {{ category === 'All categories' ? 'All' : category }}
               </button>
             </div>
+            <button class="clear-filters" type="button" @click="clearFilters">Reset</button>
           </div>
         </div>
       </section>
 
       <section class="products-section">
         <div class="page-shell">
-          <p class="result-count">
-            Showing <strong>{{ filteredProducts.length }}</strong> products
-          </p>
+          <div class="result-summary">
+            <p class="result-count">
+              Showing <strong>{{ filteredProducts.length }}</strong>
+              {{ filteredProducts.length === 1 ? 'product' : 'products' }}
+            </p>
+            <p
+              v-if="activeCategory !== 'All categories' || activeProducer !== 'All producers' || accreditedOnly || searchQuery"
+              class="result-filters"
+            >
+              Filtered by
+              <span v-if="activeCategory !== 'All categories'">{{ activeCategory }}</span>
+              <span v-if="activeProducer !== 'All producers'">{{ activeProducer }}</span>
+              <span v-if="accreditedOnly">LGU accredited</span>
+              <span v-if="searchQuery">"{{ searchQuery }}"</span>
+            </p>
+          </div>
 
           <div v-if="isLoading" class="product-grid">
-            <div v-for="index in 6" :key="index" class="product-card product-card--loading">
-              <span class="product-card__image"></span>
-              <span class="product-card__body">
+            <div v-for="index in 6" :key="index" class="product-tile product-tile--loading">
+              <span class="product-tile__media"></span>
+              <span class="product-tile__body">
                 <span class="skeleton-line skeleton-line--short"></span>
                 <span class="skeleton-line"></span>
                 <span class="skeleton-line skeleton-line--medium"></span>
@@ -274,46 +308,46 @@ onMounted(loadProducts)
             <RouterLink
               v-for="product in filteredProducts"
               :key="product.id"
-              :to="`/promotion/products/${product.id}`"
-              class="product-card"
+              :to="`/products/${product.id}`"
+              class="product-tile"
             >
               <span
-                class="product-card__image"
-                :style="{
-                  '--card-accent': product.accent,
-                  backgroundImage: product.imageUrl ? `url(${product.imageUrl})` : undefined,
-                }"
+                class="product-tile__media"
+                :style="{ '--card-accent': product.accent || '#1b4332' }"
               >
+                <img
+                  v-if="hasProductImage(product)"
+                  :src="product.imageUrl"
+                  :alt="`${product.name} product photo`"
+                  loading="lazy"
+                  @error="markImageFailed(product)"
+                />
+                <span v-else class="product-tile__placeholder" aria-hidden="true">
+                  <svg viewBox="0 0 48 48">
+                    <path d="M12 17h24l-2 22H14L12 17Z" />
+                    <path d="M18 17a6 6 0 0 1 12 0" />
+                    <path d="M18 28h12" />
+                  </svg>
+                </span>
                 <span v-if="product.accredited" class="accreditation-badge">
                   <span></span>
                   LGU Accredited
                 </span>
               </span>
-              <span class="product-card__body">
+              <span class="product-tile__body">
                 <span class="category-badge">{{ product.category }}</span>
                 <strong>{{ product.name }}</strong>
                 <span class="producer-line">
                   {{ product.producer }}
                   <span class="verified-dot" aria-label="Verified producer"></span>
                 </span>
-                <span class="product-card__footer">
+                <span class="product-tile__footer">
                   <span>{{ product.price }}</span>
-                  <span>View product -></span>
+                  <span>View product →</span>
                 </span>
               </span>
             </RouterLink>
           </div>
-
-          <nav class="pagination" aria-label="Product pages">
-            <button type="button" disabled>Previous</button>
-            <button type="button" class="pagination__active" aria-current="page">1</button>
-            <button type="button" disabled>2</button>
-            <button type="button" disabled>3</button>
-            <button type="button" disabled>4</button>
-            <span>...</span>
-            <button type="button" disabled>12</button>
-            <button type="button" disabled>Next</button>
-          </nav>
         </div>
       </section>
     </main>
@@ -341,10 +375,10 @@ onMounted(loadProducts)
 
         <div>
           <h4>Explore</h4>
-          <RouterLink to="/promotion/map">Map &amp; Discovery</RouterLink>
-          <RouterLink to="/promotion/products">Products</RouterLink>
+          <RouterLink to="/destinations">Destinations &amp; Map</RouterLink>
+          <RouterLink to="/products">Products</RouterLink>
           <RouterLink to="/packages">Packages</RouterLink>
-          <RouterLink to="/promotion/events">Events</RouterLink>
+          <RouterLink to="/events">Events</RouterLink>
           <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
         </div>
 
@@ -536,7 +570,6 @@ input {
 }
 
 .icon-button svg,
-.toolbar-button svg,
 .search-field svg {
   width: 20px;
   height: 20px;
@@ -614,18 +647,26 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 10px;
 }
 
-.search-field {
+.search-field,
+.select-field,
+.toggle-filter {
   position: relative;
-  width: 280px;
   height: 44px;
   display: flex;
   align-items: center;
+  border: 1px solid #e8e4dc;
   border-radius: 8px;
-  background: #f2f0eb;
+  background: #ffffff;
   color: #5c5c5c;
+}
+
+.search-field {
+  width: 280px;
+  background: #f2f0eb;
+  border-color: transparent;
 }
 
 .search-field svg {
@@ -650,35 +691,50 @@ h1 {
   color: #8a8782;
 }
 
-.toolbar-button {
-  height: 44px;
+.select-field {
+  min-width: 210px;
+  gap: 10px;
+  padding: 0 12px;
+}
+
+.select-field span {
+  color: #7a7771;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.select-field select {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #1a1a1a;
+  font: inherit;
+  font-size: 14px;
+}
+
+.toggle-filter {
   display: inline-flex;
-  align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 0 16px;
-  border: 1px solid #e8e4dc;
-  border-radius: 8px;
-  background: #ffffff;
+  padding: 0 14px;
   color: #1a1a1a;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
 }
 
-.toolbar-button:hover {
-  border-color: #1b4332;
+.toggle-filter input {
+  width: 16px;
+  height: 16px;
+  accent-color: #1b4332;
 }
 
-.toolbar-button:disabled,
 .login-button:disabled {
   cursor: default;
   opacity: 0.72;
-}
-
-.toolbar-button svg {
-  width: 16px;
-  height: 16px;
 }
 
 .chip-bar {
@@ -727,13 +783,21 @@ h1 {
   color: #ffffff;
 }
 
-.empty-preview {
+.clear-filters {
   flex: 0 0 auto;
-  border: 0;
-  background: transparent;
-  color: #5c5c5c;
-  font-size: 12px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #e8e4dc;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1b4332;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+}
+
+.clear-filters:hover {
+  border-color: #1b4332;
 }
 
 .products-section {
@@ -742,8 +806,16 @@ h1 {
   background: #f2f0eb;
 }
 
+.result-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 26px;
+}
+
 .result-count {
-  margin: 0 0 26px;
+  margin: 0;
   color: #5c5c5c;
   font-size: 13px;
 }
@@ -753,46 +825,105 @@ h1 {
   font-weight: 500;
 }
 
-.product-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+.result-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 0;
+  color: #77736d;
+  font-size: 12px;
 }
 
-.product-card {
+.result-filters span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1b4332;
+  font-weight: 600;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+  align-items: stretch;
+}
+
+.product-tile {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  min-height: 100%;
   background: #ffffff;
   border: 1px solid #e8e4dc;
   border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
   transition:
     border-color 160ms ease,
+    box-shadow 160ms ease,
     transform 160ms ease;
 }
 
-.product-card:hover {
+.product-tile:hover {
   border-color: #1b4332;
+  box-shadow: 0 18px 36px rgba(27, 67, 50, 0.1);
   transform: translateY(-2px);
 }
 
-.product-card--loading {
+.product-tile--loading {
   pointer-events: none;
 }
 
-.product-card__image {
+.product-tile__media {
   position: relative;
   display: block;
-  aspect-ratio: 4 / 3;
+  flex: 0 0 auto;
+  width: 100%;
+  height: 240px;
+  overflow: hidden;
+  border-radius: 0;
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.26), transparent 40%),
     radial-gradient(circle at 70% 70%, rgba(0, 0, 0, 0.18), transparent 50%),
     linear-gradient(135deg, var(--card-accent), color-mix(in srgb, var(--card-accent) 62%, white));
   background-position: center;
+  background-repeat: no-repeat;
   background-size: cover;
 }
 
-.product-card--loading .product-card__image {
+.product-tile__media img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+}
+
+.product-tile__placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.product-tile__placeholder svg {
+  width: 72px;
+  height: 72px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.product-tile--loading .product-tile__media {
   background: #e8e4dc;
 }
 
@@ -821,11 +952,15 @@ h1 {
   background: #d4ac0d;
 }
 
-.product-card__body {
+.product-tile__body {
   display: flex;
   flex: 1;
   flex-direction: column;
-  padding: 16px;
+  min-width: 0;
+  min-height: 166px;
+  padding: 16px 16px 18px;
+  border-radius: 0;
+  background: #ffffff;
 }
 
 .category-badge {
@@ -841,13 +976,14 @@ h1 {
   font-weight: 500;
 }
 
-.product-card__body > strong {
+.product-tile__body > strong {
   margin-top: 10px;
   color: #1a1a1a;
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   font-size: 16px;
   font-weight: 600;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .producer-line {
@@ -857,6 +993,7 @@ h1 {
   margin-top: 8px;
   color: #5c5c5c;
   font-size: 13px;
+  line-height: 1.35;
 }
 
 .verified-dot {
@@ -881,7 +1018,7 @@ h1 {
   transform: rotate(-45deg) translate(0, -1px);
 }
 
-.product-card__footer {
+.product-tile__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -893,9 +1030,14 @@ h1 {
   font-weight: 500;
 }
 
-.product-card__footer span:last-child {
+.product-tile__footer span:first-child {
+  font-weight: 700;
+}
+
+.product-tile__footer span:last-child {
   color: #1b4332;
   font-size: 13px;
+  font-weight: 700;
 }
 
 .skeleton-line {
@@ -1165,7 +1307,11 @@ h1 {
   }
 
   .product-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .product-tile__media {
+    height: 220px;
   }
 
   .site-footer__main {
@@ -1192,8 +1338,23 @@ h1 {
   }
 
   .products-toolbar,
-  .search-field {
+  .search-field,
+  .select-field,
+  .toggle-filter {
     width: 100%;
+  }
+
+  .products-hero__inner {
+    padding: 38px 0 30px;
+  }
+
+  .products-toolbar {
+    gap: 10px;
+  }
+
+  .select-field,
+  .toggle-filter {
+    justify-content: flex-start;
   }
 
   .chip-bar__inner {
@@ -1202,12 +1363,24 @@ h1 {
     gap: 8px;
   }
 
+  .clear-filters {
+    width: 100%;
+  }
+
+  .result-summary {
+    flex-direction: column;
+  }
+
+  .result-filters {
+    justify-content: flex-start;
+  }
+
   .product-grid {
     grid-template-columns: 1fr;
   }
 
-  .pagination {
-    flex-wrap: wrap;
+  .product-tile__media {
+    height: 210px;
   }
 
   .site-footer__main {

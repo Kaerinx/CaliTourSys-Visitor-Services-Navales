@@ -205,7 +205,7 @@ async function shareEvent(event) {
   const result = await sharePublicItem({
     title: event.title,
     text: event.desc,
-    path: `/promotion/events?event=${event.id}`,
+    path: `/events?event=${event.id}`,
   })
 
   feedbackMessage.value =
@@ -226,7 +226,7 @@ onBeforeUnmount(() => {
   <div class="events-page">
     <header class="site-nav">
       <div class="site-nav__inner">
-        <RouterLink to="/promotion" class="brand" aria-label="TWBIS Home">
+        <RouterLink to="/" class="brand" aria-label="TWBIS Home">
           <span class="brand__mark">T</span>
           <span class="brand__copy">
             <span class="brand__name">TWBIS</span>
@@ -235,11 +235,11 @@ onBeforeUnmount(() => {
         </RouterLink>
 
         <nav class="site-nav__links" aria-label="Primary navigation">
-          <RouterLink to="/promotion" class="site-nav__link">Home</RouterLink>
-          <RouterLink to="/promotion/map" class="site-nav__link">Destination</RouterLink>
-          <RouterLink to="/promotion/products" class="site-nav__link">Products</RouterLink>
+          <RouterLink to="/" class="site-nav__link">Home</RouterLink>
+          <RouterLink to="/destinations" class="site-nav__link">Destination</RouterLink>
+          <RouterLink to="/products" class="site-nav__link">Products</RouterLink>
           <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
-          <RouterLink to="/promotion/events" class="site-nav__link site-nav__link--active">Events</RouterLink>
+          <RouterLink to="/events" class="site-nav__link site-nav__link--active">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
           <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
@@ -268,7 +268,7 @@ onBeforeUnmount(() => {
         <div class="page-shell events-header__inner">
           <div>
             <p class="eyebrow">Calendar &middot; 2026</p>
-            <h1>Events &amp; Promotions</h1>
+            <h1>Events</h1>
             <p>
               Festivals, regattas, and community celebrations across Calabanga. Plan your visit
               around our calendar.
@@ -491,10 +491,10 @@ onBeforeUnmount(() => {
 
         <div>
           <h4>Explore</h4>
-          <RouterLink to="/promotion/map">Map &amp; Discovery</RouterLink>
-          <RouterLink to="/promotion/products">Products</RouterLink>
+          <RouterLink to="/destinations">Destinations &amp; Map</RouterLink>
+          <RouterLink to="/products">Products</RouterLink>
           <RouterLink to="/packages">Packages</RouterLink>
-          <RouterLink to="/promotion/events">Events</RouterLink>
+          <RouterLink to="/events">Events</RouterLink>
           <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
         </div>
 

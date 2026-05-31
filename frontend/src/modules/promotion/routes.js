@@ -1,28 +1,40 @@
 const promotionRoutes = [
   {
     path: '/',
-    redirect: '/promotion',
-  },
-  {
-    path: '/promotion',
     name: 'promotion-home',
     component: () => import('./views/PromotionHomeView.vue'),
   },
   {
-    path: '/promotion/events',
+    path: '/promotion',
+    redirect: '/',
+  },
+  {
+    path: '/events',
     name: 'promotion-events',
     component: () => import('./views/EventsPromotions.vue'),
   },
   {
-    path: '/promotion/products',
+    path: '/promotion/events',
+    redirect: '/events',
+  },
+  {
+    path: '/products',
     name: 'promotion-products',
     component: () => import('./views/ProductPromotionView.vue'),
   },
   {
-    path: '/promotion/products/:slug',
+    path: '/products/:slug',
     name: 'promotion-product-detail',
     component: () => import('./views/PromotionDetail.vue'),
     props: true,
+  },
+  {
+    path: '/promotion/products',
+    redirect: '/products',
+  },
+  {
+    path: '/promotion/products/:slug',
+    redirect: (to) => `/products/${to.params.slug}`,
   },
   {
     path: '/packages',
@@ -44,19 +56,21 @@ const promotionRoutes = [
     redirect: (to) => `/packages/${to.params.slug}`,
   },
   {
-    path: '/promotion/discovery',
+    path: '/destinations',
     name: 'promotion-discovery',
     component: () => import('./views/TouristDiscoveryView.vue'),
   },
   {
+    path: '/promotion/discovery',
+    redirect: (to) => ({ path: '/destinations', query: to.query }),
+  },
+  {
     path: '/promotion/destinations',
-    name: 'promotion-destinations',
-    component: () => import('./views/TouristDiscoveryView.vue'),
+    redirect: (to) => ({ path: '/destinations', query: to.query }),
   },
   {
     path: '/promotion/map',
-    name: 'promotion-map',
-    component: () => import('./views/TouristDiscoveryView.vue'),
+    redirect: (to) => ({ path: '/destinations', query: to.query }),
   },
   {
     path: '/promotion/museum',

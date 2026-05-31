@@ -1,8 +1,10 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import {
+  getDestinations,
   getEvents,
   getMapLocations,
+  getMuseumItems,
   getPromotionalProducts,
 } from '../services/promotionService'
 import { useNewsletterForm } from '../composables/useNewsletterForm'
@@ -45,6 +47,9 @@ const products = ref([
     accredited: true,
   },
 ])
+
+const destinations = ref([])
+const museumItems = ref([])
 
 const events = ref([
   {
@@ -89,6 +94,7 @@ const locations = ref([
 
 const isLoading = ref(true)
 const errorMessage = ref('')
+const failedProductImages = ref(new Set())
 const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
 
 const quickCategories = [
@@ -105,20 +111,36 @@ const filters = [
   { label: 'Food & Markets', count: 9, active: true, color: '#B5451B' },
 ]
 
+function productImageKey(product) {
+  return product.apiId || product.id || product.slug || product.name
+}
+
+function hasProductImage(product) {
+  return Boolean(product.imageUrl) && !failedProductImages.value.has(productImageKey(product))
+}
+
+function markProductImageFailed(product) {
+  failedProductImages.value = new Set([...failedProductImages.value, productImageKey(product)])
+}
+
 async function loadHomeData() {
   isLoading.value = true
   errorMessage.value = ''
 
   try {
-    const [productData, eventData, locationData] = await Promise.all([
+    const [productData, eventData, destinationData, locationData, museumData] = await Promise.all([
       getPromotionalProducts({ featured: true, limit: 8 }),
       getEvents({ featured: true, limit: 4 }),
+      getDestinations({ featured: true, limit: 3 }),
       getMapLocations({ format: 'list' }),
+      getMuseumItems({ featured: true, limit: 3 }),
     ])
 
     products.value = productData
     events.value = eventData
+    destinations.value = destinationData.slice(0, 3)
     locations.value = locationData.slice(0, 5)
+    museumItems.value = museumData.slice(0, 3)
   } catch (error) {
     errorMessage.value = error.message || 'Unable to load public tourism content.'
   } finally {
@@ -133,7 +155,7 @@ onMounted(loadHomeData)
   <div class="twbis-home">
     <header class="site-nav">
       <div class="site-nav__inner">
-        <RouterLink to="/promotion" class="brand" aria-label="TWBIS Home">
+        <RouterLink to="/" class="brand" aria-label="TWBIS Home">
           <span class="brand__mark">T</span>
           <span class="brand__copy">
             <span class="brand__name">TWBIS</span>
@@ -142,11 +164,11 @@ onMounted(loadHomeData)
         </RouterLink>
 
         <nav class="site-nav__links" aria-label="Primary navigation">
-          <RouterLink to="/promotion" class="site-nav__link site-nav__link--active">Home</RouterLink>
-          <RouterLink to="/promotion/map" class="site-nav__link">Destination</RouterLink>
-          <RouterLink to="/promotion/products" class="site-nav__link">Products</RouterLink>
+          <RouterLink to="/" class="site-nav__link site-nav__link--active">Home</RouterLink>
+          <RouterLink to="/destinations" class="site-nav__link">Destination</RouterLink>
+          <RouterLink to="/products" class="site-nav__link">Products</RouterLink>
           <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
-          <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
+          <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
           <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
@@ -181,14 +203,14 @@ onMounted(loadHomeData)
               of its local producers.
             </p>
             <div class="hero-copy__actions">
-              <RouterLink to="/promotion/map" class="button button--white">
+              <RouterLink to="/destinations" class="button button--white">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <circle cx="12" cy="12" r="9" />
                   <path d="m14.8 9.2-2.1 5.5-5.5 2.1 2.1-5.5 5.5-2.1Z" />
                 </svg>
                 Start exploring
               </RouterLink>
-              <RouterLink to="/promotion/products" class="button button--white-ghost">Shop Products</RouterLink>
+              <RouterLink to="/products" class="button button--white-ghost">Shop local products</RouterLink>
             </div>
           </div>
         </div>
@@ -204,7 +226,7 @@ onMounted(loadHomeData)
           <RouterLink
             v-for="category in quickCategories"
             :key="category.label"
-            :to="category.label === 'Events' ? '/promotion/events' : '/promotion/map'"
+            :to="category.label === 'Events' ? '/events' : '/destinations'"
             class="quick-card"
           >
             <span class="quick-card__icon">
@@ -236,10 +258,48 @@ onMounted(loadHomeData)
         <div class="page-shell">
           <div class="section-heading">
             <div>
-              <h2>What's On</h2>
-              <p>Seasonal promotions and partner offers from Calabanga's accredited producers and homestays.</p>
+              <h2>Featured Destinations</h2>
+              <p>Start with visitor-ready places across Calabanga's coast, heritage sites, food stops, and nature routes.</p>
             </div>
-            <RouterLink to="/promotion/products">View all promotions -></RouterLink>
+            <RouterLink to="/destinations">Explore destinations -></RouterLink>
+          </div>
+
+          <div class="feature-grid feature-grid--three">
+            <p v-if="!isLoading && destinations.length === 0" class="empty-copy">No featured destinations are available yet.</p>
+            <RouterLink
+              v-for="destination in destinations"
+              :key="destination.id"
+              :to="`/destinations?location=${destination.id}`"
+              class="destination-card"
+            >
+              <span
+                class="destination-card__media"
+                :style="{
+                  '--card-accent': destination.accent || destination.color || '#1b4332',
+                  backgroundImage: destination.imageUrl ? `url(${destination.imageUrl})` : undefined,
+                }"
+              >
+                <span class="category-badge">{{ destination.category }}</span>
+              </span>
+              <span class="destination-card__body">
+                <strong>{{ destination.name }}</strong>
+                <span>{{ destination.location || destination.distance || 'Calabanga, Camarines Sur' }}</span>
+                <p>{{ destination.description || destination.desc }}</p>
+                <span class="card-link">View destination -></span>
+              </span>
+            </RouterLink>
+          </div>
+        </div>
+      </section>
+
+      <section class="content-section content-section--white">
+        <div class="page-shell">
+          <div class="section-heading">
+            <div>
+              <h2>Featured Local Products</h2>
+              <p>Discover food, crafts, and local products from accredited Calabanga producers.</p>
+            </div>
+            <RouterLink to="/products">Shop local products -></RouterLink>
           </div>
 
           <div class="product-grid product-grid--three">
@@ -247,16 +307,27 @@ onMounted(loadHomeData)
             <RouterLink
               v-for="product in products.slice(0, 3)"
               :key="product.id"
-              :to="`/promotion/products/${product.id}`"
-              class="product-card"
+              :to="`/products/${product.id}`"
+              class="product-card product-card--home product-card--featured"
             >
               <span
                 class="product-card__image"
-                :style="{
-                  '--card-accent': product.accent,
-                  backgroundImage: product.imageUrl ? `url(${product.imageUrl})` : undefined,
-                }"
+                :style="{ '--card-accent': product.accent || '#1b4332' }"
               >
+                <img
+                  v-if="hasProductImage(product)"
+                  :src="product.imageUrl"
+                  :alt="`${product.name} product photo`"
+                  loading="lazy"
+                  @error="markProductImageFailed(product)"
+                />
+                <span v-else class="product-card__placeholder" aria-hidden="true">
+                  <svg viewBox="0 0 48 48">
+                    <path d="M12 17h24l-2 22H14L12 17Z" />
+                    <path d="M18 17a6 6 0 0 1 12 0" />
+                    <path d="M18 28h12" />
+                  </svg>
+                </span>
                 <span v-if="product.accredited" class="accreditation-badge">
                   <span></span>
                   LGU Accredited
@@ -286,7 +357,7 @@ onMounted(loadHomeData)
               <h2>Explore Calabanga</h2>
               <p>Hundreds of curated locations across the coast, mountains, and town center.</p>
             </div>
-            <RouterLink to="/promotion/map">Open full map -></RouterLink>
+            <RouterLink to="/destinations">Explore map -></RouterLink>
           </div>
 
           <div class="map-preview">
@@ -327,68 +398,15 @@ onMounted(loadHomeData)
                   <circle cx="14" cy="14" r="5" />
                 </svg>
               </span>
-              <RouterLink to="/promotion/map" class="map-preview__button">
+              <RouterLink to="/destinations" class="map-preview__button">
                 <span>-></span>
-                Open full map
+                Explore map
               </RouterLink>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="content-section content-section--white">
-        <div class="page-shell">
-          <div class="section-heading">
-            <div>
-              <h2>Calabanga's Finest</h2>
-              <p>Hand-picked products from Calabanga's accredited producers.</p>
-            </div>
-            <RouterLink to="/promotion/products">Shop all Products -></RouterLink>
-          </div>
-
-          <div class="chip-row">
-            <button class="chip chip--active" type="button">All</button>
-            <button class="chip" type="button">Sweets</button>
-            <button class="chip" type="button">Crafts</button>
-            <button class="chip" type="button">Pantry</button>
-            <button class="chip" type="button">Textiles</button>
-          </div>
-
-          <div class="product-grid product-grid--four">
-            <RouterLink
-              v-for="product in products"
-              :key="product.id"
-              :to="`/promotion/products/${product.id}`"
-              class="product-card"
-            >
-              <span
-                class="product-card__image"
-                :style="{
-                  '--card-accent': product.accent,
-                  backgroundImage: product.imageUrl ? `url(${product.imageUrl})` : undefined,
-                }"
-              >
-                <span v-if="product.accredited" class="accreditation-badge">
-                  <span></span>
-                  LGU Accredited
-                </span>
-              </span>
-              <span class="product-card__body">
-                <span class="category-badge">{{ product.category }}</span>
-                <strong>{{ product.name }}</strong>
-                <span class="producer-line">
-                  {{ product.producer }}
-                  <span class="verified-dot">✓</span>
-                </span>
-                <span class="product-card__footer">
-                  <span>{{ product.price }}</span>
-                  <span>View product -></span>
-                </span>
-              </span>
-            </RouterLink>
-          </div>
-        </div>
-      </section>
 
       <section class="content-section content-section--warm">
         <div class="page-shell">
@@ -397,12 +415,12 @@ onMounted(loadHomeData)
               <h2>Upcoming Festivals &amp; Events</h2>
               <p>From the Pili Festival to the San Miguel Bay Regatta - plan your trip around our calendar.</p>
             </div>
-            <RouterLink to="/promotion/events">View all events -></RouterLink>
+            <RouterLink to="/events">View all events -></RouterLink>
           </div>
 
           <div class="event-grid">
             <p v-if="!isLoading && events.length === 0" class="empty-copy">No upcoming events are available yet.</p>
-            <RouterLink v-for="event in events" :key="event.id" to="/promotion/events" class="event-card">
+            <RouterLink v-for="event in events" :key="event.id" to="/events" class="event-card">
               <span
                 class="event-card__image"
                 :style="{
@@ -433,6 +451,38 @@ onMounted(loadHomeData)
         </div>
       </section>
 
+      <section class="content-section content-section--white">
+        <div class="page-shell">
+          <div class="section-heading">
+            <div>
+              <h2>Museum &amp; Culture Preview</h2>
+              <p>Explore stories, artifacts, and cultural memory from Calabanga's communities.</p>
+            </div>
+            <RouterLink to="/promotion/museum">Visit virtual museum -></RouterLink>
+          </div>
+
+          <div class="culture-grid">
+            <p v-if="!isLoading && museumItems.length === 0" class="empty-copy">No museum highlights are available yet.</p>
+            <RouterLink
+              v-for="artifact in museumItems"
+              :key="artifact.id"
+              to="/promotion/museum"
+              class="culture-card"
+            >
+              <span class="culture-card__media" :style="{ '--card-accent': artifact.accent || '#7b341e' }">
+                <span class="category-badge">{{ artifact.category }}</span>
+              </span>
+              <span class="culture-card__body">
+                <strong>{{ artifact.name }}</strong>
+                <span>{{ artifact.era }}</span>
+                <p>{{ artifact.desc }}</p>
+                <span class="card-link">View artifact -></span>
+              </span>
+            </RouterLink>
+          </div>
+        </div>
+      </section>
+
       <section class="trust-strip">
         <div class="page-shell trust-strip__inner">
           <div>
@@ -442,7 +492,7 @@ onMounted(loadHomeData)
             </span>
             <p>Every producer on TWBIS is vetted and accredited by LGU Calabanga.</p>
           </div>
-          <RouterLink to="/promotion/products">View accredited products -></RouterLink>
+          <RouterLink to="/products">View accredited products -></RouterLink>
         </div>
       </section>
     </main>
@@ -470,10 +520,10 @@ onMounted(loadHomeData)
 
         <div>
           <h4>Explore</h4>
-          <RouterLink to="/promotion/map">Map &amp; Discovery</RouterLink>
-          <RouterLink to="/promotion/products">Products</RouterLink>
+          <RouterLink to="/destinations">Destinations &amp; Map</RouterLink>
+          <RouterLink to="/products">Products</RouterLink>
           <RouterLink to="/packages">Packages</RouterLink>
-          <RouterLink to="/promotion/events">Events</RouterLink>
+          <RouterLink to="/events">Events</RouterLink>
           <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
         </div>
 
@@ -952,18 +1002,33 @@ h1 {
 .product-grid {
   display: grid;
   gap: 24px;
+  align-items: stretch;
+}
+
+.feature-grid,
+.promotion-grid,
+.culture-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  align-items: stretch;
+  width: 100%;
+  overflow: visible;
 }
 
 .product-grid--three {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .product-grid--four {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .product-card,
-.event-card {
+.event-card,
+.destination-card,
+.promotion-card,
+.culture-card {
   overflow: hidden;
   background: #ffffff;
   border: 1px solid #e8e4dc;
@@ -974,7 +1039,10 @@ h1 {
 }
 
 .product-card:hover,
-.event-card:hover {
+.event-card:hover,
+.destination-card:hover,
+.promotion-card:hover,
+.culture-card:hover {
   border-color: #1b4332;
   transform: translateY(-2px);
 }
@@ -982,6 +1050,36 @@ h1 {
 .product-card {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  min-height: 100%;
+  padding: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.destination-card,
+.promotion-card,
+.culture-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.product-card--home {
+  min-height: 0;
+}
+
+.twbis-home .product-card--home span {
+  margin-bottom: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
 }
 
 .product-card__image,
@@ -994,13 +1092,54 @@ h1 {
     linear-gradient(135deg, var(--card-accent, #1b4332), color-mix(in srgb, var(--card-accent, #1b4332) 60%, white));
 }
 
-.product-card__image {
-  aspect-ratio: 4 / 3;
+.twbis-home .product-card--home .product-card__image {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: 100%;
+  height: 188px;
+  overflow: hidden;
+  border-radius: 0;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.26), transparent 40%),
+    radial-gradient(circle at 70% 70%, rgba(0, 0, 0, 0.18), transparent 50%),
+    linear-gradient(135deg, var(--card-accent, #1b4332), color-mix(in srgb, var(--card-accent, #1b4332) 60%, white));
   background-position: center;
+  background-repeat: no-repeat;
   background-size: cover;
 }
 
-.accreditation-badge {
+.twbis-home .product-card--compact .product-card__image {
+  height: 164px;
+}
+
+.twbis-home .product-card--home .product-card__image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+}
+
+.twbis-home .product-card--home .product-card__placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.twbis-home .product-card--home .product-card__placeholder svg {
+  width: 62px;
+  height: 62px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.twbis-home .product-card--home .accreditation-badge {
   position: absolute;
   top: 10px;
   right: 10px;
@@ -1015,12 +1154,14 @@ h1 {
   color: #7d5a00;
   font-size: 11px;
   font-weight: 500;
+  line-height: 1;
   white-space: nowrap;
 }
 
-.accreditation-badge span {
+.twbis-home .product-card--home .accreditation-badge span {
   width: 6px;
   height: 6px;
+  flex: 0 0 auto;
   border-radius: 999px;
   background: #d4ac0d;
 }
@@ -1030,10 +1171,24 @@ h1 {
   display: flex;
   flex: 1;
   flex-direction: column;
+  min-width: 0;
   padding: 16px;
+  border-radius: 0;
+  background: #ffffff;
 }
 
-.category-badge {
+.twbis-home .product-card--home .product-card__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px 16px 16px;
+  border-radius: 0;
+  background: #ffffff;
+}
+
+.twbis-home .product-card--home .category-badge {
   align-self: flex-start;
   height: 22px;
   display: inline-flex;
@@ -1044,6 +1199,7 @@ h1 {
   color: #7a2d0e;
   font-size: 12px;
   font-weight: 500;
+  line-height: 1;
 }
 
 .product-card__body > strong {
@@ -1053,45 +1209,132 @@ h1 {
   font-size: 16px;
   font-weight: 600;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
-.producer-line {
+.twbis-home .product-card--home .producer-line {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 7px;
   color: #5c5c5c;
   font-size: 13px;
+  line-height: 1.35;
 }
 
-.verified-dot {
+.twbis-home .product-card--home .verified-dot {
   width: 14px;
   height: 14px;
+  flex: 0 0 auto;
   display: inline-grid;
   place-items: center;
   border-radius: 999px;
   background: #1b7a4a;
   color: #ffffff;
-  font-size: 9px;
+  font-size: 0;
   font-weight: 700;
   line-height: 1;
 }
 
-.product-card__footer {
+.twbis-home .product-card--home .verified-dot::after {
+  width: 6px;
+  height: 3px;
+  border-bottom: 1.5px solid #ffffff;
+  border-left: 1.5px solid #ffffff;
+  content: '';
+  transform: rotate(-45deg) translate(0, -1px);
+}
+
+.twbis-home .product-card--home .product-card__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-top: auto;
-  padding-top: 20px;
+  padding-top: 16px;
   color: #1a1a1a;
   font-size: 15px;
   font-weight: 500;
 }
 
-.product-card__footer span:last-child {
+.twbis-home .product-card--home .product-card__footer span:first-child {
+  color: #1a1a1a;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.twbis-home .product-card--home .product-card__footer span:last-child {
   color: #1b4332;
   font-size: 13px;
+  font-weight: 700;
+}
+
+.destination-card__media,
+.promotion-card__media,
+.culture-card__media {
+  position: relative;
+  height: 178px;
+  display: block;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.28), transparent 42%),
+    radial-gradient(circle at 74% 72%, rgba(0, 0, 0, 0.14), transparent 54%),
+    linear-gradient(135deg, var(--card-accent, #1b4332), color-mix(in srgb, var(--card-accent, #1b4332) 62%, white));
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.destination-card__media .category-badge,
+.promotion-card__media .category-badge,
+.culture-card__media .category-badge {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+}
+
+.destination-card__body,
+.promotion-card__body,
+.culture-card__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  background: #ffffff;
+}
+
+.destination-card__body > strong,
+.promotion-card__body > strong,
+.culture-card__body > strong {
+  color: #1a1a1a;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.destination-card__body > span:not(.card-link),
+.culture-card__body > span:not(.card-link) {
+  color: #5c5c5c;
+  font-size: 13px;
+}
+
+.destination-card__body p,
+.promotion-card__body p,
+.culture-card__body p {
+  margin: 0;
+  color: #5c5c5c;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.card-link {
+  margin-top: auto;
+  padding-top: 14px;
+  color: #1b4332;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .map-preview {
@@ -1531,8 +1774,11 @@ h1 {
 
   .product-grid--four,
   .product-grid--three,
+  .feature-grid,
+  .promotion-grid,
+  .culture-grid,
   .event-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .map-preview {
@@ -1589,6 +1835,9 @@ h1 {
 
   .product-grid--four,
   .product-grid--three,
+  .feature-grid,
+  .promotion-grid,
+  .culture-grid,
   .event-grid {
     grid-template-columns: 1fr;
   }

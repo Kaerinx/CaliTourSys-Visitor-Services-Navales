@@ -204,7 +204,7 @@ async function shareProduct() {
   const result = await sharePublicItem({
     title: product.value.name,
     text: product.value.description,
-    path: `/promotion/products/${product.value.id}`,
+    path: `/products/${product.value.id}`,
   })
 
   feedbackMessage.value =
@@ -234,7 +234,7 @@ async function submitProducerInquiry() {
   try {
     await submitTourismInquiry({
       ...contactForm,
-      sourcePage: product.value?.id ? `/promotion/products/${product.value.id}` : '/promotion/products',
+      sourcePage: product.value?.id ? `/products/${product.value.id}` : '/products',
     })
 
     contactForm.fullName = ''
@@ -264,7 +264,7 @@ onBeforeUnmount(() => {
   <main class="detail-page">
     <header class="site-nav">
       <div class="site-nav__inner">
-        <RouterLink to="/promotion" class="brand" aria-label="TWBIS Home">
+        <RouterLink to="/" class="brand" aria-label="TWBIS Home">
           <span class="brand__mark">T</span>
           <span class="brand__copy">
             <span class="brand__name">TWBIS</span>
@@ -273,13 +273,13 @@ onBeforeUnmount(() => {
         </RouterLink>
 
         <nav class="site-nav__links" aria-label="Primary navigation">
-          <RouterLink to="/promotion" class="site-nav__link">Home</RouterLink>
-          <RouterLink to="/promotion/map" class="site-nav__link">Destination</RouterLink>
-          <RouterLink to="/promotion/products" class="site-nav__link site-nav__link--active">
+          <RouterLink to="/" class="site-nav__link">Home</RouterLink>
+          <RouterLink to="/destinations" class="site-nav__link">Destination</RouterLink>
+          <RouterLink to="/products" class="site-nav__link site-nav__link--active">
             Products
           </RouterLink>
           <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
-          <RouterLink to="/promotion/events" class="site-nav__link">Events</RouterLink>
+          <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
           <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
@@ -300,9 +300,9 @@ onBeforeUnmount(() => {
 
     <div class="breadcrumb-bar">
       <div class="page-shell">
-        <RouterLink to="/promotion">Home</RouterLink>
+        <RouterLink to="/">Home</RouterLink>
         <span>/</span>
-        <RouterLink to="/promotion/products">Products</RouterLink>
+        <RouterLink to="/products">Products</RouterLink>
         <span>/</span>
         <span>{{ product?.name || 'Product Detail' }}</span>
       </div>
@@ -317,7 +317,7 @@ onBeforeUnmount(() => {
       <div></div>
       <h1>Product not found</h1>
       <p>{{ errorMessage }}</p>
-      <RouterLink to="/promotion/products">Back to Products</RouterLink>
+      <RouterLink to="/products">Back to Products</RouterLink>
     </section>
 
     <section v-else class="page-shell detail-layout">
@@ -401,7 +401,7 @@ onBeforeUnmount(() => {
           v-for="suggestedProduct in suggestedProducts"
           :key="suggestedProduct.id"
           class="suggested-card"
-          :to="`/promotion/products/${suggestedProduct.id}`"
+          :to="`/products/${suggestedProduct.id}`"
         >
           <div
             class="suggested-card__media"
@@ -1318,3 +1318,5 @@ h2 {
   }
 }
 </style>
+
+
