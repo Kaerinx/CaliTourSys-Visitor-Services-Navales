@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { cmsRoutes, guardCmsRoute } from '@/modules/cms'
+import accreditationRoutes from '@/modules/accreditation/router/accreditationRoutes'
 import { useCmsAuthStore } from '@/modules/cms/stores/authStore'
 import promotionRoutes from '@/modules/promotion/routes'
 import { setAuthFailureHandler } from '@/services/http'
@@ -67,7 +68,7 @@ const productRoutes = [
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [...promotionRoutes, ...productRoutes, ...cmsRoutes],
+  routes: [...promotionRoutes, ...productRoutes, ...cmsRoutes, ...accreditationRoutes],
 })
 
 router.beforeEach(async (to) => {
@@ -75,6 +76,21 @@ router.beforeEach(async (to) => {
   if (cmsResult !== true) return cmsResult
 
   const auth = useAuthStore()
+  const accreditationRequiresAuth = to.matched.some((route) => route.meta.requiresAuth)
+  const accreditationAllowedRoles = to.matched
+    .map((route) => route.meta.allowedRoles)
+    .filter(Boolean)
+    .flat()
+  const accreditationToken = localStorage.getItem('auth_token')
+  const accreditationUser = JSON.parse(localStorage.getItem('auth_user') || 'null')
+
+  if (accreditationRequiresAuth && !accreditationToken) {
+    return '/accreditation/login'
+  }
+
+  if (accreditationAllowedRoles.length && !accreditationAllowedRoles.includes(accreditationUser?.role)) {
+    return '/accreditation/app/dashboard'
+  }
 
   if (to.meta.productRequiresAuth && !auth.isAuthenticated) {
     return { name: 'login' }

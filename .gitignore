@@ -74,6 +74,9 @@ web_modules/
 *.sqlite
 *.sqlite3
 backend/data/
+backend/uploads/*
+!backend/uploads/accreditation-documents/
+backend/uploads/accreditation-documents/*
 
 # Accidental nested project checkout
 /CaliTourSys/
