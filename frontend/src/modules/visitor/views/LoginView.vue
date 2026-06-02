@@ -11,8 +11,8 @@
           <circle cx="12" cy="9.8" r="2.4" stroke="currentColor" stroke-width="2" />
         </svg>
       </span>
-      <h1>Calabanga Tourism Office</h1>
-      <p>Visitor Services and Monitoring System</p>
+      <h1>Calabanga Tourism Management System</h1>
+      <p>Visitor Services and Reports System</p>
       <p>For authorized personnel only</p>
 
       <label>
@@ -78,7 +78,8 @@ async function submitLogin() {
   gap: 1rem;
   padding: clamp(2rem, 5vw, 3rem);
   border: 1px solid #e5e7eb;
-  border-radius: 20px;
+  border-top: 5px solid #2f6f4e;
+  border-radius: 16px;
   background: #fff;
   text-align: center;
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
@@ -91,7 +92,7 @@ async function submitLogin() {
   place-items: center;
   margin: 0 auto 1rem;
   border-radius: 15px;
-  background: linear-gradient(145deg, #174933, #1f6b49);
+  background: linear-gradient(145deg, #081a2f, #12365b);
   color: #fff;
   box-shadow: 0 10px 22px rgba(23, 73, 51, 0.24);
 }
@@ -139,7 +140,7 @@ async function submitLogin() {
   border: 0;
   border-radius: 999px;
   padding: 1rem;
-  background: #174933;
+  background: #081a2f;
   color: #fff;
   font: inherit;
   font-weight: 800;
@@ -148,7 +149,7 @@ async function submitLogin() {
 }
 
 .login-card button:hover {
-  background: #0f3625;
+  background: #0f2847;
   transform: translateY(-1px);
 }
 

@@ -116,7 +116,7 @@ function iconFor(name) {
 <template>
   <div class="management-shell">
     <aside class="management-sidebar">
-      <RouterLink class="sidebar-brand" to="/">
+      <RouterLink class="sidebar-brand" :to="auth.dashboardRoute || '/login'">
         <span class="sidebar-logo">
           <component :is="iconFor('location')" />
         </span>

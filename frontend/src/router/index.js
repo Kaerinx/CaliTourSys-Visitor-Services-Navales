@@ -1,13 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../modules/visitor/stores/authStore'
 
-const PublicLayout = () => import('../modules/visitor/views/PublicLayout.vue')
-const HomeView = () => import('../modules/visitor/views/HomeView.vue')
-const AboutView = () => import('../modules/visitor/views/AboutView.vue')
-const DestinationsView = () => import('../modules/visitor/views/DestinationsView.vue')
-const DestinationDetailView = () => import('../modules/visitor/views/DestinationDetailView.vue')
-const EventsView = () => import('../modules/visitor/views/EventsView.vue')
-const PublicInquiryView = () => import('../modules/visitor/views/PublicInquiryView.vue')
 const LoginView = () => import('../modules/visitor/views/LoginView.vue')
 
 const AdminDashboard = () => import('../modules/visitor/views/AdminDashboard.vue')
@@ -23,21 +16,9 @@ const UserManagement = () => import('../modules/visitor/views/UserManagement.vue
 const Administration = () => import('../modules/visitor/views/Administration.vue')
 const EstablishmentManagement = () => import('../modules/visitor/views/EstablishmentManagement.vue')
 const ProfileView = () => import('../modules/visitor/views/ProfileView.vue')
-const PlaceholderManagement = () => import('../modules/visitor/views/PlaceholderManagement.vue')
 
 const routes = [
-  {
-    path: '/',
-    component: PublicLayout,
-    children: [
-      { path: '', name: 'home', component: HomeView },
-      { path: 'about', name: 'about', component: AboutView },
-      { path: 'destinations', name: 'destinations', component: DestinationsView },
-      { path: 'destinations/:slug', name: 'destination-detail', component: DestinationDetailView },
-      { path: 'events', name: 'events', component: EventsView },
-      { path: 'inquiries', name: 'public-inquiries', component: PublicInquiryView },
-    ],
-  },
+  { path: '/', redirect: '/login' },
   { path: '/login', name: 'login', component: LoginView, meta: { guestOnly: true } },
 
   {
@@ -70,12 +51,6 @@ const routes = [
     name: 'admin-inquiries',
     component: StaffInquiries,
     meta: { requiresAuth: true, roles: ['admin'] },
-  },
-  {
-    path: '/admin/content',
-    name: 'admin-content',
-    component: PlaceholderManagement,
-    meta: { requiresAuth: true, roles: ['admin'], title: 'Tourism Content Management' },
   },
   {
     path: '/admin/reports',
@@ -170,7 +145,7 @@ const routes = [
     meta: { requiresAuth: true, title: 'Profile' },
   },
 
-  { path: '/:pathMatch(.*)*', redirect: '/' },
+  { path: '/:pathMatch(.*)*', redirect: '/login' },
 ]
 
 const router = createRouter({
