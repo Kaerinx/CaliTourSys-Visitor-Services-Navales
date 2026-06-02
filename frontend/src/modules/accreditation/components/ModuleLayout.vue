@@ -89,7 +89,7 @@ const unreadNotifications = ref(0);
 
 const roleLabel = computed(() => {
   if (auth.role === "admin") return "System Administrator";
-  if (auth.role === "tourism_staff" || auth.role === "tourism_officer") return "Tourism Staff";
+  if (auth.role === "tourism_staff") return "Tourism Staff / Officer";
   return "Business Owner";
 });
 
@@ -124,7 +124,7 @@ const menu = computed(() => {
     ];
   }
 
-  if (auth.role === "tourism_staff" || auth.role === "tourism_officer") {
+  if (auth.role === "tourism_staff") {
     return [
       { label: "Dashboard", path: "/accreditation/app/dashboard", icon: LayoutDashboard },
       { label: "Applications", path: "/accreditation/app/staff-dashboard", icon: FileText },
@@ -159,7 +159,7 @@ function submitSearch() {
     return;
   }
 
-  if (auth.role === "tourism_staff" || auth.role === "tourism_officer") {
+  if (auth.role === "tourism_staff") {
     router.push({ path: "/accreditation/app/staff-dashboard", query: { q } });
     return;
   }

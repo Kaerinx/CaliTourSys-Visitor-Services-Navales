@@ -128,7 +128,7 @@ onMounted(async () => {
 
 const businessOwnerCount = computed(() => users.value.filter((user) => user.role === "business_owner").length);
 const staffCount = computed(() =>
-  users.value.filter((user) => ["tourism_staff", "tourism_officer"].includes(user.role)).length
+  users.value.filter((user) => user.role === "tourism_staff").length
 );
 const applicationCount = computed(() => applications.value.length);
 const roles = computed(() => [

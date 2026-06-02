@@ -33,13 +33,13 @@ const demoAccounts = {
     role: "tourism_staff",
     status: "active",
   },
-  "admin@tourism.gov.ph": {
-    id: "demo-admin",
-    firstName: "Admin",
+  "system.admin@tourism.gov.ph": {
+    id: "demo-system-admin",
+    firstName: "System",
     middleName: "",
-    lastName: "User",
+    lastName: "Administrator",
     sex: "Male",
-    email: "admin@tourism.gov.ph",
+    email: "system.admin@tourism.gov.ph",
     phone: "+63 900 000 0000",
     telephone: "",
     role: "admin",
@@ -116,13 +116,19 @@ export const useAuthStore = defineStore("auth", {
     },
     useDemoRole(role) {
       if (!demoModeEnabled) return;
+      const labels = {
+        admin: ["System", "Administrator", "system.admin@demo.local"],
+        tourism_staff: ["Maria", "Santos", "tourism_staff@demo.local"],
+        business_owner: ["John", "Martinez", "business_owner@demo.local"],
+      };
+      const [firstName, lastName, email] = labels[role] || labels.business_owner;
       const demoUser = {
         id: `demo-${role}`,
-        firstName: role === "admin" ? "Admin" : role === "tourism_staff" ? "Maria" : "John",
+        firstName,
         middleName: "",
-        lastName: role === "admin" ? "User" : role === "tourism_staff" ? "Santos" : "Martinez",
+        lastName,
         sex: role === "tourism_staff" ? "Female" : "Male",
-        email: `${role}@demo.local`,
+        email,
         phone: "",
         telephone: "",
         role,

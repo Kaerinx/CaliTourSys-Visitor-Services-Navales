@@ -23,8 +23,7 @@
           <tr>
             <th>Permission</th>
             <th>Business Owner</th>
-            <th>Tourism Staff</th>
-            <th>Tourism Officer</th>
+            <th>Tourism Staff / Officer</th>
             <th>System Administrator</th>
           </tr>
         </thead>
@@ -36,7 +35,6 @@
             </td>
             <td><StatusBadge :status="permission.roles.includes('business_owner') ? 'active' : 'inactive'" /></td>
             <td><StatusBadge :status="permission.roles.includes('tourism_staff') ? 'active' : 'inactive'" /></td>
-            <td><StatusBadge :status="permission.roles.includes('tourism_officer') ? 'active' : 'inactive'" /></td>
             <td><StatusBadge :status="permission.roles.includes('admin') ? 'active' : 'inactive'" /></td>
           </tr>
         </tbody>
@@ -50,7 +48,7 @@ import { computed } from "vue";
 import StatCard from "@/modules/accreditation/components/StatCard.vue";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 
-const roles = ["business_owner", "tourism_staff", "tourism_officer", "admin"];
+const roles = ["business_owner", "tourism_staff", "admin"];
 const permissions = [
   {
     name: "Submit application",
@@ -65,17 +63,17 @@ const permissions = [
   {
     name: "Review applications",
     description: "Open submitted applications, inspect documents, and record decisions.",
-    roles: ["tourism_staff", "tourism_officer", "admin"],
+    roles: ["tourism_staff", "admin"],
   },
   {
     name: "View accreditation records",
     description: "Access issued accreditation records and supporting documents.",
-    roles: ["tourism_staff", "tourism_officer", "admin"],
+    roles: ["tourism_staff", "admin"],
   },
   {
     name: "Reports",
     description: "View operational reports, compliance summaries, and export data.",
-    roles: ["tourism_staff", "tourism_officer", "admin"],
+    roles: ["tourism_staff", "admin"],
   },
   {
     name: "Manage users",
@@ -98,7 +96,7 @@ const adminOnlyPermissions = computed(() =>
   permissions.filter((permission) => permission.roles.length === 1 && permission.roles.includes("admin")).length
 );
 const staffPermissions = computed(() =>
-  permissions.filter((permission) => permission.roles.some((role) => ["tourism_staff", "tourism_officer"].includes(role))).length
+  permissions.filter((permission) => permission.roles.includes("tourism_staff")).length
 );
 const ownerPermissions = computed(() =>
   permissions.filter((permission) => permission.roles.includes("business_owner")).length

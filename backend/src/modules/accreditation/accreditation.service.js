@@ -313,7 +313,6 @@ async function submitApplication(ownerId, applicationId) {
     actionPath: `/accreditation/app/review?application=${submitted.application_number}`,
     details: "A business owner submitted an accreditation application with required documents.",
   });
-
   return submitted;
 }
 
@@ -459,7 +458,7 @@ async function createManagedUser(payload) {
     throw error;
   }
 
-  const allowedRoles = ["business_owner", "tourism_staff", "tourism_officer", "admin"];
+  const allowedRoles = ["business_owner", "tourism_staff", "admin"];
   if (!allowedRoles.includes(payload.role)) {
     const error = new Error("Invalid role.");
     error.statusCode = 400;

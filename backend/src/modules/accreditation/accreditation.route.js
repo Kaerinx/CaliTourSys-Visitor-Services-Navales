@@ -74,7 +74,7 @@ router.patch(
 router.patch(
   "/applications/:id/review",
   authenticate,
-  authorize("tourism_staff", "tourism_officer", "admin"),
+  authorize("tourism_staff", "admin"),
   controller.reviewApplication
 );
 router.get("/documents/:id/download", authenticate, controller.downloadDocument);
@@ -82,7 +82,7 @@ router.get("/documents/:id/download", authenticate, controller.downloadDocument)
 router.get(
   "/records",
   authenticate,
-  authorize("tourism_staff", "tourism_officer", "admin"),
+  authorize("tourism_staff", "admin"),
   controller.listRecords
 );
 router.get("/notifications", authenticate, controller.listNotifications);

@@ -38,8 +38,8 @@ Backend URL: `http://localhost:5000`
 
 Seeded demo accounts use the password `password123`:
 
-- `admin@tourism.gov.ph`
 - `maria.santos@tourism.gov.ph`
+- `system.admin@tourism.gov.ph`
 - `john@sunsetresort.com`
 
 You can also use the frontend demo role buttons while the API/database is not running yet.

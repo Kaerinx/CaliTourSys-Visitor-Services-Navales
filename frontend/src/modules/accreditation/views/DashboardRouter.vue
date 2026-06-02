@@ -1,6 +1,6 @@
 <template>
   <AdminDashboard v-if="auth.role === 'admin'" />
-  <TourismStaffDashboard v-else-if="auth.role === 'tourism_staff' || auth.role === 'tourism_officer'" />
+  <TourismStaffDashboard v-else-if="auth.role === 'tourism_staff'" />
   <BusinessOwnerDashboard v-else />
 </template>
 

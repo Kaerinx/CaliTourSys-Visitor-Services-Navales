@@ -207,8 +207,7 @@ function isToday(value) {
 function roleLabel(role) {
   const labels = {
     business_owner: "Business Owner",
-    tourism_staff: "Tourism Staff",
-    tourism_officer: "Tourism Officer",
+    tourism_staff: "Tourism Staff / Officer",
     admin: "System Administrator",
   };
   return labels[role] || role || "System";

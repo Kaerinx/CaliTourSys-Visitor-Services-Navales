@@ -381,7 +381,7 @@ async function downloadDocument(req, res, next) {
     }
 
     const canAccess =
-      ["tourism_staff", "tourism_officer", "admin"].includes(req.user.role) ||
+      ["tourism_staff", "admin"].includes(req.user.role) ||
       (req.user.role === "business_owner" && document.owner_id === req.user.id);
 
     if (!canAccess) {

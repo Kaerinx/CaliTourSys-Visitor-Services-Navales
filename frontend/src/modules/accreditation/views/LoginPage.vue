@@ -67,12 +67,12 @@
             <span>john@sunsetresort.com</span>
           </button>
           <button type="button" @click="fillDemo('maria.santos@tourism.gov.ph')">
-            Tourism Staff
+            Tourism Staff / Officer
             <span>maria.santos@tourism.gov.ph</span>
           </button>
-          <button type="button" @click="fillDemo('admin@tourism.gov.ph')">
-            Administrator
-            <span>admin@tourism.gov.ph</span>
+          <button type="button" @click="fillDemo('system.admin@tourism.gov.ph')">
+            System Administrator
+            <span>system.admin@tourism.gov.ph</span>
           </button>
         </div>
         <small>Password: password123</small>

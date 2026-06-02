@@ -129,7 +129,7 @@ function mockNotifications() {
     ];
   }
 
-  if (auth.role === "tourism_staff" || auth.role === "tourism_officer") {
+  if (auth.role === "tourism_staff") {
     return [
       {
         id: "staff-1",
@@ -185,7 +185,7 @@ function mockNotifications() {
 
 function destinationForRole(role) {
   if (role === "admin") return "/accreditation/app/dashboard";
-  if (role === "tourism_staff" || role === "tourism_officer") return "/accreditation/app/staff-dashboard";
+  if (role === "tourism_staff") return "/accreditation/app/staff-dashboard";
   return "/accreditation/app/applications";
 }
 

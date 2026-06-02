@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h1>User Management</h1>
-        <p>Manage business owners, tourism staff/officers, and administrators.</p>
+        <p>Manage business owners, tourism staff/officers, and the system administrator.</p>
       </div>
       <button class="btn primary" @click="showCreate = true">Add New User</button>
     </div>
@@ -14,7 +14,7 @@
     <div class="stats-grid">
       <StatCard title="Total Users" :value="users.length" icon="U" />
       <StatCard title="Business Owners" :value="businessOwnerCount" icon="BO" />
-      <StatCard title="Tourism Staff/Officers" :value="staffCount" icon="S" />
+      <StatCard title="Tourism Staff / Officer" :value="staffCount" icon="S" />
       <StatCard title="Inactive" :value="inactiveUsers" icon="!" color="red" />
     </div>
 
@@ -26,8 +26,7 @@
           <select v-model="roleFilter">
             <option value="all">All Roles</option>
             <option value="business_owner">Business Owner</option>
-            <option value="tourism_staff">Tourism Staff</option>
-            <option value="tourism_officer">Tourism Officer</option>
+            <option value="tourism_staff">Tourism Staff / Officer</option>
             <option value="admin">System Administrator</option>
           </select>
         </div>
@@ -84,8 +83,7 @@
           <label>Role
             <select v-model="newUser.role" required>
               <option value="business_owner">Business Owner</option>
-              <option value="tourism_staff">Tourism Staff</option>
-              <option value="tourism_officer">Tourism Officer</option>
+              <option value="tourism_staff">Tourism Staff / Officer</option>
               <option value="admin">System Administrator</option>
             </select>
           </label>
@@ -169,7 +167,7 @@ const filteredUsers = computed(() => {
 
 const businessOwnerCount = computed(() => users.value.filter((user) => user.role === "business_owner").length);
 const staffCount = computed(() =>
-  users.value.filter((user) => ["tourism_staff", "tourism_officer"].includes(user.role)).length
+  users.value.filter((user) => user.role === "tourism_staff").length
 );
 const inactiveUsers = computed(() => users.value.filter((user) => user.status !== "active").length);
 
@@ -256,8 +254,7 @@ function normalizeUser(user) {
 function roleLabel(role) {
   const labels = {
     business_owner: "Business Owner",
-    tourism_staff: "Tourism Staff",
-    tourism_officer: "Tourism Officer",
+    tourism_staff: "Tourism Staff / Officer",
     admin: "System Administrator",
   };
   return labels[role] || role;
@@ -266,8 +263,8 @@ function roleLabel(role) {
 function demoUsers() {
   return [
     { id: "demo-staff", name: "Maria Santos", email: "maria.santos@tourism.gov.ph", role: "tourism_staff", status: "active", phone: "+63 911 111 1111", sex: "Female" },
+    { id: "demo-system-admin", name: "System Administrator", email: "system.admin@tourism.gov.ph", role: "admin", status: "active", phone: "+63 900 000 0000", sex: "Male" },
     { id: "demo-owner", name: "John Martinez", email: "john@sunsetresort.com", role: "business_owner", status: "active", phone: "+63 912 345 6789", sex: "Male" },
-    { id: "demo-admin", name: "Admin User", email: "admin@tourism.gov.ph", role: "admin", status: "active", phone: "+63 900 000 0000", sex: "Male" },
   ];
 }
 
