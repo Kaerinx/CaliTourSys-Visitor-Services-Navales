@@ -5,7 +5,7 @@
         <h1>Tourism Staff Dashboard</h1>
         <p>Overview of accreditation workload and recent decisions.</p>
       </div>
-      <RouterLink class="btn primary" to="/accreditation/app/staff-dashboard">Open Applications</RouterLink>
+      <RouterLink class="btn primary" :to="applicationsPath">Open Applications</RouterLink>
     </div>
 
     <div class="stats-grid">
@@ -19,13 +19,13 @@
       <div class="card">
         <div class="card-header">
           <h2>Needs Review</h2>
-          <RouterLink to="/accreditation/app/staff-dashboard">View Queue</RouterLink>
+          <RouterLink :to="applicationsPath">View Queue</RouterLink>
         </div>
         <RouterLink
           v-for="app in needsReview"
           :key="app.id"
           class="application-card compact-card"
-          :to="`/accreditation/app/review?application=${app.id}`"
+          :to="{ path: reviewPath, query: { application: app.id } }"
         >
           <div class="application-icon">A</div>
           <div class="application-body">
@@ -43,7 +43,7 @@
       <div class="card">
         <div class="card-header">
           <h2>Recent Staff Decisions</h2>
-          <RouterLink to="/accreditation/app/records">Records</RouterLink>
+          <RouterLink :to="recordsPath">Records</RouterLink>
         </div>
         <div v-for="app in recentDecisions" :key="app.id" class="timeline-item">
           <strong>{{ app.business_name }}</strong>
@@ -58,6 +58,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
+import { useRoute } from "vue-router";
 import StatCard from "@/modules/accreditation/components/StatCard.vue";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import { demoApplications } from "@/modules/accreditation/data/mockData";
@@ -65,7 +66,12 @@ import { getApplications } from "@/modules/accreditation/services/accreditationA
 import { useAuthStore } from "@/stores/authStore";
 
 const auth = useAuthStore();
+const route = useRoute();
 const applications = ref([]);
+const isCmsAccreditation = computed(() => route.path.startsWith("/cms/businesses"));
+const applicationsPath = computed(() => isCmsAccreditation.value ? "/cms/businesses/applications" : "/accreditation/app/staff-dashboard");
+const recordsPath = computed(() => isCmsAccreditation.value ? "/cms/businesses/records" : "/accreditation/app/records");
+const reviewPath = computed(() => isCmsAccreditation.value ? "/cms/businesses/review" : "/accreditation/app/review");
 
 onMounted(async () => {
   await auth.connectDemoToBackend();

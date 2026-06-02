@@ -5,7 +5,7 @@
         <h1>{{ application.id || "Application Review" }}</h1>
         <p>Review business information, documents, and record your decision.</p>
       </div>
-      <RouterLink class="btn outline" to="/accreditation/app/staff-dashboard">Back to Queue</RouterLink>
+      <RouterLink class="btn outline" :to="queuePath">Back to Queue</RouterLink>
     </div>
 
     <p v-if="message" class="form-success sticky-error">{{ message }}</p>
@@ -95,6 +95,9 @@ const remarks = ref("");
 const documents = ref([]);
 const savingDecision = ref(false);
 const application = reactive(normalizeApplication(demoApplications[0]));
+const queuePath = computed(() =>
+  route.path.startsWith("/cms/businesses") ? "/cms/businesses/applications" : "/accreditation/app/staff-dashboard"
+);
 
 onMounted(loadApplication);
 

@@ -130,6 +130,25 @@ export const cmsContentApi = {
     return http.patchAuth(`/cms/businesses/${id}`, payload)
   },
 
+  getAccreditationDashboard() {
+    return http.getAuth('/cms/business-accreditation/dashboard')
+  },
+  getAccreditationSession() {
+    return http.getAuth('/cms/business-accreditation/session')
+  },
+  getAccreditationApplications(params) {
+    return http.getAuth('/cms/business-accreditation/applications', params)
+  },
+  getAccreditationApplication(id) {
+    return http.getAuth(`/cms/business-accreditation/applications/${id}`)
+  },
+  reviewAccreditationApplication(id, payload) {
+    return http.patchAuth(`/cms/business-accreditation/applications/${id}/review`, payload)
+  },
+  getAccreditationRecords(params) {
+    return http.getAuth('/cms/business-accreditation/records', params)
+  },
+
   getMuseumArtifacts(params) {
     return http.getAuth('/cms/museum/artifacts', params)
   },

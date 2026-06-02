@@ -76,20 +76,22 @@ router.beforeEach(async (to) => {
   if (cmsResult !== true) return cmsResult
 
   const auth = useAuthStore()
-  const accreditationRequiresAuth = to.matched.some((route) => route.meta.requiresAuth)
-  const accreditationAllowedRoles = to.matched
-    .map((route) => route.meta.allowedRoles)
-    .filter(Boolean)
-    .flat()
-  const accreditationToken = localStorage.getItem('auth_token')
-  const accreditationUser = JSON.parse(localStorage.getItem('auth_user') || 'null')
+  if (to.path.startsWith('/accreditation')) {
+    const accreditationRequiresAuth = to.matched.some((route) => route.meta.requiresAuth)
+    const accreditationAllowedRoles = to.matched
+      .map((route) => route.meta.allowedRoles)
+      .filter(Boolean)
+      .flat()
+    const accreditationToken = localStorage.getItem('auth_token')
+    const accreditationUser = JSON.parse(localStorage.getItem('auth_user') || 'null')
 
-  if (accreditationRequiresAuth && !accreditationToken) {
-    return '/accreditation/login'
-  }
+    if (accreditationRequiresAuth && !accreditationToken) {
+      return '/accreditation/login'
+    }
 
-  if (accreditationAllowedRoles.length && !accreditationAllowedRoles.includes(accreditationUser?.role)) {
-    return '/accreditation/app/dashboard'
+    if (accreditationAllowedRoles.length && !accreditationAllowedRoles.includes(accreditationUser?.role)) {
+      return '/accreditation/app/dashboard'
+    }
   }
 
   if (to.meta.productRequiresAuth && !auth.isAuthenticated) {

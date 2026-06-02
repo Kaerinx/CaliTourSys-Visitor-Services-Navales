@@ -13,9 +13,12 @@ const isProductShell = computed(
   () => route.path === '/login' || route.path === '/dashboard' || route.path.startsWith('/product'),
 )
 const isCmsRoute = computed(() => route.path.startsWith('/cms'))
+const isAccreditationRoute = computed(() => route.path.startsWith('/accreditation'))
 const isMuseumRoute = computed(() => route.path.startsWith('/promotion/museum'))
-const showPublicItinerary = computed(() => !isCmsRoute.value && !isMuseumRoute.value && !isProductShell.value)
-const showPublicAuth = computed(() => !isCmsRoute.value && !isProductShell.value)
+const showPublicItinerary = computed(
+  () => !isCmsRoute.value && !isMuseumRoute.value && !isProductShell.value && !isAccreditationRoute.value,
+)
+const showPublicAuth = computed(() => !isCmsRoute.value && !isProductShell.value && !isAccreditationRoute.value)
 const publicAuthMode = computed(() => {
   const mode = route.query.auth
   return mode === 'register' ? 'register' : mode === 'login' ? 'login' : ''
@@ -54,6 +57,7 @@ function closePublicAuth() {
     </main>
     <AppFooter />
   </div>
+  <RouterView v-else-if="isAccreditationRoute" />
   <template v-else>
     <RouterView />
     <FloatingItinerary v-if="showPublicItinerary" />

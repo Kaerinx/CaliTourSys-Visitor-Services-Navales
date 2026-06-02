@@ -129,6 +129,30 @@ const cmsRoutes = [
         meta: { permission: 'businesses.view' },
       },
       {
+        path: 'businesses/applications',
+        name: 'cms-business-accreditation-applications',
+        component: () => import('./views/content/CmsBusinessesView.vue'),
+        meta: { permission: 'businesses.view' },
+      },
+      {
+        path: 'businesses/records',
+        name: 'cms-business-accreditation-records',
+        component: () => import('./views/content/CmsBusinessesView.vue'),
+        meta: { permission: 'businesses.view' },
+      },
+      {
+        path: 'businesses/reports',
+        name: 'cms-business-accreditation-reports',
+        component: () => import('./views/content/CmsBusinessesView.vue'),
+        meta: { permission: 'businesses.view' },
+      },
+      {
+        path: 'businesses/review',
+        name: 'cms-business-accreditation-review',
+        component: () => import('./views/content/CmsBusinessesView.vue'),
+        meta: { permission: 'businesses.view' },
+      },
+      {
         path: 'museum',
         name: 'cms-museum',
         component: () => import('./views/content/CmsMuseumArtifactsView.vue'),

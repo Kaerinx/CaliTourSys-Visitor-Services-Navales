@@ -47,7 +47,7 @@
             <td><StatusBadge :status="app.status" /></td>
             <td>{{ formatDate(app.submitted_at) }}</td>
             <td>
-              <RouterLink class="btn ghost" :to="`/accreditation/app/review?application=${app.id}`">
+              <RouterLink class="btn ghost" :to="{ path: reviewPath, query: { application: app.id } }">
                 {{ app.status === "submitted" ? "Review" : "View" }}
               </RouterLink>
             </td>
@@ -74,6 +74,9 @@ const route = useRoute();
 const search = ref(String(route.query.q || ""));
 const statusFilter = ref("all");
 const applications = ref([]);
+const reviewPath = computed(() =>
+  route.path.startsWith("/cms/businesses") ? "/cms/businesses/review" : "/accreditation/app/review"
+);
 
 onMounted(async () => {
   await auth.connectDemoToBackend();
