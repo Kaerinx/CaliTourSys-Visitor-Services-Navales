@@ -6,8 +6,12 @@ let server
 
 async function startServer() {
   try {
-    const database = await testDatabaseConnection()
-    console.log(`PostgreSQL connection ready (${database.latencyMs}ms)`)
+    if (process.env.REQUIRE_POSTGRES_ON_START === 'true') {
+      const database = await testDatabaseConnection()
+      console.log(`PostgreSQL connection ready (${database.latencyMs}ms)`)
+    } else {
+      console.warn('Skipping PostgreSQL startup check; starting API for legacy/local modules.')
+    }
 
     server = app.listen(env.PORT, () => {
       console.log(`CaliTourSys API listening on port ${env.PORT}`)

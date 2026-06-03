@@ -20,7 +20,7 @@
               <th>Role</th>
               <th>Assigned Resort/Establishment</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th class="actions-cell">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -31,9 +31,11 @@
               <td>{{ roleLabel(user.role) }}</td>
               <td>{{ user.assigned_establishment_name || user.assigned_resort_name || '-' }}</td>
               <td><span class="status-pill">{{ formatStatus(user.status || 'active') }}</span></td>
-              <td>
-                <button class="icon-button" type="button" @click="openEdit(user)">Edit</button>
-                <button class="icon-button" type="button" @click="deactivate(user)">Deactivate</button>
+              <td class="actions-cell">
+                <div class="action-buttons">
+                  <button class="icon-button btn-edit" type="button" @click="openEdit(user)">Edit</button>
+                  <button class="icon-button btn-danger" type="button" @click="deactivate(user)">Deactivate</button>
+                </div>
               </td>
             </tr>
             <tr v-if="!loading && users.length === 0">

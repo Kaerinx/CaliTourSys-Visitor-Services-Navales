@@ -23,7 +23,7 @@
               <th>Address</th>
               <th>Contact Number</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th class="actions-cell">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -34,9 +34,11 @@
               <td>{{ item.address || '-' }}</td>
               <td>{{ item.contact_number || '-' }}</td>
               <td><span class="status-pill">{{ item.is_active === 0 ? 'Inactive' : 'Active' }}</span></td>
-              <td>
-                <button class="icon-button" type="button" @click="openEdit(item)">Edit</button>
-                <button class="icon-button" type="button" @click="deactivate(item)">Deactivate</button>
+              <td class="actions-cell">
+                <div class="action-buttons">
+                  <button class="icon-button btn-edit" type="button" @click="openEdit(item)">Edit</button>
+                  <button class="icon-button btn-danger" type="button" @click="deactivate(item)">Deactivate</button>
+                </div>
               </td>
             </tr>
             <tr v-if="!loading && establishments.length === 0">

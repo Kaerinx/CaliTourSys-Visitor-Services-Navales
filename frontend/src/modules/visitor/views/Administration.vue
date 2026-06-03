@@ -35,7 +35,7 @@
               <th>Role</th>
               <th>Assigned Resort/Establishment</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th class="actions-cell">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -50,16 +50,18 @@
                   {{ isActive(user) ? 'Active' : 'Inactive' }}
                 </span>
               </td>
-              <td>
-                <button class="icon-button" type="button" @click="openEdit(user)">Edit</button>
-                <button
-                  class="icon-button"
-                  type="button"
-                  :class="{ 'danger-soft': isActive(user) }"
-                  @click="toggleUserStatus(user)"
-                >
-                  {{ isActive(user) ? 'Deactivate' : 'Activate' }}
-                </button>
+              <td class="actions-cell">
+                <div class="action-buttons">
+                  <button class="icon-button btn-edit" type="button" @click="openEdit(user)">Edit</button>
+                  <button
+                    class="icon-button"
+                    type="button"
+                    :class="isActive(user) ? 'btn-danger danger-soft' : 'btn-success'"
+                    @click="toggleUserStatus(user)"
+                  >
+                    {{ isActive(user) ? 'Deactivate' : 'Activate' }}
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="!loading && users.length === 0">
