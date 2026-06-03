@@ -1,0 +1,2 @@
+-- Source of truth:
+-- backend/database/migrations/001_public_website_schema.sql

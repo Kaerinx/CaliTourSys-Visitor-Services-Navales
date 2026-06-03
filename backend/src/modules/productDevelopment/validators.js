@@ -1,0 +1,141 @@
+const { z } = require('zod')
+const {
+  ACTIVITY_STATUSES,
+  ASSET_CATEGORIES,
+  ASSET_STATUSES,
+  DEVELOPMENT_PLAN_STATUSES,
+  IMPROVEMENT_STATUSES,
+  PACKAGE_CATEGORIES,
+  PACKAGE_ITEM_TYPES,
+  PACKAGE_STATUSES,
+} = require('./constants')
+
+const uuidParamsSchema = z.object({
+  id: z.uuid('id must be a valid UUID.'),
+})
+
+const packageParamsSchema = z.object({
+  packageId: z.uuid('packageId must be a valid UUID.'),
+})
+
+const packageSlugParamsSchema = z.object({
+  slug: z.string().trim().min(1).max(320),
+})
+
+const listQuerySchema = z.object({
+  search: z.string().trim().max(120).optional(),
+  status: z.string().trim().max(80).optional(),
+  category: z.string().trim().max(120).optional(),
+  location: z.string().trim().max(120).optional(),
+  targetMarket: z.string().trim().max(120).optional(),
+})
+
+const requiredText = (label, max = 5000) => z.string().trim().min(1, `${label} is required.`).max(max)
+const optionalText = (max = 5000) => z.string().trim().max(max).optional().nullable()
+const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD date format.')
+
+const optionalDate = dateSchema.optional().nullable()
+
+const assetBodySchema = z
+  .object({
+    name: requiredText('Asset name', 255),
+    description: requiredText('Description'),
+    location: requiredText('Location', 255),
+    category: z.enum(ASSET_CATEGORIES),
+    targetMarket: requiredText('Target market', 255),
+    developmentStatus: z.enum(ASSET_STATUSES).default('Draft'),
+    imageUrl: optionalText(2000),
+    remarks: optionalText(),
+  })
+  .strict()
+
+const planBodySchema = z
+  .object({
+    assetId: z.uuid('Select a tourism asset.'),
+    title: requiredText('Plan title', 255),
+    objectives: requiredText('Objectives'),
+    targetMarket: requiredText('Target market', 255),
+    improvementNeeds: requiredText('Improvement needs'),
+    proposedActivities: requiredText('Proposed activities'),
+    timelineStart: optionalDate,
+    timelineEnd: optionalDate,
+    assignedPersonnel: requiredText('Assigned personnel', 255),
+    planStatus: z.enum(DEVELOPMENT_PLAN_STATUSES).default('Draft'),
+    remarks: optionalText(),
+  })
+  .strict()
+  .refine(
+    (data) =>
+      !data.timelineStart ||
+      !data.timelineEnd ||
+      new Date(data.timelineEnd).getTime() >= new Date(data.timelineStart).getTime(),
+    'timelineEnd must be greater than or equal to timelineStart.',
+  )
+
+const improvementBodySchema = z
+  .object({
+    planId: z.uuid('Select a development plan.'),
+    progressPercentage: z.coerce.number().int().min(0).max(100),
+    improvementStatus: z.enum(IMPROVEMENT_STATUSES).default('Not Started'),
+    updateDate: dateSchema,
+    remarks: requiredText('Remarks'),
+  })
+  .strict()
+
+const activityBodySchema = z
+  .object({
+    assetId: z.uuid('Select a tourism asset.'),
+    planId: z.uuid().optional().nullable(),
+    name: requiredText('Activity name', 255),
+    description: requiredText('Description'),
+    duration: requiredText('Duration', 120),
+    targetMarket: requiredText('Target market', 255),
+    activityStatus: z.enum(ACTIVITY_STATUSES).default('Draft'),
+    remarks: optionalText(),
+  })
+  .strict()
+
+const packageItemSchema = z
+  .object({
+    itemType: z.enum(PACKAGE_ITEM_TYPES),
+    referenceId: z.uuid('Package item reference must be a valid UUID.'),
+  })
+  .strict()
+
+const packageBodySchema = z
+  .object({
+    name: requiredText('Package name', 255),
+    description: requiredText('Description'),
+    category: z.enum(PACKAGE_CATEGORIES),
+    targetMarket: requiredText('Target market', 255),
+    estimatedDuration: requiredText('Estimated duration', 120),
+    packageStatus: z.enum(PACKAGE_STATUSES).default('Draft'),
+    remarks: optionalText(),
+    items: z.array(packageItemSchema).min(1, 'Select at least one tourism asset or tourism activity.'),
+  })
+  .strict()
+  .refine((data) => data.packageStatus !== 'Ready for Promotion', {
+    message: 'Use the readiness review action to mark packages as Ready for Promotion.',
+    path: ['packageStatus'],
+  })
+
+const readinessBodySchema = z
+  .object({
+    remarks: optionalText(),
+  })
+  .strict()
+
+module.exports = {
+  activityBodySchema,
+  assetBodySchema,
+  improvementBodySchema,
+  listQuerySchema,
+  packageBodySchema,
+  packageParamsSchema,
+  packageSlugParamsSchema,
+  planBodySchema,
+  readinessBodySchema,
+  uuidParamsSchema,
+}

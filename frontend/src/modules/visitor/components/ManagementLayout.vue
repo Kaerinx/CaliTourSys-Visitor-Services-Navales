@@ -34,7 +34,7 @@ const roleLabel = computed(() => {
 
 function logout() {
   auth.logout()
-  router.push('/login')
+  router.push('/visitor/login')
 }
 
 const svgAttrs = {
@@ -116,7 +116,7 @@ function iconFor(name) {
 <template>
   <div class="management-shell">
     <aside class="management-sidebar">
-      <RouterLink class="sidebar-brand" :to="auth.dashboardRoute || '/login'">
+      <RouterLink class="sidebar-brand" :to="auth.dashboardRoute || '/visitor/login'">
         <span class="sidebar-logo">
           <component :is="iconFor('location')" />
         </span>

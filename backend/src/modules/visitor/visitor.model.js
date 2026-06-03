@@ -1,4 +1,4 @@
-const { query, transaction } = require('../../config/db');
+const { legacyQuery: query, legacyTransaction: transaction } = require('../../config/db');
 
 const ROLE_BY_ID = {
   1: 'admin',

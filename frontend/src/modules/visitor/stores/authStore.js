@@ -22,9 +22,9 @@ function normalizeLoginResponse(response) {
 }
 
 function dashboardForRole(role) {
-  if (role === 'admin') return '/admin/dashboard'
-  if (role === 'receptionist') return '/receptionist/dashboard'
-  return '/tourism/dashboard'
+  if (role === 'admin') return '/visitor/admin'
+  if (role === 'receptionist') return '/visitor/receptionist'
+  return '/visitor/staff'
 }
 
 export const useAuthStore = defineStore('visitor-auth', () => {

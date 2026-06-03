@@ -1,5 +1,11 @@
 import http from '@/services/http'
 
+const VISITOR_API_PREFIX = '/visitor'
+
+function visitorPath(path) {
+  return `${VISITOR_API_PREFIX}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 function listFrom(response, preferredKeys = []) {
   if (Array.isArray(response)) return response
 
@@ -16,127 +22,127 @@ function normalizeStatusPayload(statusOrPayload) {
 
 const visitorApi = {
   login(payload) {
-    return http.post('/auth/login', payload)
+    return http.post(visitorPath('/auth/login'), payload)
   },
 
   me() {
-    return http.get('/auth/me')
+    return http.get(visitorPath('/auth/me'))
   },
 
   updateProfile(payload) {
-    return http.patch('/auth/profile', payload)
+    return http.patch(visitorPath('/auth/profile'), payload)
   },
 
   changePassword(payload) {
-    return http.patch('/auth/password', payload)
+    return http.patch(visitorPath('/auth/password'), payload)
   },
 
   dashboardSummary(params) {
-    return http.get('/dashboard/summary', params)
+    return http.get(visitorPath('/dashboard/summary'), params)
   },
 
   receptionistSummary(params) {
-    return http.get('/dashboard/receptionist-summary', params)
+    return http.get(visitorPath('/dashboard/receptionist-summary'), params)
   },
 
   visitorSummary(params) {
-    return http.get('/reports/visitor-summary', params)
+    return http.get(visitorPath('/reports/visitor-summary'), params)
   },
 
   visitorTrend(params) {
-    return http.get('/reports/visitor-trend', params)
+    return http.get(visitorPath('/reports/visitor-trend'), params)
   },
 
   classification(params) {
-    return http.get('/reports/classification', params)
+    return http.get(visitorPath('/reports/classification'), params)
   },
 
   exportVisitorSummary(params) {
-    return http.get('/reports/visitor-summary/export', params)
+    return http.get(visitorPath('/reports/visitor-summary/export'), params)
   },
 
   async getVisitors(params) {
-    const response = await http.get('/visitors', params)
+    const response = await http.get(visitorPath('/visitors'), params)
     return listFrom(response, ['visitors', 'visitor_records'])
   },
 
   getVisitor(id) {
-    return http.get(`/visitors/${id}`)
+    return http.get(visitorPath(`/visitors/${id}`))
   },
 
   createVisitor(payload) {
-    return http.post('/visitors', payload)
+    return http.post(visitorPath('/visitors'), payload)
   },
 
   updateVisitor(id, payload) {
-    return http.patch(`/visitors/${id}`, payload)
+    return http.patch(visitorPath(`/visitors/${id}`), payload)
   },
 
   updateVisitorStatus(id, statusOrPayload) {
-    return http.patch(`/visitors/${id}/status`, normalizeStatusPayload(statusOrPayload))
+    return http.patch(visitorPath(`/visitors/${id}/status`), normalizeStatusPayload(statusOrPayload))
   },
 
   deleteVisitor(id) {
-    return http.delete(`/visitors/${id}`)
+    return http.delete(visitorPath(`/visitors/${id}`))
   },
 
   createInquiry(payload) {
-    return http.post('/inquiries', payload)
+    return http.post(visitorPath('/inquiries'), payload)
   },
 
   async getInquiries(params) {
-    const response = await http.get('/inquiries', params)
+    const response = await http.get(visitorPath('/inquiries'), params)
     return listFrom(response, ['inquiries'])
   },
 
   getInquiry(id) {
-    return http.get(`/inquiries/${id}`)
+    return http.get(visitorPath(`/inquiries/${id}`))
   },
 
   respondInquiry(id, payload) {
-    return http.patch(`/inquiries/${id}/respond`, payload)
+    return http.patch(visitorPath(`/inquiries/${id}/respond`), payload)
   },
 
   updateInquiryStatus(id, statusOrPayload) {
-    return http.patch(`/inquiries/${id}/status`, normalizeStatusPayload(statusOrPayload))
+    return http.patch(visitorPath(`/inquiries/${id}/status`), normalizeStatusPayload(statusOrPayload))
   },
 
   async getEstablishments(params) {
-    const response = await http.get('/establishments', params)
+    const response = await http.get(visitorPath('/establishments'), params)
     return listFrom(response, ['establishments'])
   },
 
   createEstablishment(payload) {
-    return http.post('/establishments', payload)
+    return http.post(visitorPath('/establishments'), payload)
   },
 
   updateEstablishment(id, payload) {
-    return http.patch(`/establishments/${id}`, payload)
+    return http.patch(visitorPath(`/establishments/${id}`), payload)
   },
 
   deleteEstablishment(id) {
-    return http.delete(`/establishments/${id}`)
+    return http.delete(visitorPath(`/establishments/${id}`))
   },
 
   async getUsers(params) {
-    const response = await http.get('/users', params)
+    const response = await http.get(visitorPath('/users'), params)
     return listFrom(response, ['users'])
   },
 
   createUser(payload) {
-    return http.post('/users', payload)
+    return http.post(visitorPath('/users'), payload)
   },
 
   updateUser(id, payload) {
-    return http.patch(`/users/${id}`, payload)
+    return http.patch(visitorPath(`/users/${id}`), payload)
   },
 
   deactivateUser(id) {
-    return http.delete(`/users/${id}`)
+    return http.delete(visitorPath(`/users/${id}`))
   },
 
   deleteUser(id) {
-    return http.delete(`/users/${id}`)
+    return http.delete(visitorPath(`/users/${id}`))
   },
 }
 
