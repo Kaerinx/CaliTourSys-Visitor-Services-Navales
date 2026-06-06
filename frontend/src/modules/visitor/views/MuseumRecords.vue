@@ -6,8 +6,8 @@
         <h1>Museum Records Monitoring</h1>
         <p>Add, view, filter, and monitor museum visitor records.</p>
       </div>
-      <button v-if="canAddMuseumRecord" class="add-record-button" type="button" @click="openMuseumModal">
-        + Add Museum Visitor Record
+      <button v-if="canAddMuseumRecord" class="add-record-button" type="button" @click="goToMuseumRegistration">
+        Add Museum Visitor
       </button>
     </header>
 
@@ -156,6 +156,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import ManagementLayout from '../components/ManagementLayout.vue'
 import VisitorTable from '../components/VisitorTable.vue'
 import { visitorApi } from '../services/visitorApi'
@@ -182,6 +183,7 @@ function defaultMuseumForm() {
 }
 
 const auth = useAuthStore()
+const router = useRouter()
 const records = ref([])
 const establishments = ref([])
 const error = ref('')
@@ -255,6 +257,10 @@ function openMuseumModal() {
   modalError.value = ''
   success.value = ''
   showMuseumModal.value = true
+}
+
+function goToMuseumRegistration() {
+  router.push('/cms/visitor/museum-registration')
 }
 
 function closeMuseumModal() {

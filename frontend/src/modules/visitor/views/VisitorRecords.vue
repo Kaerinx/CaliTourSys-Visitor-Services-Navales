@@ -11,8 +11,8 @@
           Assigned establishment: <strong>{{ auth.user?.assigned_establishment_name || 'Assigned Establishment' }}</strong>
         </p>
       </div>
-      <button v-if="canAddRecord" class="add-record-button" type="button" @click="openRecordModal">
-        + Add Visitor Record
+      <button v-if="canAddRecord" class="add-record-button" type="button" @click="goToVisitorRegistration">
+        Add Visitor / Guest
       </button>
     </header>
 
@@ -187,7 +187,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import ManagementLayout from '../components/ManagementLayout.vue'
 import VisitorTable from '../components/VisitorTable.vue'
 import { receptionistNav, tourismNav } from './nav'
@@ -196,6 +196,7 @@ import { useAuthStore } from '../stores/authStore'
 import { formatSourceType, formatStatus, formatVisitorType } from '../utils/format'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const records = ref([])
 const establishments = ref([])
@@ -314,6 +315,10 @@ function openRecordModal() {
   modalError.value = ''
   success.value = ''
   showRecordModal.value = true
+}
+
+function goToVisitorRegistration() {
+  router.push('/cms/visitor/registration')
 }
 
 function closeRecordModal() {

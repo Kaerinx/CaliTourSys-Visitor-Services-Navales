@@ -168,13 +168,13 @@ const visitorRoutes = [
     path: '/cms/visitor/staff',
     name: 'visitor-staff-dashboard',
     component: VisitorTourismStaffDashboard,
-    meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff'] },
+    meta: { visitorRequiresAuth: true, visitorRoles: ['tourism_staff'] },
   },
   {
     path: '/cms/visitor/receptionist',
     name: 'visitor-receptionist-dashboard',
     component: VisitorReceptionistDashboard,
-    meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'receptionist'] },
+    meta: { visitorRequiresAuth: true, visitorRoles: ['receptionist'] },
   },
   {
     path: '/cms/visitor/registration',

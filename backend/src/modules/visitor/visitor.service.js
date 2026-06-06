@@ -159,9 +159,13 @@ async function dashboardSummary(user) {
 }
 
 async function receptionistSummary(user) {
-  const assignedId = user.assigned_establishment_id || user.assigned_resort_id;
+  let assignedId = user.assigned_establishment_id || user.assigned_resort_id;
   if (!assignedId && user.role === 'receptionist') {
-    throw httpError(403, 'Receptionist account has no assigned establishment.');
+    const resort = await model.findFirstEstablishmentByType('resort');
+    assignedId = resort?.id || null;
+  }
+  if (!assignedId && user.role === 'receptionist') {
+    throw httpError(403, 'No resort establishment is available for this receptionist account.');
   }
   return model.receptionistSummary({ ...user, assigned_establishment_id: assignedId });
 }

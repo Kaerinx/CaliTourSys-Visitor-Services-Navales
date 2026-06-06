@@ -11,15 +11,13 @@ export const adminNav = [
 export const tourismNav = [
   { label: 'Dashboard', to: '/cms/visitor/staff', icon: 'dashboard' },
   { label: 'Visitor Records', to: '/cms/visitor/records', icon: 'users' },
-  { label: 'Museum Records', to: '/cms/visitor/museum-records', icon: 'file' },
+  { label: 'Museum Visitor Records', to: '/cms/visitor/museum-records', icon: 'file' },
   { label: 'Inquiries Overview', to: '/cms/visitor/inquiries', icon: 'message' },
   { label: 'Reports and Analytics', to: '/cms/visitor/reports', icon: 'chart' },
-  { label: 'Profile', to: '/cms/visitor/profile', icon: 'settings' },
 ]
 
 export const receptionistNav = [
   { label: 'Dashboard', to: '/cms/visitor/receptionist', icon: 'dashboard' },
-  { label: 'Record Visitor', to: '/cms/visitor/registration', icon: 'user-plus' },
+  { label: 'Guest / Visitor Registration', to: '/cms/visitor/registration', icon: 'user-plus' },
   { label: 'Recorded Visitor Data', to: '/cms/visitor/records', icon: 'users' },
-  { label: 'Profile', to: '/cms/visitor/profile', icon: 'settings' },
 ]
