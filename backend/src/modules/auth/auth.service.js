@@ -23,6 +23,7 @@ function publicUser(user) {
     email: user.email,
     username: user.username,
     displayName: user.displayName,
+    role: user.role,
     status: user.status,
     profile: user.profile,
     roles: user.roles || [],

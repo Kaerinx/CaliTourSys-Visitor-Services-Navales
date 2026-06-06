@@ -8,6 +8,7 @@ function normalizeUser(row, roles = [], permissions = []) {
     email: row.email,
     username: row.username,
     displayName: row.display_name,
+    role: row.role,
     status: row.status,
     lastLoginAt: row.last_login_at,
     failedLoginCount: row.failed_login_count,
@@ -24,6 +25,17 @@ function normalizeUser(row, roles = [], permissions = []) {
     roles,
     permissions,
   }
+}
+
+function normalizeRoleKey(role) {
+  const normalized = String(role || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
+  if (normalized === 'system_administrator') return 'system_admin'
+  if (normalized === 'tourism_officer') return 'tourism_officer'
+  if (normalized === 'tourism_staff') return 'tourism_staff'
+  if (normalized === 'content_editor') return 'content_editor'
+  if (normalized === 'receptionist' || normalized === 'front_desk' || normalized === 'frontdesk') return 'receptionist'
+  if (normalized === 'admin') return 'admin'
+  return normalized
 }
 
 let hasUsernameColumnCache
@@ -172,6 +184,7 @@ async function getUserAuthContext(userId) {
       id: user.id,
       email: user.email,
       display_name: user.displayName,
+      role: user.role,
       status: user.status,
       last_login_at: user.lastLoginAt,
       failed_login_count: user.failedLoginCount,
@@ -184,7 +197,7 @@ async function getUserAuthContext(userId) {
       contact_number: user.profile.contactNumber,
       profile_photo_url: user.profile.profilePhotoUrl,
     },
-    roles,
+    roles.length ? roles : [normalizeRoleKey(user.role)].filter(Boolean),
     permissions,
   )
 }
