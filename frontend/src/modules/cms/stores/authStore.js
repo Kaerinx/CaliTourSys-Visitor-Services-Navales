@@ -49,11 +49,11 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
     hasBootstrapped.value = true
   }
 
-  async function login(email, password) {
+  async function login(identifier, password) {
     isLoading.value = true
     error.value = ''
     try {
-      const { data } = await authApi.login({ email, password })
+      const { data } = await authApi.login({ identifier, password })
       persistToken(data.accessToken)
       setUser(data.user)
       syncProductSession(data.productSession)
@@ -160,7 +160,7 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
 
 function friendlyAuthError(error) {
   if (error instanceof ApiError) {
-    if (error.code === 'INVALID_CREDENTIALS') return 'Invalid email or password.'
+    if (error.code === 'INVALID_CREDENTIALS') return 'Invalid username/email or password.'
     if (error.code === 'ACCOUNT_LOCKED') return 'This account is temporarily locked.'
     if (error.code === 'ACCOUNT_INACTIVE') return 'This account is not active.'
     if (error.status === 429) return 'Too many attempts. Please try again later.'
@@ -194,7 +194,7 @@ function cmsUserToProductSession(user, token) {
     token,
     user: {
       id: user.id,
-      username: user.email,
+      username: user.username || user.email,
       fullName: user.displayName,
       role: legacyRoleName(user.roles),
     },

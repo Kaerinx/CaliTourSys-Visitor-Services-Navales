@@ -21,6 +21,7 @@ const fallbackNavigation = [
   { key: 'businesses', label: 'Businesses', path: '/cms/businesses', permission: 'businesses.view', icon: 'building' },
   { key: 'map', label: 'Map Locations', path: '/cms/map-locations', permission: 'map_locations.view', icon: 'map' },
   { key: 'museum', label: 'Museum', path: '/cms/museum', permission: 'museum.view', icon: 'museum' },
+  { key: 'visitor-services', label: 'Visitor Services', path: '/cms/visitor', permissions: ['inquiries.view', 'dashboard.view'], icon: 'users' },
   { key: 'media', label: 'Media', path: '/cms/media', permission: 'media.view', icon: 'image' },
   { key: 'inquiries', label: 'Inquiries', path: '/cms/inquiries', permission: 'inquiries.view', icon: 'message' },
   { key: 'newsletter', label: 'Newsletter', path: '/cms/newsletter-subscribers', permission: 'newsletter.view', icon: 'mail' },
@@ -82,7 +83,7 @@ function normalizeNavigationPath(item) {
   const overrides = {
     newsletter: '/cms/newsletter-subscribers',
     museum: '/cms/museum',
-    'visitor-services': '/cms/inquiries',
+    'visitor-services': '/cms/visitor',
     'content-management': '/cms/promotions',
     'otop-support': '/cms/products',
     'business-accreditation': '/cms/businesses',
@@ -110,6 +111,7 @@ function resolveNavigationIcon(item) {
     products: 'package',
     promotions: 'message',
     users: 'users',
+    'visitor-services': 'users',
   }
 
   return icons[item.key] || item.icon || 'circle'

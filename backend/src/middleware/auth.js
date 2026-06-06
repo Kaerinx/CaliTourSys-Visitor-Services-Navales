@@ -1,6 +1,12 @@
 const jwt = require('jsonwebtoken')
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_ACCESS_SECRET || 'local-dev-secret'
+const ROLES = Object.freeze({
+  TOURISM_STAFF: 'Tourism Staff',
+  TOURISM_OFFICER: 'Tourism Officer',
+  LGU_OFFICIAL: 'LGU Official',
+  SYSTEM_ADMINISTRATOR: 'System Administrator',
+})
 
 function signToken(user) {
   return jwt.sign(
@@ -55,6 +61,7 @@ function authorize(...roles) {
 }
 
 module.exports = {
+  ROLES,
   authenticate,
   authorize,
   signToken,

@@ -1,78 +1,94 @@
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { defineStore } from 'pinia'
-import { visitorApi } from '../services/visitorApi'
+import { useCmsAuthStore } from '@/modules/cms/stores/authStore'
 
-const TOKEN_KEY = 'calitoursys_token'
-const USER_KEY = 'calitoursys_user'
+function normalizeRoles(user = {}) {
+  const rawRoles = [
+    user.role,
+    ...(Array.isArray(user.roles) ? user.roles : []),
+    ...(Array.isArray(user.roleKeys) ? user.roleKeys : []),
+  ]
 
-function readStoredUser() {
-  try {
-    return JSON.parse(localStorage.getItem(USER_KEY) || 'null')
-  } catch {
-    return null
-  }
+  return rawRoles.filter(Boolean).map((role) => String(role).trim().toLowerCase().replace(/[\s-]+/g, '_'))
 }
 
-function normalizeLoginResponse(response) {
-  const data = response?.data || response || {}
-  return {
-    token: data.token || data.accessToken || data.access_token || '',
-    user: data.user || data.account || data,
+function visitorRoleFor(user) {
+  const roles = normalizeRoles(user)
+
+  if (roles.some((role) => ['admin', 'system_admin', 'system_administrator'].includes(role))) return 'admin'
+  if (roles.some((role) => ['receptionist', 'receptionist_desk', 'front_desk', 'frontdesk', 'visitor_receptionist'].includes(role))) {
+    return 'receptionist'
   }
+  if (roles.some((role) => ['tourism_staff', 'tourism_officer', 'content_editor'].includes(role))) {
+    return 'tourism_staff'
+  }
+
+  return ''
 }
 
 function dashboardForRole(role) {
-  if (role === 'admin') return '/visitor/admin'
-  if (role === 'receptionist') return '/visitor/receptionist'
-  return '/visitor/staff'
+  if (role === 'admin') return '/cms/visitor/admin'
+  if (role === 'receptionist') return '/cms/visitor/receptionist'
+  if (role === 'tourism_staff') return '/cms/visitor/staff'
+  return ''
+}
+
+function toVisitorUser(user) {
+  if (!user) return null
+
+  const role = visitorRoleFor(user)
+  return {
+    ...user,
+    role,
+    full_name: user.full_name || user.fullName || user.displayName || user.username || user.email,
+    fullName: user.fullName || user.displayName || user.full_name,
+    username: user.username || user.email,
+    email: user.email || user.username,
+    assigned_establishment_id: user.assigned_establishment_id || user.assignedEstablishmentId,
+    assigned_establishment_name: user.assigned_establishment_name || user.assignedEstablishmentName,
+  }
+}
+
+function toCmsUser(user, existingUser) {
+  const nextRole = user?.role || visitorRoleFor(existingUser)
+  const rolesByVisitorRole = {
+    admin: 'system_admin',
+    receptionist: 'receptionist',
+    tourism_staff: 'tourism_staff',
+  }
+
+  return {
+    ...existingUser,
+    ...user,
+    displayName: user?.displayName || user?.fullName || user?.full_name || existingUser?.displayName,
+    roles: existingUser?.roles?.length ? existingUser.roles : [rolesByVisitorRole[nextRole]].filter(Boolean),
+  }
 }
 
 export const useAuthStore = defineStore('visitor-auth', () => {
-  const token = ref(localStorage.getItem(TOKEN_KEY) || '')
-  const user = ref(readStoredUser())
+  const cmsAuth = useCmsAuthStore()
 
-  const isAuthenticated = computed(() => Boolean(token.value && user.value))
+  const token = computed(() => cmsAuth.accessToken)
+  const user = computed(() => toVisitorUser(cmsAuth.currentUser))
+  const isAuthenticated = computed(() => Boolean(cmsAuth.isAuthenticated && user.value?.role))
   const dashboardRoute = computed(() => dashboardForRole(user.value?.role))
 
-  function setSession(nextToken, nextUser) {
-    token.value = nextToken
-    user.value = nextUser
-    if (nextToken) localStorage.setItem(TOKEN_KEY, nextToken)
-    if (nextUser) localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
+  function setSession(_nextToken, nextUser) {
+    if (!nextUser) return
+    cmsAuth.currentUser = toCmsUser(nextUser, cmsAuth.currentUser)
   }
 
-  async function login(credentials) {
-    const response = await visitorApi.login(credentials)
-    const result = normalizeLoginResponse(response)
-
-    if (!result.user || !result.user.role) {
-      throw new Error('Login succeeded, but no user role was returned.')
-    }
-
-    if (!result.token) {
-      throw new Error('Login succeeded, but no authentication token was returned.')
-    }
-
-    setSession(result.token, result.user)
-    return result.user
+  async function login() {
+    throw new Error('Visitor Services now uses the CMS sign-in page. Please sign in through /cms/login.')
   }
 
   async function fetchMe() {
-    if (!token.value) return null
-    const response = await visitorApi.me()
-    const data = response?.data || response || {}
-    const nextUser = data.user || data
-    if (nextUser?.role) {
-      setSession(token.value, nextUser)
-    }
+    await cmsAuth.fetchMe()
     return user.value
   }
 
-  function logout() {
-    token.value = ''
-    user.value = null
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
+  async function logout() {
+    await cmsAuth.logout()
   }
 
   return {

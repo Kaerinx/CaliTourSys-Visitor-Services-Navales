@@ -6,6 +6,7 @@ function normalizeUser(row, roles = [], permissions = []) {
   return {
     id: row.id,
     email: row.email,
+    username: row.username,
     displayName: row.display_name,
     status: row.status,
     lastLoginAt: row.last_login_at,
@@ -23,6 +24,31 @@ function normalizeUser(row, roles = [], permissions = []) {
     roles,
     permissions,
   }
+}
+
+let hasUsernameColumnCache
+
+function looksLikeEmail(value) {
+  return String(value || '').includes('@')
+}
+
+async function hasUsernameColumn() {
+  if (typeof hasUsernameColumnCache === 'boolean') return hasUsernameColumnCache
+
+  const result = await query(
+    `
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'users'
+          AND column_name = 'username'
+          AND table_schema = ANY (current_schemas(false))
+      ) AS has_username
+    `,
+  )
+
+  hasUsernameColumnCache = Boolean(result.rows[0]?.has_username)
+  return hasUsernameColumnCache
 }
 
 async function findUserByEmail(email) {
@@ -44,6 +70,41 @@ async function findUserByEmail(email) {
   )
 
   return normalizeUser(result.rows[0])
+}
+
+async function findUserByUsername(username) {
+  if (!(await hasUsernameColumn())) return null
+
+  const result = await query(
+    `
+      SELECT
+        u.*,
+        sp.employee_number,
+        sp.position_title,
+        sp.department,
+        sp.contact_number,
+        sp.profile_photo_url
+      FROM users u
+      LEFT JOIN staff_profiles sp ON sp.user_id = u.id
+      WHERE lower(u.username) = lower($1)
+      LIMIT 1
+    `,
+    [username],
+  )
+
+  return normalizeUser(result.rows[0])
+}
+
+async function findUserByIdentifier(identifier) {
+  const value = String(identifier || '').trim()
+  if (!value) return null
+
+  if (looksLikeEmail(value)) return findUserByEmail(value)
+
+  const user = await findUserByUsername(value)
+  if (user) return user
+
+  return findUserByEmail(value)
 }
 
 async function getUserById(userId) {
@@ -291,6 +352,8 @@ module.exports = {
   createUser,
   findSessionByRefreshTokenHash,
   findUserByEmail,
+  findUserByIdentifier,
+  findUserByUsername,
   getUserAuthContext,
   incrementFailedLogin,
   resetSuccessfulLogin,

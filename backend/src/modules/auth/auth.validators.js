@@ -1,5 +1,6 @@
 const { z } = require('zod')
 
+const identifierSchema = z.string().trim().min(1, 'Username or email is required.').max(255)
 const passwordSchema = z.string().min(1).max(256)
 const strongPasswordSchema = z
   .string()
@@ -12,10 +13,24 @@ const strongPasswordSchema = z
 
 const loginBodySchema = z
   .object({
-    email: z.email().max(255),
+    identifier: identifierSchema.optional(),
+    email: identifierSchema.optional(),
     password: passwordSchema,
   })
   .strict()
+  .superRefine((value, context) => {
+    if (!value.identifier && !value.email) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Username or email is required.',
+        path: ['identifier'],
+      })
+    }
+  })
+  .transform((value) => ({
+    identifier: value.identifier || value.email,
+    password: value.password,
+  }))
 
 const refreshBodySchema = z
   .object({

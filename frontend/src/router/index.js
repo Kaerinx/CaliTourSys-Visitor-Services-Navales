@@ -16,7 +16,6 @@ const ImprovementMonitoring = () => import('@/modules/product/views/ImprovementM
 const TourismActivityList = () => import('@/modules/product/views/TourismActivityList.vue')
 const TourismPackageList = () => import('@/modules/product/views/TourismPackageList.vue')
 
-const VisitorLoginView = () => import('@/modules/visitor/views/LoginView.vue')
 const VisitorAdminDashboard = () => import('@/modules/visitor/views/AdminDashboard.vue')
 const VisitorTourismStaffDashboard = () => import('@/modules/visitor/views/TourismStaffDashboard.vue')
 const VisitorReceptionistDashboard = () => import('@/modules/visitor/views/ReceptionistDashboard.vue')
@@ -30,6 +29,16 @@ const VisitorUserManagement = () => import('@/modules/visitor/views/UserManageme
 const VisitorAdministration = () => import('@/modules/visitor/views/Administration.vue')
 const VisitorEstablishmentManagement = () => import('@/modules/visitor/views/EstablishmentManagement.vue')
 const VisitorProfile = () => import('@/modules/visitor/views/ProfileView.vue')
+
+const visitorLoginRedirect = { name: 'cms-login', query: { redirect: '/cms/visitor' } }
+
+function redirectToCmsVisitor(path) {
+  return (to) => ({
+    path,
+    query: to.query,
+    hash: to.hash,
+  })
+}
 
 const productRoutes = [
   {
@@ -85,88 +94,144 @@ const productRoutes = [
 const visitorRoutes = [
   {
     path: '/visitor',
-    redirect: '/visitor/login',
+    redirect: visitorLoginRedirect,
   },
   {
     path: '/visitor/login',
     name: 'visitor-login',
-    component: VisitorLoginView,
-    meta: { visitorGuestOnly: true },
+    redirect: visitorLoginRedirect,
   },
   {
     path: '/visitor/admin',
+    redirect: redirectToCmsVisitor('/cms/visitor/admin'),
+  },
+  {
+    path: '/visitor/staff',
+    redirect: redirectToCmsVisitor('/cms/visitor/staff'),
+  },
+  {
+    path: '/visitor/receptionist',
+    redirect: redirectToCmsVisitor('/cms/visitor/receptionist'),
+  },
+  {
+    path: '/visitor/registration',
+    redirect: redirectToCmsVisitor('/cms/visitor/registration'),
+  },
+  {
+    path: '/visitor/museum-registration',
+    redirect: redirectToCmsVisitor('/cms/visitor/museum-registration'),
+  },
+  {
+    path: '/visitor/records',
+    redirect: redirectToCmsVisitor('/cms/visitor/records'),
+  },
+  {
+    path: '/visitor/museum-records',
+    redirect: redirectToCmsVisitor('/cms/visitor/museum-records'),
+  },
+  {
+    path: '/visitor/inquiries',
+    redirect: redirectToCmsVisitor('/cms/visitor/inquiries'),
+  },
+  {
+    path: '/visitor/reports',
+    redirect: redirectToCmsVisitor('/cms/visitor/reports'),
+  },
+  {
+    path: '/visitor/admin/administration',
+    redirect: redirectToCmsVisitor('/cms/visitor/administration'),
+  },
+  {
+    path: '/visitor/admin/users',
+    redirect: redirectToCmsVisitor('/cms/visitor/users'),
+  },
+  {
+    path: '/visitor/admin/establishments',
+    redirect: redirectToCmsVisitor('/cms/visitor/establishments'),
+  },
+  {
+    path: '/visitor/profile',
+    redirect: redirectToCmsVisitor('/cms/visitor/profile'),
+  },
+  {
+    path: '/cms/visitor',
+    name: 'visitor-entry',
+    meta: { visitorRequiresAuth: true },
+  },
+  {
+    path: '/cms/visitor/admin',
     name: 'visitor-admin-dashboard',
     component: VisitorAdminDashboard,
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin'] },
   },
   {
-    path: '/visitor/staff',
+    path: '/cms/visitor/staff',
     name: 'visitor-staff-dashboard',
     component: VisitorTourismStaffDashboard,
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff'] },
   },
   {
-    path: '/visitor/receptionist',
+    path: '/cms/visitor/receptionist',
     name: 'visitor-receptionist-dashboard',
     component: VisitorReceptionistDashboard,
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'receptionist'] },
   },
   {
-    path: '/visitor/registration',
+    path: '/cms/visitor/registration',
     name: 'visitor-registration',
     component: VisitorRegistration,
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff', 'receptionist'] },
   },
   {
-    path: '/visitor/museum-registration',
+    path: '/cms/visitor/museum-registration',
     name: 'visitor-museum-registration',
     component: VisitorMuseumRegistration,
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff'] },
   },
   {
-    path: '/visitor/records',
+    path: '/cms/visitor/records',
     name: 'visitor-records',
     component: VisitorRecords,
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff', 'receptionist'] },
   },
   {
-    path: '/visitor/museum-records',
+    path: '/cms/visitor/museum-records',
     name: 'visitor-museum-records',
     component: VisitorMuseumRecords,
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff'] },
   },
   {
-    path: '/visitor/inquiries',
+    path: '/cms/visitor/inquiries',
     name: 'visitor-inquiries',
     component: VisitorInquiries,
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff'] },
   },
   {
-    path: '/visitor/reports',
+    path: '/cms/visitor/reports',
     name: 'visitor-reports',
     component: VisitorReports,
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff'] },
   },
   {
-    path: '/visitor/admin/administration',
+    path: '/cms/visitor/administration',
     name: 'visitor-admin-administration',
     component: VisitorAdministration,
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin'] },
   },
   {
-    path: '/visitor/admin/users',
+    path: '/cms/visitor/users',
     name: 'visitor-admin-users',
     component: VisitorUserManagement,
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin'] },
   },
   {
-    path: '/visitor/admin/establishments',
+    path: '/cms/visitor/establishments',
     name: 'visitor-admin-establishments',
     component: VisitorEstablishmentManagement,
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin'] },
   },
   {
-    path: '/visitor/profile',
+    path: '/cms/visitor/profile',
     name: 'visitor-profile',
     component: VisitorProfile,
     meta: { visitorRequiresAuth: true },
@@ -202,17 +267,17 @@ router.beforeEach(async (to) => {
   }
 
   const visitorAuth = useVisitorAuthStore()
-  if (to.meta.visitorRequiresAuth && !visitorAuth.isAuthenticated) {
-    return { name: 'visitor-login', query: { redirect: to.fullPath } }
+  if (to.name === 'visitor-entry') {
+    return visitorAuth.dashboardRoute || { name: 'cms-unauthorized' }
   }
 
-  if (to.meta.visitorGuestOnly && visitorAuth.isAuthenticated) {
-    return visitorAuth.dashboardRoute || { name: 'visitor-admin-dashboard' }
+  if (to.meta.visitorRequiresAuth && !visitorAuth.isAuthenticated) {
+    return { name: 'cms-login', query: { redirect: to.fullPath } }
   }
 
   const visitorRoles = to.meta.visitorRoles
   if (visitorRoles?.length && !visitorRoles.includes(visitorAuth.user?.role)) {
-    return visitorAuth.dashboardRoute || { name: 'visitor-login' }
+    return visitorAuth.dashboardRoute || { name: 'cms-unauthorized' }
   }
 
   if (to.meta.productRequiresAuth && !auth.isAuthenticated) {

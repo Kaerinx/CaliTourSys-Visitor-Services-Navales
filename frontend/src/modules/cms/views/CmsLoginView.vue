@@ -9,7 +9,7 @@ const router = useRouter()
 const route = useRoute()
 
 const form = reactive({
-  email: 'officer',
+  identifier: 'officer',
   password: '',
 })
 
@@ -24,9 +24,9 @@ const submitLabel = computed(() => {
   return sessionNotice.value ? 'Sign in again' : 'Sign in'
 })
 
-const emailError = computed(() => {
+const identifierError = computed(() => {
   if (!submitted.value) return ''
-  if (!form.email.trim()) return 'Username or email is required.'
+  if (!form.identifier.trim()) return 'Username or email is required.'
   return ''
 })
 
@@ -39,23 +39,42 @@ const passwordError = computed(() => {
 async function submitLogin() {
   submitted.value = true
   localError.value = ''
-  if (emailError.value || passwordError.value) return
+  if (identifierError.value || passwordError.value) return
 
   try {
-    await auth.login(form.email.trim(), form.password)
-    router.replace(resolveRedirect())
+    const user = await auth.login(form.identifier.trim(), form.password)
+    router.replace(resolveRedirect(user))
   } catch {
     localError.value = auth.error || 'Unable to sign in.'
   }
 }
 
-function resolveRedirect() {
+function resolveRedirect(user) {
   const redirect = Array.isArray(route.query.redirect) ? route.query.redirect[0] : route.query.redirect
   if (typeof redirect === 'string' && redirect.startsWith('/cms') && redirect !== '/cms/login') {
     return redirect
   }
 
+  const visitorDashboard = visitorDashboardForUser(user || auth.currentUser)
+  if (visitorDashboard) return visitorDashboard
+
   return '/cms/dashboard'
+}
+
+function visitorDashboardForUser(user = {}) {
+  const roles = [user.role, ...(Array.isArray(user.roles) ? user.roles : [])]
+    .filter(Boolean)
+    .map((role) => String(role).trim().toLowerCase().replace(/[\s-]+/g, '_'))
+
+  if (roles.some((role) => ['admin', 'system_admin', 'system_administrator'].includes(role))) return '/cms/visitor/admin'
+  if (roles.some((role) => ['receptionist', 'receptionist_desk', 'front_desk', 'frontdesk', 'visitor_receptionist'].includes(role))) {
+    return '/cms/visitor/receptionist'
+  }
+  if (roles.some((role) => ['tourism_staff', 'tourism_officer', 'content_editor'].includes(role))) {
+    return '/cms/visitor/staff'
+  }
+
+  return ''
 }
 </script>
 
@@ -96,16 +115,16 @@ function resolveRedirect() {
         </div>
 
         <div class="cms-field">
-          <label for="cms-email">Username or email</label>
+          <label for="cms-identifier">Username or email</label>
           <input
-            id="cms-email"
-            v-model="form.email"
+            id="cms-identifier"
+            v-model="form.identifier"
             autocomplete="username"
             type="text"
-            :aria-invalid="Boolean(emailError)"
-            :aria-describedby="emailError ? 'cms-email-error' : undefined"
+            :aria-invalid="Boolean(identifierError)"
+            :aria-describedby="identifierError ? 'cms-identifier-error' : undefined"
           />
-          <small v-if="emailError" id="cms-email-error">{{ emailError }}</small>
+          <small v-if="identifierError" id="cms-identifier-error">{{ identifierError }}</small>
         </div>
 
         <div class="cms-field">

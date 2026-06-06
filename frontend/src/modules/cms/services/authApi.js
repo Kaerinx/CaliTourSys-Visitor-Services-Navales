@@ -33,7 +33,7 @@ export const authApi = {
       const session = await request('/auth/login', {
         method: 'POST',
         body: {
-          username: payload.email,
+          username: payload.identifier || payload.email,
           password: payload.password,
         },
       })
@@ -90,7 +90,7 @@ function mapCmsSessionToProductSession(data = {}) {
     token: data.accessToken,
     user: {
       id: data.user.id,
-      username: data.user.email,
+      username: data.user.username || data.user.email,
       fullName: data.user.displayName,
       role: legacyRoleName(data.user.roles),
     },

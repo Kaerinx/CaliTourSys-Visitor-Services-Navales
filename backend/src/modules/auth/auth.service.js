@@ -21,6 +21,7 @@ function publicUser(user) {
   return {
     id: user.id,
     email: user.email,
+    username: user.username,
     displayName: user.displayName,
     status: user.status,
     profile: user.profile,
@@ -47,17 +48,17 @@ function assertCanAuthenticate(user) {
   }
 }
 
-async function login({ email, password }, req) {
+async function login({ identifier, password }, req) {
   const auditContext = auditContextFromRequest(req)
-  const genericError = createAuthError(401, 'INVALID_CREDENTIALS', 'Invalid email or password.')
-  const user = await repository.findUserByEmail(email)
+  const genericError = createAuthError(401, 'INVALID_CREDENTIALS', 'Invalid username/email or password.')
+  const user = await repository.findUserByIdentifier(identifier)
 
   if (!user) {
     await logAuditEvent({
       ...auditContext,
       action: 'failed_login',
       entityType: 'user',
-      entityLabel: email,
+      entityLabel: identifier,
     })
     throw genericError
   }

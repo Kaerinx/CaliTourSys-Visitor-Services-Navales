@@ -32,9 +32,9 @@ const roleLabel = computed(() => {
   return 'Authorized User'
 })
 
-function logout() {
-  auth.logout()
-  router.push('/visitor/login')
+async function logout() {
+  await auth.logout()
+  router.push({ name: 'cms-login' })
 }
 
 const svgAttrs = {
@@ -116,7 +116,7 @@ function iconFor(name) {
 <template>
   <div class="management-shell">
     <aside class="management-sidebar">
-      <RouterLink class="sidebar-brand" :to="auth.dashboardRoute || '/visitor/login'">
+      <RouterLink class="sidebar-brand" :to="auth.dashboardRoute || '/cms/login'">
         <span class="sidebar-logo">
           <component :is="iconFor('location')" />
         </span>
