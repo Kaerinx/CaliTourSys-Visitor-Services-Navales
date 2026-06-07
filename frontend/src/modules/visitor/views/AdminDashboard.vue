@@ -16,7 +16,6 @@
 
     <div class="dashboard-card-grid">
       <article v-for="card in cards" :key="card.label" class="dashboard-stat-card">
-        <div class="stat-icon" :data-tone="card.tone" aria-hidden="true">{{ card.icon }}</div>
         <span>{{ card.label }}</span>
         <strong>{{ card.value ?? 0 }}</strong>
         <small>{{ card.note }}</small>
@@ -229,51 +228,37 @@ const cards = computed(() => [
     label: 'Total Visitors Recorded Today',
     value: summary.value.total_visitors_today,
     note: 'Recorded today',
-    icon: 'V',
-    tone: 'green',
   },
-  { label: 'Local Visitors', value: summary.value.local_visitors, note: 'From local area', icon: 'L', tone: 'green' },
+  { label: 'Local Visitors', value: summary.value.local_visitors, note: 'From local area' },
   {
     label: 'Domestic Tourists',
     value: summary.value.domestic_tourists,
     note: 'From other Philippine regions',
-    icon: 'D',
-    tone: 'navy',
   },
   {
     label: 'International Tourists',
     value: summary.value.international_tourists,
     note: 'From other countries',
-    icon: 'I',
-    tone: 'gray',
   },
   {
     label: 'Museum Records',
     value: summary.value.museum_visitors,
     note: 'Museum visits recorded today',
-    icon: 'M',
-    tone: 'green',
   },
   {
     label: 'Pending Inquiries',
     value: summary.value.pending_inquiries,
     note: 'For review via email',
-    icon: '?',
-    tone: 'amber',
   },
   {
     label: 'Total Destinations',
     value: summary.value.total_destinations,
     note: 'Active destination listings',
-    icon: 'T',
-    tone: 'green',
   },
   {
     label: 'Upcoming Events',
     value: summary.value.upcoming_events,
     note: 'Scheduled tourism activities',
-    icon: 'E',
-    tone: 'navy',
   },
 ])
 
@@ -468,35 +453,6 @@ onMounted(loadDashboard)
   border-color: #bbf7d0;
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
   transform: translateY(-1px);
-}
-
-.stat-icon {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 9px;
-  font-weight: 900;
-}
-
-.stat-icon[data-tone='green'] {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.stat-icon[data-tone='navy'] {
-  background: #e2e8f0;
-  color: #020617;
-}
-
-.stat-icon[data-tone='gray'] {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.stat-icon[data-tone='amber'] {
-  background: #fef3c7;
-  color: #92400e;
 }
 
 .dashboard-stat-card span {

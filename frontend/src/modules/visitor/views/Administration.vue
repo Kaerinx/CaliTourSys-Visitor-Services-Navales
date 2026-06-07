@@ -32,6 +32,7 @@
               <th>User ID</th>
               <th>Full Name</th>
               <th>Username</th>
+              <th>Email</th>
               <th>Role</th>
               <th>Assigned Resort/Establishment</th>
               <th>Status</th>
@@ -43,6 +44,7 @@
               <td>{{ user.id }}</td>
               <td>{{ user.full_name }}</td>
               <td>{{ user.username }}</td>
+              <td>{{ user.email || '-' }}</td>
               <td>{{ roleLabel(user.role) }}</td>
               <td>{{ user.assigned_establishment_name || user.assigned_resort_name || '-' }}</td>
               <td>
@@ -65,7 +67,7 @@
               </td>
             </tr>
             <tr v-if="!loading && users.length === 0">
-              <td colspan="7">No users found.</td>
+              <td colspan="8">No users found.</td>
             </tr>
           </tbody>
         </table>
@@ -198,6 +200,10 @@
             Username
             <input v-model="form.username" required />
           </label>
+          <label>
+            Email
+            <input v-model="form.email" required type="email" />
+          </label>
           <label v-if="!editingUser">
             Password
             <input v-model="form.password" required type="password" />
@@ -265,6 +271,7 @@ const adminSections = [
 const form = reactive({
   full_name: '',
   username: '',
+  email: '',
   password: '',
   role: 'tourism_staff',
   assigned_establishment_id: '',
@@ -338,6 +345,7 @@ function resetForm() {
   Object.assign(form, {
     full_name: '',
     username: '',
+    email: '',
     password: '',
     role: 'tourism_staff',
     assigned_establishment_id: '',
@@ -358,6 +366,7 @@ function openEdit(user) {
   Object.assign(form, {
     full_name: user.full_name || '',
     username: user.username || '',
+    email: user.email || '',
     password: '',
     role: user.role || 'tourism_staff',
     assigned_establishment_id: user.assigned_establishment_id || '',
@@ -373,10 +382,15 @@ function closeModal() {
 async function saveUser() {
   modalError.value = ''
   try {
+    if (!form.email.trim()) {
+      modalError.value = 'Email is required for CMS login.'
+      return
+    }
     const isUserActive = form.status === 'active'
     const payload = {
       full_name: form.full_name,
       username: form.username,
+      email: form.email,
       role: form.role,
       assigned_establishment_id: form.role === 'receptionist' ? form.assigned_establishment_id : null,
       status: form.status,
