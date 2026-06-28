@@ -71,6 +71,10 @@ export function getBusinessBySlug(slug) {
   return http.get(publicPath(`/businesses/${slug}`))
 }
 
+export function getBusinesses(params) {
+  return http.get(publicPath('/businesses'), params)
+}
+
 export function getDestinations(params) {
   return http.get(publicPath('/destinations'), params)
 }

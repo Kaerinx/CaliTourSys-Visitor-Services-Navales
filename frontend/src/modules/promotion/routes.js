@@ -78,6 +78,15 @@ const promotionRoutes = [
     component: () => import('./views/InteractiveMuseumView.vue'),
   },
   {
+    path: '/accredited-establishments',
+    name: 'promotion-accredited-establishments',
+    component: () => import('./views/AccreditedEstablishmentsView.vue'),
+  },
+  {
+    path: '/promotion/accredited-establishments',
+    redirect: '/accredited-establishments',
+  },
+  {
     path: '/promotion/inquiry',
     name: 'promotion-inquiry',
     component: () => import('./views/TourismInquiryView.vue'),

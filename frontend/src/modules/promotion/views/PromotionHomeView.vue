@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { onMounted, ref } from 'vue'
 import {
   getDestinations,
@@ -14,7 +14,7 @@ const products = ref([
     id: 'pili-candy',
     name: 'Pili Nut Brittle (Glazed)',
     producer: "Aling Marta's Kitchen",
-    price: '₱ 250.00',
+    price: 'â‚± 250.00',
     category: 'Sweets',
     accent: '#B5451B',
     accredited: true,
@@ -23,7 +23,7 @@ const products = ref([
     id: 'abaca-mat',
     name: 'Hand-woven Abaca Place Mat',
     producer: 'Quipayo Weavers Coop',
-    price: '₱ 480.00',
+    price: 'â‚± 480.00',
     category: 'Crafts',
     accent: '#7B341E',
     accredited: true,
@@ -32,7 +32,7 @@ const products = ref([
     id: 'bagoong',
     name: 'Calabanga Fermented Bagoong',
     producer: 'San Miguel Bay Fishers',
-    price: '₱ 180.00',
+    price: 'â‚± 180.00',
     category: 'Pantry',
     accent: '#1B4332',
     accredited: true,
@@ -41,7 +41,7 @@ const products = ref([
     id: 'coco-jam',
     name: 'Slow-cooked Latik Coco Jam',
     producer: 'Sabang Farm',
-    price: '₱ 220.00',
+    price: 'â‚± 220.00',
     category: 'Sweets',
     accent: '#D4711B',
     accredited: true,
@@ -170,6 +170,18 @@ onMounted(loadHomeData)
           <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
           <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
+          <div class="site-nav__dropdown">
+            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
+              Accreditation
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <div class="site-nav__dropdown-menu">
+              <RouterLink to="/accreditation">Online Accreditation</RouterLink>
+              <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
+            </div>
+          </div>
           <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
 
@@ -196,7 +208,7 @@ onMounted(loadHomeData)
       <section class="hero-section">
         <div class="hero-section__inner">
           <div class="hero-copy">
-            <p class="eyebrow hero-copy__eyebrow"><span></span>Calabanga · Camarines Sur</p>
+            <p class="eyebrow hero-copy__eyebrow"><span></span>Calabanga Â· Camarines Sur</p>
             <h1>Discover the Heart of Bicol</h1>
             <p>
               Explore Calabanga's coastal wonders, centuries-old churches, and the local treasures
@@ -338,7 +350,7 @@ onMounted(loadHomeData)
                 <strong>{{ product.name }}</strong>
                 <span class="producer-line">
                   {{ product.producer }}
-                  <span class="verified-dot">✓</span>
+                  <span class="verified-dot">âœ“</span>
                 </span>
                 <span class="product-card__footer">
                   <span>{{ product.price }}</span>
@@ -367,7 +379,7 @@ onMounted(loadHomeData)
               <div class="filter-list">
                 <label v-for="filter in filters" :key="filter.label" class="filter-row">
                   <span class="fake-check" :class="{ 'fake-check--active': filter.active }">
-                    <span v-if="filter.active">✓</span>
+                    <span v-if="filter.active">âœ“</span>
                   </span>
                   <span class="filter-dot" :style="{ backgroundColor: filter.color }"></span>
                   <span>{{ filter.label }}</span>
@@ -513,8 +525,8 @@ onMounted(loadHomeData)
           </p>
           <div class="social-row">
             <a aria-label="Facebook page pending" aria-disabled="true">f</a>
-            <a aria-label="Instagram page pending" aria-disabled="true">◎</a>
-            <a aria-label="Youtube page pending" aria-disabled="true">▶</a>
+            <a aria-label="Instagram page pending" aria-disabled="true">â—Ž</a>
+            <a aria-label="Youtube page pending" aria-disabled="true">â–¶</a>
           </div>
         </div>
 
@@ -549,7 +561,7 @@ onMounted(loadHomeData)
 
       <div class="site-footer__bottom">
         <div class="page-shell">
-          <span>© 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
+          <span>Â© 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
           <span>
             <a aria-disabled="true">Privacy</a>
             <a aria-disabled="true">Accessibility</a>
@@ -752,7 +764,11 @@ input {
 }
 
 .hero-section {
+  width: 100%;
+  max-width: none;
   min-height: 88vh;
+  margin: 0;
+  text-align: left;
   background:
     radial-gradient(ellipse at 30% 70%, rgba(0, 0, 0, 0.35), transparent 60%),
     linear-gradient(180deg, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.6)),
