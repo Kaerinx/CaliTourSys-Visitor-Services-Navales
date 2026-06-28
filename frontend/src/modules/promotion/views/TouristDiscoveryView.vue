@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -43,7 +43,7 @@ const locations = ref([
     color: '#1565C0',
     distance: '4.2 km',
     address: 'Poblacion, Calabanga, Camarines Sur',
-    hours: 'Open daily • 8:00 AM - 5:00 PM',
+    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
     description:
       'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
     x: 30,
@@ -56,7 +56,7 @@ const locations = ref([
     color: '#7B341E',
     distance: '2.1 km',
     address: 'Quipayo, Calabanga, Camarines Sur',
-    hours: 'Open daily • 8:00 AM - 5:00 PM',
+    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
     description:
       'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
     x: 58,
@@ -70,7 +70,7 @@ const locations = ref([
     color: '#7B341E',
     distance: '6.8 km',
     address: 'Belen, Calabanga, Camarines Sur',
-    hours: 'Open daily • 8:00 AM - 5:00 PM',
+    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
     description:
       'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
     x: 72,
@@ -83,7 +83,7 @@ const locations = ref([
     color: '#1B7A4A',
     distance: '9.4 km',
     address: 'Mt. Isarog Foothills, Calabanga, Camarines Sur',
-    hours: 'Open daily • 8:00 AM - 5:00 PM',
+    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
     description:
       'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
     x: 83,
@@ -96,7 +96,7 @@ const locations = ref([
     color: '#B5451B',
     distance: '0.6 km',
     address: 'Calabanga Public Market, Camarines Sur',
-    hours: 'Open daily • 8:00 AM - 5:00 PM',
+    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
     description:
       'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
     x: 43,
@@ -109,7 +109,7 @@ const locations = ref([
     color: '#1B7A4A',
     distance: '1.3 km',
     address: 'Bicol River Boardwalk, Calabanga, Camarines Sur',
-    hours: 'Open daily • 8:00 AM - 5:00 PM',
+    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
     description:
       'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
     x: 24,
@@ -436,6 +436,18 @@ onBeforeUnmount(() => {
           <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
           <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
+          <div class="site-nav__dropdown">
+            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
+              Accreditation
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <div class="site-nav__dropdown-menu">
+              <RouterLink to="/accreditation">Online Accreditation</RouterLink>
+              <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
+            </div>
+          </div>
           <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
 
@@ -1883,5 +1895,7 @@ h1 {
   }
 }
 </style>
+
+
 
 

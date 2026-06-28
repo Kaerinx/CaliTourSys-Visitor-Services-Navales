@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import { getPromotionalPackages } from '../services/promotionService'
 import { useNewsletterForm } from '../composables/useNewsletterForm'
@@ -127,6 +127,18 @@ onMounted(loadPackages)
           </RouterLink>
           <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
+          <div class="site-nav__dropdown">
+            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
+              Accreditation
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <div class="site-nav__dropdown-menu">
+              <RouterLink to="/accreditation">Online Accreditation</RouterLink>
+              <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
+            </div>
+          </div>
           <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
 
@@ -1326,5 +1338,7 @@ h1 {
   }
 }
 </style>
+
+
 
 

@@ -129,6 +129,10 @@ const destinationListQuerySchema = listQuery([
 
 const museumArtifactListQuerySchema = listQuery(['name', '-name', 'publishedAt', '-publishedAt', 'featured'])
 
+const businessListQuerySchema = listQuery(['name', '-name', 'issuedAt', '-issuedAt']).extend({
+  businessType: z.string().trim().max(120).optional(),
+})
+
 const mapLocationsQuerySchema = z.object({
   type: z.enum(['destination', 'business', 'event']).optional(),
   category: categorySchema,
@@ -144,6 +148,7 @@ module.exports = {
   packageListQuerySchema,
   promotionListQuerySchema,
   eventListQuerySchema,
+  businessListQuerySchema,
   destinationListQuerySchema,
   museumArtifactListQuerySchema,
   mapLocationsQuerySchema,

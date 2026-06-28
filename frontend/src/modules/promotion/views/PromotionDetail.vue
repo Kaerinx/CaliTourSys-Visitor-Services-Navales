@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
@@ -281,6 +281,18 @@ onBeforeUnmount(() => {
           <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
           <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
+          <div class="site-nav__dropdown">
+            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
+              Accreditation
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <div class="site-nav__dropdown-menu">
+              <RouterLink to="/accreditation">Online Accreditation</RouterLink>
+              <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
+            </div>
+          </div>
           <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
 
@@ -382,7 +394,7 @@ onBeforeUnmount(() => {
           <span class="producer-avatar">{{ initials }}</span>
           <span>
             <strong>By {{ business.name }}</strong>
-            <small>Accredited since {{ business.accreditedSince }} · {{ business.location }}</small>
+            <small>Accredited since {{ business.accreditedSince }} Â· {{ business.location }}</small>
             <small>{{ business.description }}</small>
           </span>
         </div>
@@ -1318,5 +1330,7 @@ h2 {
   }
 }
 </style>
+
+
 
 

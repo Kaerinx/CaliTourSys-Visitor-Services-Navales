@@ -1,88 +1,69 @@
-﻿<script setup>
-import { computed, reactive, ref } from 'vue'
-import {
-  subscribeToNewsletter,
-  submitTourismInquiry,
-} from '../services/promotionService'
-import { validateInquiryForm, validateNewsletterEmail } from '../utils/formValidation'
+<script setup>
+import { computed, onMounted, ref } from 'vue'
+import { getAccreditedBusinesses } from '../services/promotionService'
+import { useNewsletterForm } from '../composables/useNewsletterForm'
 
-const form = reactive({
-  fullName: '',
-  email: '',
-  contactNumber: '',
-  subject: '',
-  message: '',
+const businesses = ref([])
+const searchQuery = ref('')
+const activeType = ref('All types')
+const isLoading = ref(true)
+const errorMessage = ref('')
+const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
+
+const typeOptions = computed(() => [
+  'All types',
+  ...new Set(businesses.value.map((business) => business.type).filter(Boolean)),
+])
+
+const filteredBusinesses = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+
+  return businesses.value.filter((business) => {
+    const matchesType = activeType.value === 'All types' || business.type === activeType.value
+    const matchesQuery =
+      !query ||
+      [business.name, business.type, business.owner, business.location, business.description]
+        .join(' ')
+        .toLowerCase()
+        .includes(query)
+
+    return matchesType && matchesQuery
+  })
 })
 
-const submitted = ref(false)
-const touched = ref(false)
-const isSubmitting = ref(false)
-const formMessage = ref('')
-const newsletterEmail = ref('')
-const newsletterMessage = ref('')
-const isSubscribing = ref(false)
+function initials(name) {
+  return String(name || 'A')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+}
 
-const isValid = computed(
-  () =>
-    form.fullName.trim() &&
-    form.email.trim() &&
-    form.subject.trim() &&
-    form.message.trim(),
-)
+function clearFilters() {
+  searchQuery.value = ''
+  activeType.value = 'All types'
+}
 
-async function submitInquiry() {
-  touched.value = true
-  formMessage.value = validateInquiryForm(form)
-  submitted.value = false
-  if (formMessage.value) return
-
-  isSubmitting.value = true
+async function loadBusinesses() {
+  isLoading.value = true
+  errorMessage.value = ''
 
   try {
-    await submitTourismInquiry({
-      ...form,
-      sourcePage: '/promotion/inquiry',
-    })
-    submitted.value = true
-    formMessage.value = ''
+    businesses.value = await getAccreditedBusinesses()
   } catch (error) {
-    formMessage.value = error.message || 'Unable to submit inquiry. Please try again.'
+    errorMessage.value = error.message || 'Unable to load accredited establishments.'
   } finally {
-    isSubmitting.value = false
+    isLoading.value = false
   }
 }
 
-function resetForm() {
-  form.fullName = ''
-  form.email = ''
-  form.contactNumber = ''
-  form.subject = ''
-  form.message = ''
-  touched.value = false
-  submitted.value = false
-  formMessage.value = ''
-}
-
-async function submitNewsletter() {
-  newsletterMessage.value = validateNewsletterEmail(newsletterEmail.value)
-  if (newsletterMessage.value) return
-
-  isSubscribing.value = true
-
-  try {
-    await subscribeToNewsletter({ email: newsletterEmail.value })
-    newsletterMessage.value = 'Subscription confirmed. Thank you for joining.'
-    newsletterEmail.value = ''
-  } catch (error) {
-    newsletterMessage.value = error.message || 'Unable to subscribe. Please try again.'
-  } finally {
-    isSubscribing.value = false
-  }
-}
+onMounted(loadBusinesses)
 </script>
 
 <template>
-  <div class="inquiry-page">
+  <div class="establishments-page">
     <header class="site-nav">
       <div class="site-nav__inner">
         <RouterLink to="/" class="brand" aria-label="TWBIS Home">
@@ -101,7 +82,11 @@ async function submitNewsletter() {
           <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
           <div class="site-nav__dropdown">
-            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
+            <button
+              class="site-nav__link site-nav__dropdown-trigger site-nav__link--active"
+              type="button"
+              aria-haspopup="true"
+            >
               Accreditation
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m6 9 6 6 6-6" />
@@ -112,9 +97,7 @@ async function submitNewsletter() {
               <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
             </div>
           </div>
-          <RouterLink to="/promotion/inquiry" class="site-nav__link site-nav__link--active">
-            Inquiries
-          </RouterLink>
+          <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
 
         <div class="site-nav__actions">
@@ -137,83 +120,96 @@ async function submitNewsletter() {
     </header>
 
     <main>
-      <section class="inquiry-header">
-        <div class="page-shell">
-          <p class="eyebrow">Visitor support</p>
-          <h1>Tourism Inquiry</h1>
-          <p>
-            Send questions about destinations, events, products, and visitor services in Calabanga.
-          </p>
+      <section class="establishments-hero">
+        <div class="page-shell establishments-hero__inner">
+          <div>
+            <p class="eyebrow">LGU Accredited</p>
+            <h1>Accredited Establishments</h1>
+            <p>
+              Browse tourism businesses and local producers officially accredited by the LGU
+              Tourism Office.
+            </p>
+          </div>
+
+          <div class="hero-stat" aria-label="Accredited establishment count">
+            <strong>{{ businesses.length }}</strong>
+            <span>verified businesses</span>
+          </div>
         </div>
       </section>
 
-      <section class="inquiry-content">
-        <div class="page-shell inquiry-layout">
-          <form class="inquiry-form" @submit.prevent="submitInquiry">
-            <div class="form-heading">
-              <h2>Submit an Inquiry</h2>
-              <p>
-                Have questions about our tourism destinations, resorts, or services? Send us a
-                message and we will get back to you.
-              </p>
-            </div>
-
-            <label>
-              <span>Full Name *</span>
-              <input v-model="form.fullName" placeholder="Enter your full name" />
+      <section class="directory-section">
+        <div class="page-shell">
+          <div class="directory-toolbar">
+            <label class="search-field">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.2-3.2" />
+              </svg>
+              <input v-model="searchQuery" placeholder="Search accredited businesses..." />
             </label>
 
-            <label>
-              <span>Email Address *</span>
-              <input v-model="form.email" type="email" placeholder="your.email@example.com" />
+            <label class="select-field">
+              <span>Type</span>
+              <select v-model="activeType">
+                <option v-for="type in typeOptions" :key="type" :value="type">
+                  {{ type }}
+                </option>
+              </select>
             </label>
 
-            <label>
-              <span>Contact Number</span>
-              <input v-model="form.contactNumber" placeholder="+63 or your country code" />
-            </label>
+            <button class="clear-filters" type="button" @click="clearFilters">Reset</button>
+          </div>
 
-            <label>
-              <span>Subject *</span>
-              <input v-model="form.subject" placeholder="What is your inquiry about?" />
-            </label>
-
-            <label>
-              <span>Message *</span>
-              <textarea
-                v-model="form.message"
-                rows="6"
-                placeholder="Please provide details about your inquiry..."
-              ></textarea>
-            </label>
-
-            <p v-if="touched && !isValid" class="form-message form-message--error">
-              {{ formMessage || 'Please complete all required fields.' }}
+          <div class="result-summary">
+            <p>
+              Showing <strong>{{ filteredBusinesses.length }}</strong>
+              {{ filteredBusinesses.length === 1 ? 'establishment' : 'establishments' }}
             </p>
+          </div>
 
-            <p v-else-if="formMessage" class="form-message form-message--error">
-              {{ formMessage }}
-            </p>
+          <div v-if="isLoading" class="directory-state">Loading accredited establishments...</div>
+          <div v-else-if="errorMessage" class="directory-state">{{ errorMessage }}</div>
+          <div v-else-if="filteredBusinesses.length === 0" class="empty-state">
+            <div></div>
+            <h2>No establishments found</h2>
+            <p>Try a different search or business type.</p>
+            <button type="button" @click="clearFilters">Clear filters</button>
+          </div>
 
-            <p v-if="submitted" class="form-message form-message--success">
-              Inquiry received. Thank you for contacting the Tourism Office.
-            </p>
-
-            <div class="form-actions">
-              <button type="submit" :disabled="isSubmitting">
-                {{ isSubmitting ? 'Submitting...' : 'Submit Inquiry' }}
-              </button>
-              <button v-if="submitted" type="button" @click="resetForm">Send another</button>
-            </div>
-          </form>
-
-          <aside class="inquiry-card">
-            <h2>Tourism Office</h2>
-            <p>LGU Calabanga, Camarines Sur 4405</p>
-            <p>+63 54 871 1234</p>
-            <p>tourism@calabanga.gov.ph</p>
-            <RouterLink to="/destinations">Browse destinations</RouterLink>
-          </aside>
+          <div v-else class="business-grid">
+            <article v-for="business in filteredBusinesses" :key="business.id" class="business-card">
+              <div class="business-card__mark" aria-hidden="true">
+                {{ initials(business.name) }}
+              </div>
+              <div class="business-card__body">
+                <span class="accreditation-badge">
+                  <span></span>
+                  LGU Accredited
+                </span>
+                <h2>{{ business.name }}</h2>
+                <p>{{ business.description }}</p>
+                <dl>
+                  <div>
+                    <dt>Business Type</dt>
+                    <dd>{{ business.type }}</dd>
+                  </div>
+                  <div>
+                    <dt>Owner</dt>
+                    <dd>{{ business.owner }}</dd>
+                  </div>
+                  <div>
+                    <dt>Location</dt>
+                    <dd>{{ business.location }}</dd>
+                  </div>
+                  <div>
+                    <dt>Accredited Since</dt>
+                    <dd>{{ business.accreditedSince }}</dd>
+                  </div>
+                </dl>
+              </div>
+            </article>
+          </div>
         </div>
       </section>
     </main>
@@ -246,6 +242,7 @@ async function submitNewsletter() {
           <RouterLink to="/packages">Packages</RouterLink>
           <RouterLink to="/events">Events</RouterLink>
           <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
+          <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
         </div>
 
         <div>
@@ -285,7 +282,7 @@ async function submitNewsletter() {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-.inquiry-page {
+.establishments-page {
   min-height: 100vh;
   background: #f2f0eb;
   color: #1a1a1a;
@@ -293,10 +290,10 @@ async function submitNewsletter() {
   line-height: 1.6;
 }
 
-.inquiry-page,
-.inquiry-page *,
-.inquiry-page *::before,
-.inquiry-page *::after {
+.establishments-page,
+.establishments-page *,
+.establishments-page *::before,
+.establishments-page *::after {
   box-sizing: border-box;
 }
 
@@ -307,7 +304,7 @@ a {
 
 button,
 input,
-textarea {
+select {
   font: inherit;
 }
 
@@ -443,7 +440,8 @@ textarea {
   opacity: 0.55;
 }
 
-.icon-button svg {
+.icon-button svg,
+.search-field svg {
   width: 20px;
   height: 20px;
   fill: none;
@@ -471,19 +469,23 @@ textarea {
   text-decoration: none;
 }
 
-.login-button:disabled {
-  cursor: default;
-  opacity: 0.72;
+.login-button:hover {
+  background: #d8f3dc;
 }
 
-.inquiry-header {
+.establishments-hero {
   padding-top: 64px;
   background: #ffffff;
   border-bottom: 1px solid #e8e4dc;
 }
 
-.inquiry-header .page-shell {
-  padding: 48px 0 42px;
+.establishments-hero__inner {
+  min-height: 250px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 48px;
+  padding: 54px 0 44px;
 }
 
 .eyebrow {
@@ -504,167 +506,292 @@ h2 {
 
 h1 {
   margin-top: 14px;
+  color: #1a1a1a;
   font-size: 44px;
   font-weight: 700;
 }
 
-.inquiry-header p:last-child {
-  max-width: 650px;
+.establishments-hero p:last-child {
+  max-width: 670px;
   margin: 10px 0 0;
   color: #5c5c5c;
   font-size: 16px;
 }
 
-.inquiry-content {
-  padding: 48px 0 96px;
-}
-
-.inquiry-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
-  align-items: start;
-  gap: 24px;
-}
-
-.inquiry-form,
-.inquiry-card {
-  min-width: 0;
+.hero-stat {
+  min-width: 210px;
+  padding: 24px;
   border: 1px solid #e8e4dc;
   border-radius: 12px;
-  background: #ffffff;
-}
-
-.inquiry-form {
-  display: grid;
-  gap: 18px;
-  padding: 32px;
-}
-
-.form-heading {
-  margin-bottom: 4px;
-}
-
-.form-heading h2,
-.inquiry-card h2 {
-  color: #1a1a1a;
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.form-heading p,
-.inquiry-card p {
-  margin: 12px 0 0;
-  color: #5c5c5c;
-  font-size: 15px;
-}
-
-label {
-  display: grid;
-  gap: 8px;
-  color: #1a1a1a;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-input,
-textarea {
-  width: 100%;
-  max-width: 100%;
-  display: block;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  outline: 0;
   background: #f2f0eb;
-  color: #1a1a1a;
-  font-size: 15px;
 }
 
-input {
-  height: 48px;
-  padding: 0 16px;
-}
-
-textarea {
-  min-height: 140px;
-  resize: vertical;
-  padding: 14px 16px;
-}
-
-input:focus,
-textarea:focus {
-  border-color: #1b4332;
-  background: #ffffff;
-}
-
-input::placeholder,
-textarea::placeholder {
-  color: #777777;
-}
-
-.form-message {
-  margin: 0;
-  padding: 12px 14px;
-  border-radius: 8px;
-  font-size: 14px;
-}
-
-.form-message--error {
-  background: #ffe8de;
-  color: #7a2d0e;
-}
-
-.form-message--success {
-  background: #d8f3dc;
+.hero-stat strong {
+  display: block;
   color: #1b4332;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 40px;
+  line-height: 1;
 }
 
-.form-actions {
+.hero-stat span {
+  display: block;
+  margin-top: 8px;
+  color: #5c5c5c;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.directory-section {
+  min-height: 60vh;
+  padding: 42px 0 96px;
+  background: #f2f0eb;
+}
+
+.directory-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 4px;
+  gap: 10px;
+  margin-bottom: 20px;
 }
 
-.form-actions button,
-.inquiry-card a {
-  height: 48px;
-  display: inline-flex;
+.search-field,
+.select-field {
+  position: relative;
+  height: 44px;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  max-width: 100%;
-  padding: 0 24px;
+  border: 1px solid #e8e4dc;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #5c5c5c;
+}
+
+.search-field {
+  width: min(420px, 100%);
+  background: #ffffff;
+}
+
+.search-field svg {
+  position: absolute;
+  left: 13px;
+  width: 17px;
+  height: 17px;
+}
+
+.search-field input {
+  width: 100%;
+  height: 100%;
+  padding: 0 12px 0 40px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #1a1a1a;
+  font-size: 14px;
+}
+
+.select-field {
+  min-width: 230px;
+  gap: 10px;
+  padding: 0 12px;
+}
+
+.select-field span {
+  color: #7a7771;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.select-field select {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #1a1a1a;
+  font-size: 14px;
+}
+
+.clear-filters,
+.empty-state button {
+  height: 44px;
+  padding: 0 16px;
   border: 1.5px solid #1b4332;
   border-radius: 8px;
-  background: #1b4332;
-  color: #ffffff;
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1.2;
-  text-align: center;
+  background: #ffffff;
+  color: #1b4332;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.form-actions button:last-child {
-  background: transparent;
-  color: #1b4332;
+.clear-filters:hover,
+.empty-state button:hover {
+  background: #d8f3dc;
 }
 
-.form-actions button:disabled,
-.subscribe-form button:disabled {
-  cursor: wait;
-  opacity: 0.72;
+.result-summary {
+  margin-bottom: 24px;
 }
 
-.inquiry-card {
-  padding: 28px;
+.result-summary p {
+  margin: 0;
+  color: #5c5c5c;
+  font-size: 13px;
 }
 
-.inquiry-card a {
-  width: 100%;
+.result-summary strong {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.directory-state,
+.empty-state {
+  border: 1px solid #e8e4dc;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #5c5c5c;
+}
+
+.directory-state {
+  padding: 28px 24px;
+  font-size: 14px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 72px 24px;
+  text-align: center;
+}
+
+.empty-state div {
+  width: 150px;
+  height: 150px;
+  border: 2px dashed #bdbdbd;
+  border-radius: 16px;
+}
+
+.empty-state h2 {
   margin-top: 24px;
-  padding-right: 16px;
-  padding-left: 16px;
-  white-space: normal;
+  color: #1a1a1a;
+  font-size: 20px;
+}
+
+.empty-state p {
+  max-width: 380px;
+  margin: 8px 0 0;
+  color: #5c5c5c;
+  font-size: 14px;
+}
+
+.empty-state button {
+  margin-top: 24px;
+}
+
+.business-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.business-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid #e8e4dc;
+  border-radius: 12px;
+  background: #ffffff;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.business-card:hover {
+  border-color: #1b4332;
+  box-shadow: 0 18px 36px rgba(27, 67, 50, 0.1);
+  transform: translateY(-2px);
+}
+
+.business-card__mark {
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.28), transparent 45%),
+    linear-gradient(135deg, #1b4332, #1b7a4a);
+  color: #ffffff;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.business-card__body {
+  min-width: 0;
+}
+
+.accreditation-badge {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #d4ac0d;
+  border-radius: 999px;
+  background: #fff9e6;
+  color: #7d5a00;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.accreditation-badge span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #d4ac0d;
+}
+
+.business-card h2 {
+  margin-top: 12px;
+  color: #1a1a1a;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.business-card p {
+  margin: 8px 0 0;
+  color: #5c5c5c;
+  font-size: 14px;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+  margin: 18px 0 0;
+}
+
+dt {
+  color: #7a7771;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+dd {
+  margin: 3px 0 0;
+  color: #1a1a1a;
+  font-size: 14px;
+  line-height: 1.35;
 }
 
 .site-footer {
@@ -744,9 +871,15 @@ textarea::placeholder {
   height: 40px;
   padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  outline: 0;
   background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
   font-size: 14px;
+}
+
+.subscribe-form input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .subscribe-form button {
@@ -758,6 +891,11 @@ textarea::placeholder {
   color: #1b4332;
   font-size: 13px;
   font-weight: 500;
+}
+
+.subscribe-form button:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .footer-message {
@@ -794,9 +932,14 @@ textarea::placeholder {
     display: grid;
   }
 
-  .inquiry-layout,
+  .establishments-hero__inner,
+  .business-grid,
   .site-footer__main {
     grid-template-columns: 1fr;
+  }
+
+  .hero-stat {
+    width: 100%;
   }
 }
 
@@ -815,17 +958,19 @@ textarea::placeholder {
     font-size: 38px;
   }
 
-  .inquiry-form {
-    padding: 24px;
+  .directory-toolbar,
+  .search-field,
+  .select-field,
+  .clear-filters {
+    width: 100%;
   }
 
-  .form-actions {
-    display: grid;
+  .business-card {
     grid-template-columns: 1fr;
   }
 
-  .form-actions button {
-    width: 100%;
+  dl {
+    grid-template-columns: 1fr;
   }
 
   .site-footer__main {
@@ -843,7 +988,3 @@ textarea::placeholder {
   }
 }
 </style>
-
-
-
-

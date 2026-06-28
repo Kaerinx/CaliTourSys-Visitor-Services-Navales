@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import { getMuseumItems, sharePublicItem } from '../services/promotionService'
 import { useNewsletterForm } from '../composables/useNewsletterForm'
@@ -9,14 +9,14 @@ const artifacts = ref([
   {
     id: 'burnay',
     name: 'Burnay Earthen Jar',
-    era: 'Pre-colonial · 14th c.',
+    era: 'Pre-colonial Â· 14th c.',
     accent: '#7B341E',
     desc: 'Coil-built clay vessel used for storing fermented fish paste across coastal barangays.',
   },
   {
     id: 'bell',
     name: 'Quipayo Church Bell',
-    era: 'Spanish era · 1792',
+    era: 'Spanish era Â· 1792',
     accent: '#5C3318',
     desc: 'Bronze bell cast in Manila and gifted to the Quipayo parish; bears the seal of the Franciscan order.',
   },
@@ -111,6 +111,18 @@ onMounted(loadArtifacts)
           <RouterLink to="/promotion/museum" class="site-nav__link site-nav__link--active">
             Museum
           </RouterLink>
+          <div class="site-nav__dropdown">
+            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
+              Accreditation
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <div class="site-nav__dropdown-menu">
+              <RouterLink to="/accreditation">Online Accreditation</RouterLink>
+              <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
+            </div>
+          </div>
           <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
 
@@ -262,8 +274,8 @@ onMounted(loadArtifacts)
           </p>
           <div class="social-row">
             <a aria-label="Facebook page pending" aria-disabled="true">f</a>
-            <a aria-label="Instagram page pending" aria-disabled="true">◎</a>
-            <a aria-label="Youtube page pending" aria-disabled="true">▶</a>
+            <a aria-label="Instagram page pending" aria-disabled="true">â—Ž</a>
+            <a aria-label="Youtube page pending" aria-disabled="true">â–¶</a>
           </div>
         </div>
 
@@ -298,7 +310,7 @@ onMounted(loadArtifacts)
 
       <div class="site-footer__bottom">
         <div class="page-shell">
-          <span>© 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
+          <span>Â© 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
           <span>
             <a aria-disabled="true">Privacy</a>
             <a aria-disabled="true">Accessibility</a>
@@ -1101,5 +1113,7 @@ h3 {
   }
 }
 </style>
+
+
 
 

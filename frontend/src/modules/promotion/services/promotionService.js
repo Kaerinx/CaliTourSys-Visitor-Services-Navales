@@ -285,6 +285,40 @@ function mapBusiness(business) {
   }
 }
 
+function formatYear(value) {
+  if (!value) return 'verification pending'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'verification pending' : String(date.getFullYear())
+}
+
+function mapAccreditedBusiness(business) {
+  const location = [
+    business.barangay,
+    business.municipality || business.cityMunicipality,
+    business.province,
+  ].filter(Boolean).join(', ')
+
+  return {
+    id: business.id,
+    apiId: business.businessId,
+    slug: business.slug,
+    name: business.name,
+    type: business.businessType || 'Tourism Business',
+    owner: business.ownerName || 'Registered business owner',
+    location: location || business.region || 'Calabanga, Camarines Sur',
+    accreditationStatus: business.accreditation?.status || 'accredited',
+    accreditationNumber: business.accreditation?.accreditationNumber,
+    accreditedSince: formatYear(business.accreditation?.issuedAt),
+    expiresAt: business.accreditation?.expiresAt,
+    contactEmail: business.contactEmail || '',
+    phone: business.phone || '',
+    description:
+      business.description ||
+      `${business.businessType || 'Tourism business'} accredited through the LGU Tourism Office.`,
+    source: business.source,
+  }
+}
+
 function mapEvent(event, index = 0) {
   const parts = dateParts(event.startsAt)
 
@@ -464,6 +498,17 @@ export async function getBusinessById(id) {
   )
 
   return data.slug ? mapBusiness(data) : data
+}
+
+export async function getAccreditedBusinesses(params = {}) {
+  const data = await withMockFallback(
+    () => promotionApi.getBusinesses({ limit: 50, sort: '-issuedAt', ...params }),
+    () => businessProfiles.filter((business) => business.accreditationStatus === 'accredited'),
+  )
+
+  return data.map((business) =>
+    business.businessType || business.accreditation ? mapAccreditedBusiness(business) : business,
+  )
 }
 
 export async function getMapLocations(params = { format: 'list' }) {

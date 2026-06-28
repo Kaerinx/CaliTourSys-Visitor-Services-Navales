@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -241,6 +241,18 @@ onBeforeUnmount(() => {
           <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
           <RouterLink to="/events" class="site-nav__link site-nav__link--active">Events</RouterLink>
           <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
+          <div class="site-nav__dropdown">
+            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
+              Accreditation
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <div class="site-nav__dropdown-menu">
+              <RouterLink to="/accreditation">Online Accreditation</RouterLink>
+              <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
+            </div>
+          </div>
           <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
         </nav>
 
@@ -484,8 +496,8 @@ onBeforeUnmount(() => {
           </p>
           <div class="social-row">
             <a aria-label="Facebook page pending" aria-disabled="true">f</a>
-            <a aria-label="Instagram page pending" aria-disabled="true">◎</a>
-            <a aria-label="Youtube page pending" aria-disabled="true">▶</a>
+            <a aria-label="Instagram page pending" aria-disabled="true">â—Ž</a>
+            <a aria-label="Youtube page pending" aria-disabled="true">â–¶</a>
           </div>
         </div>
 
@@ -1581,3 +1593,5 @@ h1 {
   }
 }
 </style>
+
+

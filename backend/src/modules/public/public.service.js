@@ -124,6 +124,16 @@ async function getBusinessBySlug(slug) {
   return business
 }
 
+async function listAccreditedBusinesses(filters) {
+  const pagination = getPagination(filters)
+  const result = await repository.listAccreditedBusinesses(filters, pagination)
+
+  return {
+    data: result.items,
+    pagination: buildPaginationMeta(pagination.page, pagination.limit, result.totalItems),
+  }
+}
+
 async function listMapLocations(filters) {
   const locations = await repository.listMapLocations(filters)
 
@@ -274,6 +284,7 @@ module.exports = {
   getMuseumArtifactBySlug,
   listPromotions,
   getPromotionBySlug,
+  listAccreditedBusinesses,
   getBusinessBySlug,
   listMapLocations,
   listProductCategories,

@@ -49,6 +49,32 @@ function mapBusinessSummary(row) {
   }
 }
 
+function mapAccreditedBusiness(row) {
+  return {
+    id: row.id,
+    source: row.source,
+    businessId: row.business_id,
+    slug: row.business_slug,
+    name: row.business_name,
+    businessType: row.business_type,
+    ownerName: row.owner_name,
+    description: row.description,
+    addressLine: row.address_line,
+    barangay: row.barangay,
+    municipality: row.municipality,
+    province: row.province,
+    region: row.region,
+    contactEmail: row.contact_email,
+    phone: row.phone,
+    accreditation: {
+      status: row.accreditation_status,
+      accreditationNumber: row.accreditation_number,
+      issuedAt: row.accreditation_issued_at,
+      expiresAt: row.accreditation_expires_at,
+    },
+  }
+}
+
 function mapAccreditation(row) {
   if (!row.accreditation_status) return null
 
@@ -958,6 +984,147 @@ async function getBusinessBySlug(slug) {
   }
 }
 
+function accreditedBusinessesSelect() {
+  return `
+    WITH active_module_records AS (
+      SELECT DISTINCT ON (r.business_profile_id)
+        r.id::text AS id,
+        'accreditation_module' AS source,
+        b.id AS business_id,
+        NULL::varchar AS business_slug,
+        b.business_name,
+        b.business_type,
+        concat_ws(' ', u.first_name, u.last_name) AS owner_name,
+        NULL::text AS description,
+        b.street_address AS address_line,
+        b.barangay,
+        b.city_municipality AS municipality,
+        b.province,
+        b.region,
+        u.email AS contact_email,
+        u.phone,
+        r.status::text AS accreditation_status,
+        r.record_number AS accreditation_number,
+        r.issued_at AS accreditation_issued_at,
+        r.expires_at AS accreditation_expires_at
+      FROM accreditation_records r
+      JOIN business_profiles b ON b.id = r.business_profile_id
+      JOIN users u ON u.id = b.owner_id
+      WHERE r.status = 'active'
+        AND (r.expires_at IS NULL OR r.expires_at >= NOW())
+      ORDER BY r.business_profile_id, r.issued_at DESC
+    ),
+    public_records AS (
+      SELECT DISTINCT ON (b.id)
+        acc.id::text AS id,
+        'public_business' AS source,
+        b.id AS business_id,
+        b.slug AS business_slug,
+        b.name AS business_name,
+        b.business_type,
+        b.owner_name,
+        b.description,
+        b.address_line,
+        b.barangay,
+        b.municipality,
+        b.province,
+        NULL::varchar AS region,
+        (
+          SELECT bc.contact_value
+          FROM business_contacts bc
+          WHERE bc.business_id = b.id AND bc.is_public = true AND bc.contact_type = 'email'
+          ORDER BY bc.is_primary DESC, bc.created_at ASC
+          LIMIT 1
+        ) AS contact_email,
+        (
+          SELECT bc.contact_value
+          FROM business_contacts bc
+          WHERE bc.business_id = b.id AND bc.is_public = true AND bc.contact_type = 'phone'
+          ORDER BY bc.is_primary DESC, bc.created_at ASC
+          LIMIT 1
+        ) AS phone,
+        acc.status::text AS accreditation_status,
+        acc.accreditation_number,
+        acc.issued_at::timestamptz AS accreditation_issued_at,
+        acc.expires_at::timestamptz AS accreditation_expires_at
+      FROM businesses b
+      JOIN LATERAL (
+        SELECT ba.id, ba.status, ba.accreditation_number, ba.issued_at, ba.expires_at, ba.verified_at
+        FROM business_accreditations ba
+        WHERE ba.business_id = b.id
+        ORDER BY ba.verified_at DESC NULLS LAST, ba.created_at DESC
+        LIMIT 1
+      ) acc ON true
+      WHERE b.status = 'active'
+        AND acc.status = 'accredited'
+        AND (acc.expires_at IS NULL OR acc.expires_at >= CURRENT_DATE)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM active_module_records module_record
+          WHERE lower(module_record.business_name) = lower(b.name)
+        )
+      ORDER BY b.id, acc.verified_at DESC NULLS LAST
+    )
+    SELECT * FROM active_module_records
+    UNION ALL
+    SELECT * FROM public_records
+  `
+}
+
+async function listAccreditedBusinesses(filters, pagination) {
+  const params = []
+  const where = []
+
+  if (filters.search) {
+    const ref = addParam(params, `%${filters.search}%`)
+    where.push(`(
+      business_name ILIKE ${ref}
+      OR business_type ILIKE ${ref}
+      OR owner_name ILIKE ${ref}
+      OR barangay ILIKE ${ref}
+      OR municipality ILIKE ${ref}
+      OR province ILIKE ${ref}
+      OR accreditation_number ILIKE ${ref}
+    )`)
+  }
+
+  if (filters.businessType) {
+    where.push(`business_type ILIKE ${addParam(params, `%${filters.businessType}%`)}`)
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+  const sortSql = {
+    name: 'business_name ASC',
+    '-name': 'business_name DESC',
+    issuedAt: 'accreditation_issued_at ASC NULLS LAST',
+    '-issuedAt': 'accreditation_issued_at DESC NULLS LAST',
+  }[filters.sort || '-issuedAt']
+
+  const countResult = await query(
+    `SELECT COUNT(*)::int AS total FROM (${accreditedBusinessesSelect()}) accredited ${whereSql}`,
+    params,
+  )
+
+  const listParams = [...params]
+  const limitRef = addParam(listParams, pagination.limit)
+  const offsetRef = addParam(listParams, pagination.offset)
+  const result = await query(
+    `
+      SELECT *
+      FROM (${accreditedBusinessesSelect()}) accredited
+      ${whereSql}
+      ORDER BY ${sortSql}, business_name ASC
+      LIMIT ${limitRef} OFFSET ${offsetRef}
+    `,
+    listParams,
+  )
+
+  return {
+    items: result.rows.map(mapAccreditedBusiness),
+    totalItems: countResult.rows[0]?.total || 0,
+  }
+}
+
 function mapMapLocation(row) {
   return {
     id: row.id,
@@ -1495,6 +1662,7 @@ module.exports = {
   getMuseumArtifactBySlug,
   listPromotions,
   getPromotionBySlug,
+  listAccreditedBusinesses,
   getBusinessBySlug,
   listMapLocations,
   listCategories,
