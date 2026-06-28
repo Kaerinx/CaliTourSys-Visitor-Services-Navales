@@ -9,8 +9,8 @@ import PublicAuthModal from './modules/promotion/components/PublicAuthModal.vue'
 const route = useRoute()
 const router = useRouter()
 
-const isProductShell = computed(
-  () => route.path === '/login' || route.path === '/dashboard' || route.path.startsWith('/product'),
+const isProductShell = computed(() =>
+  route.matched.some((record) => record.meta.productPublic || record.meta.productRequiresAuth),
 )
 const isCmsRoute = computed(() => route.path.startsWith('/cms'))
 const isAccreditationRoute = computed(() => route.path.startsWith('/accreditation'))
