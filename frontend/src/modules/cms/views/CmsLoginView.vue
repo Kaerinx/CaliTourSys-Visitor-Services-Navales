@@ -52,6 +52,7 @@ async function submitLogin() {
 function resolveRedirect(user) {
   const redirect = Array.isArray(route.query.redirect) ? route.query.redirect[0] : route.query.redirect
   const visitorDashboard = visitorDashboardForUser(user || auth.currentUser)
+  const isReceptionist = visitorDashboard === '/cms/visitor/receptionist'
 
   if (typeof redirect === 'string' && redirect === '/cms/visitor') {
     return visitorDashboard || '/cms/dashboard'
@@ -61,7 +62,7 @@ function resolveRedirect(user) {
     return redirect
   }
 
-  if (visitorDashboard) return visitorDashboard
+  if (isReceptionist) return visitorDashboard
 
   return '/cms/dashboard'
 }

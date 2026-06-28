@@ -54,11 +54,11 @@ const quickActions = [
   },
   {
     title: 'Visitor Services',
-    description: 'Review inquiries and newsletter records.',
-    path: '/cms/inquiries',
+    description: 'Open visitor records, inquiries, and tourism reports.',
+    path: '/cms/visitor',
     tone: 'sky',
-    icon: 'message',
-    permissions: ['inquiries.view', 'newsletter.view'],
+    icon: 'users',
+    permissions: ['dashboard.view', 'inquiries.view'],
   },
 ]
 

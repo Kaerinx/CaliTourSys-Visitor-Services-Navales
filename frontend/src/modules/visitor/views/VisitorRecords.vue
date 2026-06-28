@@ -3,9 +3,9 @@
     <header class="records-header records-header-row">
       <div>
         <p class="eyebrow">{{ isReceptionist ? 'Receptionist Desk' : 'Tourism Staff' }}</p>
-        <h1>{{ isReceptionist ? 'Recorded Visitor Data' : 'Visitor Records' }}</h1>
+        <h1>Recorded Visitor Data</h1>
         <p class="muted">
-          {{ isReceptionist ? 'Review visitor records assigned to your establishment.' : 'Review, add, and monitor visitor records for tourism recordkeeping.' }}
+          {{ isReceptionist ? 'Records assigned to your establishment.' : 'Records submitted by assigned receptionists and establishments.' }}
         </p>
         <p v-if="isReceptionist" class="assigned-line">
           Assigned establishment: <strong>{{ auth.user?.assigned_establishment_name || 'Assigned Establishment' }}</strong>
@@ -81,7 +81,7 @@
       <div class="section-header compact">
         <div>
           <h2>Recorded Visitor Data</h2>
-          <p>{{ isReceptionist ? 'Records assigned to your establishment.' : 'All visitor records encoded in the system.' }}</p>
+          <p>{{ isReceptionist ? 'Records assigned to your establishment.' : 'Records submitted by assigned receptionists and establishments.' }}</p>
         </div>
         <span class="record-count">Showing {{ filteredRecords.length }} of {{ records.length }} records</span>
       </div>
@@ -206,7 +206,7 @@ const modalError = ref('')
 const savingRecord = ref(false)
 const showRecordModal = ref(false)
 const isReceptionist = computed(() => auth.user?.role === 'receptionist' || route.meta.sourceType === 'resort')
-const canAddRecord = computed(() => auth.user?.role === 'tourism_staff' && !isReceptionist.value)
+const canAddRecord = computed(() => false)
 
 const appliedFilters = reactive(defaultFilters())
 const draftFilters = reactive(defaultFilters())
@@ -270,7 +270,7 @@ function defaultRecordForm() {
 }
 
 async function load() {
-  const sourceType = isReceptionist.value ? 'resort' : route.meta.sourceType || ''
+  const sourceType = route.meta.sourceType || ''
   const params = sourceType ? { source_type: sourceType } : {}
   records.value = await visitorApi.visitors(params)
   draftFilters.source_type = sourceType
@@ -287,7 +287,7 @@ function applyFilters() {
 }
 
 function resetFilters() {
-  const sourceType = isReceptionist.value ? 'resort' : ''
+  const sourceType = route.meta.sourceType || ''
   Object.assign(draftFilters, defaultFilters(), { source_type: sourceType })
   Object.assign(appliedFilters, defaultFilters(), { source_type: sourceType })
 }

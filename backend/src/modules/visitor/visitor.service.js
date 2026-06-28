@@ -35,6 +35,21 @@ function classifyVisitor(payload) {
   return 'domestic';
 }
 
+function sourceTypeFromEstablishment(establishment) {
+  const type = normalizeType(establishment?.type);
+  if (!type) return '';
+  if (type.includes('museum') || type.includes('cultural')) return 'museum';
+  if (type.includes('heritage')) return 'heritage';
+  if (type.includes('resort')) return 'resort';
+  return type.replace(/\s+/g, '_');
+}
+
+async function sourceTypeForEstablishment(establishmentId) {
+  if (!establishmentId) return '';
+  const establishments = await model.listEstablishments();
+  return sourceTypeFromEstablishment(establishments.find((item) => Number(item.id) === Number(establishmentId)));
+}
+
 function scopedFilters(filters, user) {
   const next = { ...filters };
   const assignedId = user.assigned_establishment_id || user.assigned_resort_id;
@@ -44,7 +59,6 @@ function scopedFilters(filters, user) {
     } else {
       delete next.establishment_id;
     }
-    next.source_type = 'resort';
   }
   return next;
 }
@@ -317,11 +331,12 @@ async function createVisitor(payload, user) {
     const assignedId = user.assigned_establishment_id || user.assigned_resort_id || payload.establishment_id;
     if (assignedId) {
       visitor.establishment_id = assignedId;
+      visitor.source_type = (await sourceTypeForEstablishment(assignedId)) || visitor.source_type;
     } else {
       const resort = await model.findFirstEstablishmentByType('resort');
       visitor.establishment_id = resort?.id || null;
+      visitor.source_type = sourceTypeFromEstablishment(resort) || 'resort';
     }
-    visitor.source_type = 'resort';
   }
 
   if (visitor.source_type === 'museum' && !visitor.establishment_id) {
