@@ -1,6 +1,6 @@
 <script setup>
 import { computed, h } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/authStore'
 import { adminNav, receptionistNav, tourismNav } from '../views/nav'
 import '../styles.css'
@@ -17,7 +17,10 @@ defineProps({
 })
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
+
+const useStandaloneShell = computed(() => auth.user?.role === 'receptionist' || auth.user?.role === 'admin' || route.meta.visitorStandalone)
 
 const navItems = computed(() => {
   if (auth.user?.role === 'admin') return adminNav
@@ -114,7 +117,28 @@ function iconFor(name) {
 </script>
 
 <template>
-  <div class="management-shell">
+  <section v-if="!useStandaloneShell" class="visitor-cms-page">
+    <header v-if="title || subtitle" class="visitor-cms-heading">
+      <p>Visitor Services</p>
+      <h1>{{ title }}</h1>
+      <span v-if="subtitle">{{ subtitle }}</span>
+    </header>
+    <nav class="visitor-cms-tabs" aria-label="Visitor Services navigation">
+      <RouterLink
+        v-for="item in tourismNav"
+        :key="item.to"
+        class="visitor-cms-tab"
+        :to="item.to"
+        active-class="is-active"
+      >
+        <component :is="iconFor(item.icon)" />
+        <span>{{ item.label }}</span>
+      </RouterLink>
+    </nav>
+    <slot />
+  </section>
+
+  <div v-else class="management-shell">
     <aside class="management-sidebar">
       <RouterLink class="sidebar-brand" :to="auth.dashboardRoute || '/cms/login'">
         <span class="sidebar-logo">
@@ -158,3 +182,72 @@ function iconFor(name) {
     </main>
   </div>
 </template>
+
+<style scoped>
+.visitor-cms-page {
+  display: grid;
+  gap: 22px;
+}
+
+.visitor-cms-heading {
+  display: grid;
+  gap: 6px;
+}
+
+.visitor-cms-heading p,
+.visitor-cms-heading h1,
+.visitor-cms-heading span {
+  margin: 0;
+}
+
+.visitor-cms-heading p {
+  color: #0f766e;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.visitor-cms-heading h1 {
+  color: #0f172a;
+  font-size: clamp(1.75rem, 3vw, 2.35rem);
+  line-height: 1.1;
+}
+
+.visitor-cms-heading span {
+  color: #475569;
+}
+
+.visitor-cms-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+}
+
+.visitor-cms-tab {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 7px;
+  padding: 0 14px;
+  color: #475569;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.visitor-cms-tab svg {
+  width: 18px;
+  height: 18px;
+}
+
+.visitor-cms-tab:hover,
+.visitor-cms-tab.is-active {
+  background: #ecfeff;
+  color: #0f766e;
+}
+</style>

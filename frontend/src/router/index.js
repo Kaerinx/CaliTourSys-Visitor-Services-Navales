@@ -17,14 +17,11 @@ const TourismActivityList = () => import('@/modules/product/views/TourismActivit
 const TourismPackageList = () => import('@/modules/product/views/TourismPackageList.vue')
 
 const VisitorAdminDashboard = () => import('@/modules/visitor/views/AdminDashboard.vue')
-const VisitorTourismStaffDashboard = () => import('@/modules/visitor/views/TourismStaffDashboard.vue')
 const VisitorReceptionistDashboard = () => import('@/modules/visitor/views/ReceptionistDashboard.vue')
 const VisitorRegistration = () => import('@/modules/visitor/views/VisitorRegistration.vue')
 const VisitorMuseumRegistration = () => import('@/modules/visitor/views/MuseumRegistration.vue')
 const VisitorRecords = () => import('@/modules/visitor/views/VisitorRecords.vue')
 const VisitorMuseumRecords = () => import('@/modules/visitor/views/MuseumRecords.vue')
-const VisitorInquiries = () => import('@/modules/visitor/views/StaffInquiries.vue')
-const VisitorReports = () => import('@/modules/visitor/views/ReportsAnalytics.vue')
 const VisitorUserManagement = () => import('@/modules/visitor/views/UserManagement.vue')
 const VisitorAdministration = () => import('@/modules/visitor/views/Administration.vue')
 const VisitorEstablishmentManagement = () => import('@/modules/visitor/views/EstablishmentManagement.vue')
@@ -126,6 +123,10 @@ const visitorRoutes = [
     redirect: redirectToCmsVisitor('/cms/visitor/records'),
   },
   {
+    path: '/visitor/receptionist/records',
+    redirect: redirectToCmsVisitor('/cms/visitor/receptionist/records'),
+  },
+  {
     path: '/visitor/museum-records',
     redirect: redirectToCmsVisitor('/cms/visitor/museum-records'),
   },
@@ -165,12 +166,6 @@ const visitorRoutes = [
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin'] },
   },
   {
-    path: '/cms/visitor/staff',
-    name: 'visitor-staff-dashboard',
-    component: VisitorTourismStaffDashboard,
-    meta: { visitorRequiresAuth: true, visitorRoles: ['tourism_staff'] },
-  },
-  {
     path: '/cms/visitor/receptionist',
     name: 'visitor-receptionist-dashboard',
     component: VisitorReceptionistDashboard,
@@ -189,27 +184,15 @@ const visitorRoutes = [
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff'] },
   },
   {
-    path: '/cms/visitor/records',
-    name: 'visitor-records',
+    path: '/cms/visitor/receptionist/records',
+    name: 'visitor-receptionist-records',
     component: VisitorRecords,
-    meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff', 'receptionist'] },
+    meta: { visitorRequiresAuth: true, visitorRoles: ['receptionist'], visitorStandalone: true },
   },
   {
     path: '/cms/visitor/museum-records',
     name: 'visitor-museum-records',
     component: VisitorMuseumRecords,
-    meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff'] },
-  },
-  {
-    path: '/cms/visitor/inquiries',
-    name: 'visitor-inquiries',
-    component: VisitorInquiries,
-    meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff'] },
-  },
-  {
-    path: '/cms/visitor/reports',
-    name: 'visitor-reports',
-    component: VisitorReports,
     meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff'] },
   },
   {

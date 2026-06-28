@@ -171,6 +171,30 @@ const cmsRoutes = [
         meta: { permission: 'media.view' },
       },
       {
+        path: 'visitor/staff',
+        name: 'visitor-staff-dashboard',
+        component: () => import('@/modules/visitor/views/TourismStaffDashboard.vue'),
+        meta: { visitorRequiresAuth: true, visitorRoles: ['tourism_staff'] },
+      },
+      {
+        path: 'visitor/records',
+        name: 'visitor-records',
+        component: () => import('@/modules/visitor/views/VisitorRecords.vue'),
+        meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff'] },
+      },
+      {
+        path: 'visitor/inquiries',
+        name: 'visitor-inquiries',
+        component: () => import('@/modules/visitor/views/StaffInquiries.vue'),
+        meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff'] },
+      },
+      {
+        path: 'visitor/reports',
+        name: 'visitor-reports',
+        component: () => import('@/modules/visitor/views/ReportsAnalytics.vue'),
+        meta: { visitorRequiresAuth: true, visitorRoles: ['admin', 'tourism_staff'] },
+      },
+      {
         path: ':pathMatch(.*)*',
         name: 'cms-not-found',
         component: () => import('./views/CmsNotFoundView.vue'),

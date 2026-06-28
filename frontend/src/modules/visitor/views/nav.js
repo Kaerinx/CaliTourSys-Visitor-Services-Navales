@@ -16,5 +16,5 @@ export const tourismNav = [
 export const receptionistNav = [
   { label: 'Dashboard', to: '/cms/visitor/receptionist', icon: 'dashboard' },
   { label: 'Guest / Visitor Registration', to: '/cms/visitor/registration', icon: 'user-plus' },
-  { label: 'Recorded Visitor Data', to: '/cms/visitor/records', icon: 'users' },
+  { label: 'Recorded Visitor Data', to: '/cms/visitor/receptionist/records', icon: 'users' },
 ]

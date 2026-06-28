@@ -3,8 +3,8 @@
     <header class="staff-dashboard-header">
       <div>
         <span class="eyebrow">Tourism Staff</span>
-        <h1>Welcome to Calabanga Tourism, Tourism Staff</h1>
-        <p>Overview of visitor records, inquiries, museum activity, and reports.</p>
+        <h1>Visitor Services</h1>
+        <p>Overview of visitor records, inquiries, source activity, and reports.</p>
       </div>
       <span class="period-badge">Today</span>
     </header>
