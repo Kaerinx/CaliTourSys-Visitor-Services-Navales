@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS tourism_assets (
   ),
   target_market varchar(255) NOT NULL,
   development_status varchar(80) NOT NULL DEFAULT 'Draft' CHECK (
-    development_status IN ('Draft', 'Validated', 'In Development', 'For Review', 'Ready for Promotion', 'Archived')
+    development_status IN ('Draft', 'Archived')
   ),
   image_url text,
   remarks text DEFAULT '',
@@ -56,9 +56,11 @@ CREATE TABLE IF NOT EXISTS development_plans (
   proposed_activities text NOT NULL,
   timeline_start date,
   timeline_end date,
+  timeline_start_time time,
+  timeline_end_time time,
   assigned_personnel varchar(255) NOT NULL,
   plan_status varchar(80) NOT NULL DEFAULT 'Draft' CHECK (
-    plan_status IN ('Draft', 'Ongoing', 'Completed', 'On Hold', 'Archived')
+    plan_status IN ('Draft', 'Archived')
   ),
   remarks text DEFAULT '',
   created_by uuid REFERENCES users(id) ON DELETE SET NULL,
@@ -140,13 +142,24 @@ CREATE TABLE IF NOT EXISTS tourism_packages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name varchar(255) NOT NULL,
   description text NOT NULL,
-  category varchar(120) NOT NULL DEFAULT 'Nature & Eco' CHECK (
-    category IN ('Faith & Heritage', 'Coastal & Island', 'Nature & Eco', 'Agri-Tourism & Farm', 'Food & Local Products')
+  category varchar(120) NOT NULL DEFAULT 'Nature' CHECK (
+    category IN (
+      'Nature',
+      'Cultural',
+      'Food',
+      'Events',
+      'Nature and Cultural',
+      'Nature and Food',
+      'Nature and Events',
+      'Cultural and Food',
+      'Cultural and Events',
+      'Food and Events'
+    )
   ),
   target_market varchar(255) NOT NULL,
   estimated_duration varchar(120) NOT NULL,
   package_status varchar(80) NOT NULL DEFAULT 'Draft' CHECK (
-    package_status IN ('Draft', 'In Development', 'For Review', 'Ready for Promotion', 'Approved', 'Published', 'Archived')
+    package_status IN ('Draft', 'Ready for Promotion', 'Archived')
   ),
   remarks text DEFAULT '',
   created_by uuid REFERENCES users(id) ON DELETE SET NULL,
@@ -169,7 +182,7 @@ FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TABLE IF NOT EXISTS package_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   package_id uuid NOT NULL REFERENCES tourism_packages(id) ON DELETE CASCADE,
-  item_type varchar(30) NOT NULL CHECK (item_type IN ('Asset', 'Activity')),
+  item_type varchar(30) NOT NULL CHECK (item_type IN ('Plan', 'Asset')),
   item_reference_id uuid NOT NULL,
   sort_order integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now(),

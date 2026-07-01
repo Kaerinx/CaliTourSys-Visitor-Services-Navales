@@ -82,6 +82,7 @@ async function validatePackageItems(items) {
     if (unique.has(key)) throw invalid('Duplicate package items are not allowed.')
     unique.add(key)
 
+    if (item.itemType === 'Plan') await ensurePlanSelectable(item.referenceId)
     if (item.itemType === 'Asset') await ensureAssetSelectable(item.referenceId)
     if (item.itemType === 'Activity') await ensureActivitySelectable(item.referenceId)
   }
@@ -98,11 +99,14 @@ function readinessIssues(tourismPackage) {
   if (!tourismPackage.category) issues.push('Package category is required.')
   if (!tourismPackage.targetMarket) issues.push('Target market is required.')
   if (!tourismPackage.estimatedDuration) issues.push('Estimated duration is required.')
-  if (!tourismPackage.items?.length) {
-    issues.push('At least one linked asset or activity is required.')
+  if (!tourismPackage.items?.some((item) => item.itemType === 'Plan')) {
+    issues.push('At least one linked plan is required.')
   }
 
   for (const item of tourismPackage.items || []) {
+    if (item.itemType === 'Plan' && item.status === 'Archived') {
+      issues.push(`Linked plan "${item.name || item.referenceId}" is archived.`)
+    }
     if (item.itemType === 'Asset' && item.status === 'Archived') {
       issues.push(`Linked asset "${item.name || item.referenceId}" is archived.`)
     }

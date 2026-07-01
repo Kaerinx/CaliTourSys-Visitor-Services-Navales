@@ -12,7 +12,7 @@ function mapPackage(row) {
     id: row.package_id,
     name: row.package_name,
     description: row.description,
-    category: row.category || 'Nature & Eco',
+    category: row.category || 'Nature',
     targetMarket: row.target_market,
     estimatedDuration: row.estimated_duration,
     packageStatus: row.package_status,

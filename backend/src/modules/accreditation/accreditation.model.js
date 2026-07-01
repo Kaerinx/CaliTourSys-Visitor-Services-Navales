@@ -32,6 +32,12 @@ function auditEventNumber() {
   return `AUD-${new Date().getFullYear()}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
+function coordinate(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 async function createUser(user) {
   const displayName = `${user.firstName} ${user.lastName}`.trim();
   const result = await db.query(
@@ -93,8 +99,8 @@ async function createBusinessOwnerWithProfile(user, profile) {
       `INSERT INTO business_profiles (
         owner_id, business_name, business_type, business_permit_number,
         dti_sec_registration_number, region, province, city_municipality,
-        barangay, street_address, zip_code
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        barangay, street_address, zip_code, latitude, longitude
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
         createdUser.id,
         profile.businessName,
@@ -107,6 +113,8 @@ async function createBusinessOwnerWithProfile(user, profile) {
         profile.barangay,
         profile.streetAddress,
         profile.zipCode || null,
+        coordinate(profile.latitude),
+        coordinate(profile.longitude),
       ]
     );
 
@@ -193,8 +201,8 @@ async function createBusinessProfile(ownerId, profile) {
     `INSERT INTO business_profiles (
       owner_id, business_name, business_type, business_permit_number,
       dti_sec_registration_number, region, province, city_municipality,
-      barangay, street_address, zip_code
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      barangay, street_address, zip_code, latitude, longitude
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
     RETURNING *`,
     [
       ownerId,
@@ -208,6 +216,8 @@ async function createBusinessProfile(ownerId, profile) {
       profile.barangay,
       profile.streetAddress,
       profile.zipCode || null,
+      coordinate(profile.latitude),
+      coordinate(profile.longitude),
     ]
   );
   return result.rows[0];
@@ -239,6 +249,8 @@ async function updateBusinessProfile(ownerId, profile) {
        barangay = $9,
        street_address = $10,
        zip_code = $11,
+       latitude = $12,
+       longitude = $13,
        updated_at = NOW()
      WHERE id = (
        SELECT id FROM business_profiles
@@ -259,6 +271,8 @@ async function updateBusinessProfile(ownerId, profile) {
       profile.barangay,
       profile.streetAddress,
       profile.zipCode || null,
+      coordinate(profile.latitude),
+      coordinate(profile.longitude),
     ]
   );
 
@@ -393,6 +407,8 @@ async function listApplications(filters = {}) {
        b.barangay,
        b.street_address,
        b.zip_code,
+       b.latitude,
+       b.longitude,
        u.first_name,
        u.last_name,
        reviewer.first_name AS reviewer_first_name,
@@ -615,6 +631,8 @@ async function listAccreditationRecords(filters = {}) {
        b.city_municipality,
        b.barangay,
        b.street_address,
+       b.latitude,
+       b.longitude,
        u.first_name,
        u.last_name,
        issuer.first_name AS issuer_first_name,

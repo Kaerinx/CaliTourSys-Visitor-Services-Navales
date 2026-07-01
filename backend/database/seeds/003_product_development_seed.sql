@@ -19,7 +19,7 @@ VALUES
     'Barangay Quipayo',
     'Religious',
     'Pilgrims, heritage learners, families, student groups',
-    'Ready for Promotion',
+    'Draft',
     'https://commons.wikimedia.org/wiki/Special:FilePath/Quipayo%20Church%20%28S.%20Ciencia%29%20-%20Flickr.jpg',
     'Anchor site for faith and heritage package development.',
     (SELECT id FROM seed_user)
@@ -31,7 +31,7 @@ VALUES
     'Calabanga poblacion area',
     'Religious',
     'Pilgrims, families, parish groups',
-    'For Review',
+    'Draft',
     'https://commons.wikimedia.org/wiki/Special:FilePath/Quipayo%20Church%20%28S.%20Ciencia%29%20-%20Flickr.jpg',
     'Needs visitor flow and interpretive guide coordination.',
     (SELECT id FROM seed_user)
@@ -43,7 +43,7 @@ VALUES
     'San Miguel Bay, Calabanga',
     'Natural',
     'Eco-tourists, photographers, coastal learners, families',
-    'Validated',
+    'Draft',
     'https://commons.wikimedia.org/wiki/Special:FilePath/Sunset%20at%20San%20Miguel%20Bay%2C%20Calabanga.jpg',
     'Coordinate weather, tide, and community readiness before promotion.',
     (SELECT id FROM seed_user)
@@ -55,7 +55,7 @@ VALUES
     'Kawit Island',
     'Natural',
     'Island visitors, families, photography groups',
-    'In Development',
+    'Draft',
     'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
     'Boat coordination and visitor safety checks required.',
     (SELECT id FROM seed_user)
@@ -67,7 +67,7 @@ VALUES
     'Cabgan Island',
     'Natural',
     'Eco-tourists, family groups, coastal visitors',
-    'In Development',
+    'Draft',
     'https://commons.wikimedia.org/wiki/Special:FilePath/Kabgan%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
     'Use controlled group sizes and local coordination.',
     (SELECT id FROM seed_user)
@@ -79,7 +79,7 @@ VALUES
     'Tigman-Hinagyanan-Inarihan river corridor',
     'Natural',
     'Students, eco-tourists, researchers, families',
-    'Validated',
+    'Draft',
     'https://commons.wikimedia.org/wiki/Special:FilePath/Sea%20Side%20Calabanga%20Camarines%20Sur.jpg',
     'Suitable for conservation learning once safety points are mapped.',
     (SELECT id FROM seed_user)
@@ -91,7 +91,7 @@ VALUES
     'Hacienda Calabanga',
     'Agricultural',
     'Families, students, farm visitors, food tourists',
-    'For Review',
+    'Draft',
     'https://commons.wikimedia.org/wiki/Special:FilePath/Kabgan%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
     'Needs host orientation and visitor flow preparation.',
     (SELECT id FROM seed_user)
@@ -117,8 +117,8 @@ VALUES
     '2026-06-01',
     '2026-08-15',
     'Tourism Officer and Heritage Guide Coordinator',
-    'Ongoing',
-    'Complete chain seed: Quipayo Church to Faith & Heritage Package.',
+    'Draft',
+    'Complete chain seed: Quipayo Church to Cultural Package.',
     (SELECT id FROM seed_user)
   ),
   (
@@ -132,7 +132,7 @@ VALUES
     '2026-06-10',
     '2026-09-30',
     'Coastal Tourism Staff and Barangay Coordinators',
-    'Ongoing',
+    'Draft',
     'Supports coastal and island package readiness.',
     (SELECT id FROM seed_user)
   ),
@@ -216,7 +216,7 @@ VALUES
     'A bay-view activity covering coastal livelihood, safety reminders, and environmental stewardship.',
     'Half day',
     'Eco-tourists, family groups, photographers',
-    'For Review',
+    'Draft',
     'Can be paired with island stops once boat coordination is complete.',
     (SELECT id FROM seed_user)
   ),
@@ -228,7 +228,7 @@ VALUES
     'A short guided learning activity on watershed health, river ecology, and community stewardship.',
     '2.5 hours',
     'Students, eco-tourists, researchers',
-    'In Development',
+    'Draft',
     'Needs final route safety assessment.',
     (SELECT id FROM seed_user)
   ),
@@ -255,9 +255,9 @@ INSERT INTO tourism_packages (
 VALUES
   (
     '35000000-0000-4000-8000-000000000001',
-    'Faith & Heritage Package',
+    'Cultural Heritage Package',
     'A visitor-ready faith and heritage route anchored on Quipayo Church, interpretation, and respectful devotional stops.',
-    'Faith & Heritage',
+    'Cultural',
     'Pilgrims, heritage learners, student groups',
     'Half day',
     'Ready for Promotion',
@@ -266,12 +266,12 @@ VALUES
   ),
   (
     '35000000-0000-4000-8000-000000000002',
-    'San Miguel Bay Coastal Discovery Package',
+    'San Miguel Bay Nature Discovery Package',
     'A coastal and island-oriented package combining bay orientation, scenic island context, and community-based visitor guidance.',
-    'Coastal & Island',
+    'Nature',
     'Eco-tourists, photographers, family groups',
     'Full day',
-    'Approved',
+    'Ready for Promotion',
     'Approved for public promotion while final boat schedules are coordinated per group inquiry.',
     (SELECT id FROM seed_user)
   ),
@@ -279,18 +279,18 @@ VALUES
     '35000000-0000-4000-8000-000000000003',
     'River and Eco-Learning Package',
     'A nature learning package focused on the Tigman-Hinagyanan-Inarihan River Corridor and watershed stewardship.',
-    'Nature & Eco',
+    'Nature',
     'Students, eco-tourists, researchers',
     'Half day',
-    'For Review',
-    'Internal package: public listing should hide this until approved or ready.',
+    'Draft',
+    'Internal package: public listing should hide this until marked ready.',
     (SELECT id FROM seed_user)
   ),
   (
     '35000000-0000-4000-8000-000000000004',
-    'Hacienda Agri-Tourism Preview',
+    'Hacienda Food Tourism Preview',
     'A draft agri-tourism package for farm learning, countryside livelihood, and local snack storytelling.',
-    'Agri-Tourism & Farm',
+    'Food',
     'Families, students, food tourists',
     'Half day',
     'Draft',
@@ -301,10 +301,10 @@ VALUES
     '35000000-0000-4000-8000-000000000005',
     'Calabanga Coast, Faith, and Flavors Package',
     'A public package combining heritage orientation, coastal scenery, and local food inquiry stops.',
-    'Food & Local Products',
+    'Food',
     'Families, balikbayan visitors, local product buyers',
     'Full day',
-    'Published',
+    'Ready for Promotion',
     'Published sample for public Packages QA.',
     (SELECT id FROM seed_user)
   )
@@ -313,18 +313,13 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO package_items (id, package_id, item_type, item_reference_id, sort_order)
 VALUES
   ('36000000-0000-4000-8000-000000000001', '35000000-0000-4000-8000-000000000001', 'Asset', '31000000-0000-4000-8000-000000000001', 1),
-  ('36000000-0000-4000-8000-000000000002', '35000000-0000-4000-8000-000000000001', 'Activity', '34000000-0000-4000-8000-000000000001', 2),
   ('36000000-0000-4000-8000-000000000003', '35000000-0000-4000-8000-000000000002', 'Asset', '31000000-0000-4000-8000-000000000003', 1),
   ('36000000-0000-4000-8000-000000000004', '35000000-0000-4000-8000-000000000002', 'Asset', '31000000-0000-4000-8000-000000000004', 2),
   ('36000000-0000-4000-8000-000000000005', '35000000-0000-4000-8000-000000000002', 'Asset', '31000000-0000-4000-8000-000000000005', 3),
-  ('36000000-0000-4000-8000-000000000006', '35000000-0000-4000-8000-000000000002', 'Activity', '34000000-0000-4000-8000-000000000002', 4),
   ('36000000-0000-4000-8000-000000000007', '35000000-0000-4000-8000-000000000003', 'Asset', '31000000-0000-4000-8000-000000000006', 1),
-  ('36000000-0000-4000-8000-000000000008', '35000000-0000-4000-8000-000000000003', 'Activity', '34000000-0000-4000-8000-000000000003', 2),
   ('36000000-0000-4000-8000-000000000009', '35000000-0000-4000-8000-000000000004', 'Asset', '31000000-0000-4000-8000-000000000007', 1),
-  ('36000000-0000-4000-8000-000000000010', '35000000-0000-4000-8000-000000000004', 'Activity', '34000000-0000-4000-8000-000000000004', 2),
   ('36000000-0000-4000-8000-000000000011', '35000000-0000-4000-8000-000000000005', 'Asset', '31000000-0000-4000-8000-000000000001', 1),
-  ('36000000-0000-4000-8000-000000000012', '35000000-0000-4000-8000-000000000005', 'Asset', '31000000-0000-4000-8000-000000000003', 2),
-  ('36000000-0000-4000-8000-000000000013', '35000000-0000-4000-8000-000000000005', 'Activity', '34000000-0000-4000-8000-000000000001', 3)
+  ('36000000-0000-4000-8000-000000000012', '35000000-0000-4000-8000-000000000005', 'Asset', '31000000-0000-4000-8000-000000000003', 2)
 ON CONFLICT (id) DO NOTHING;
 
 WITH seed_user AS (
@@ -338,7 +333,7 @@ VALUES
     '37000000-0000-4000-8000-000000000001',
     'Package',
     '35000000-0000-4000-8000-000000000001',
-    'For Review',
+    'Draft',
     'Ready for Promotion',
     (SELECT id FROM seed_user),
     'tourism_officer',
@@ -349,23 +344,23 @@ VALUES
     '37000000-0000-4000-8000-000000000002',
     'Package',
     '35000000-0000-4000-8000-000000000002',
+    'Draft',
     'Ready for Promotion',
-    'Approved',
     (SELECT id FROM seed_user),
     'tourism_officer',
     COALESCE((SELECT display_name FROM seed_user), 'Seeded Tourism Officer'),
-    'Seeded approval for package publishing rules QA.'
+    'Seeded readiness approval for public package handoff QA.'
   ),
   (
     '37000000-0000-4000-8000-000000000003',
     'Package',
     '35000000-0000-4000-8000-000000000005',
-    'Approved',
-    'Published',
+    'Draft',
+    'Ready for Promotion',
     (SELECT id FROM seed_user),
     'system_admin',
     COALESCE((SELECT display_name FROM seed_user), 'Seeded System Admin'),
-    'Seeded published package for public page QA.'
+    'Seeded readiness approval for public page QA.'
   )
 ON CONFLICT (id) DO NOTHING;
 

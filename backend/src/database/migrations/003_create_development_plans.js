@@ -15,6 +15,8 @@ export function up(db) {
       proposed_activities TEXT NOT NULL,
       timeline_start TEXT NOT NULL,
       timeline_end TEXT NOT NULL,
+      timeline_start_time TEXT,
+      timeline_end_time TEXT,
       assigned_personnel TEXT NOT NULL,
       plan_status TEXT NOT NULL DEFAULT 'Draft' CHECK (
         plan_status IN (${sqlList(DEVELOPMENT_PLAN_STATUSES)})

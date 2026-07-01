@@ -35,8 +35,17 @@ const optionalText = (max = 5000) => z.string().trim().max(max).optional().nulla
 const dateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD date format.')
+const timeSchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/, 'Use HH:mm time format.')
 
 const optionalDate = dateSchema.optional().nullable()
+const optionalTime = timeSchema.optional().nullable()
+
+function internalImprovementNeeds(value) {
+  const trimmed = String(value || '').trim()
+  return trimmed || 'Not specified'
+}
 
 const assetBodySchema = z
   .object({
@@ -54,18 +63,25 @@ const assetBodySchema = z
 const planBodySchema = z
   .object({
     assetId: z.uuid('Select a tourism asset.'),
-    title: requiredText('Plan title', 255),
+    planTitle: requiredText('Plan title', 255).optional(),
+    title: requiredText('Plan title', 255).optional(),
     objectives: requiredText('Objectives'),
     targetMarket: requiredText('Target market', 255),
-    improvementNeeds: requiredText('Improvement needs'),
+    improvementNeeds: optionalText(),
     proposedActivities: requiredText('Proposed activities'),
     timelineStart: optionalDate,
     timelineEnd: optionalDate,
+    timelineStartTime: optionalTime,
+    timelineEndTime: optionalTime,
     assignedPersonnel: requiredText('Assigned personnel', 255),
     planStatus: z.enum(DEVELOPMENT_PLAN_STATUSES).default('Draft'),
     remarks: optionalText(),
   })
   .strict()
+  .refine((data) => data.planTitle || data.title, {
+    message: 'Plan title is required.',
+    path: ['planTitle'],
+  })
   .refine(
     (data) =>
       !data.timelineStart ||
@@ -73,6 +89,24 @@ const planBodySchema = z
       new Date(data.timelineEnd).getTime() >= new Date(data.timelineStart).getTime(),
     'timelineEnd must be greater than or equal to timelineStart.',
   )
+  .refine(
+    (data) =>
+      !data.timelineStart ||
+      !data.timelineEnd ||
+      data.timelineStart !== data.timelineEnd ||
+      !data.timelineStartTime ||
+      !data.timelineEndTime ||
+      data.timelineEndTime >= data.timelineStartTime,
+    {
+      message: 'timelineEndTime must be greater than or equal to timelineStartTime.',
+      path: ['timelineEndTime'],
+    },
+  )
+  .transform(({ planTitle, title, improvementNeeds, ...data }) => ({
+    ...data,
+    title: planTitle || title,
+    improvementNeeds: internalImprovementNeeds(improvementNeeds),
+  }))
 
 const improvementBodySchema = z
   .object({
@@ -113,9 +147,13 @@ const packageBodySchema = z
     estimatedDuration: requiredText('Estimated duration', 120),
     packageStatus: z.enum(PACKAGE_STATUSES).default('Draft'),
     remarks: optionalText(),
-    items: z.array(packageItemSchema).min(1, 'Select at least one tourism asset or tourism activity.'),
+    items: z.array(packageItemSchema).min(1, 'Select at least one development plan.'),
   })
   .strict()
+  .refine((data) => data.items.some((item) => item.itemType === 'Plan'), {
+    message: 'Select at least one development plan.',
+    path: ['items'],
+  })
   .refine((data) => data.packageStatus !== 'Ready for Promotion', {
     message: 'Use the readiness review action to mark packages as Ready for Promotion.',
     path: ['packageStatus'],

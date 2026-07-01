@@ -10,18 +10,11 @@ export const ASSET_CATEGORIES = Object.freeze([
 
 export const ASSET_STATUSES = Object.freeze([
   'Draft',
-  'Validated',
-  'In Development',
-  'For Review',
-  'Ready for Promotion',
   'Archived',
 ])
 
 export const DEVELOPMENT_PLAN_STATUSES = Object.freeze([
   'Draft',
-  'Ongoing',
-  'Completed',
-  'On Hold',
   'Archived',
 ])
 
@@ -51,21 +44,24 @@ export const PACKAGE_STATUSES = Object.freeze([
 ])
 
 export const PACKAGE_CATEGORIES = Object.freeze([
-  'Faith & Heritage',
-  'Coastal & Island',
-  'Nature & Eco',
-  'Agri-Tourism & Farm',
-  'Food & Local Products',
+  'Nature',
+  'Cultural',
+  'Food',
+  'Events',
+  'Nature and Cultural',
+  'Nature and Food',
+  'Nature and Events',
+  'Cultural and Food',
+  'Cultural and Events',
+  'Food and Events',
 ])
 
-export const PACKAGE_ITEM_TYPES = Object.freeze(['Asset', 'Activity'])
+export const PACKAGE_ITEM_TYPES = Object.freeze(['Asset'])
 
 export const PRODUCT_OPTION_GROUPS = Object.freeze({
   assetCategories: ASSET_CATEGORIES,
   assetStatuses: ASSET_STATUSES,
   developmentPlanStatuses: DEVELOPMENT_PLAN_STATUSES,
-  improvementStatuses: IMPROVEMENT_STATUSES,
-  activityStatuses: ACTIVITY_STATUSES,
   packageStatuses: PACKAGE_STATUSES,
   packageCategories: PACKAGE_CATEGORIES,
   packageItemTypes: PACKAGE_ITEM_TYPES,

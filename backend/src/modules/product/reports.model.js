@@ -4,24 +4,8 @@ function countRows(db, sql, ...params) {
   return db.prepare(sql).get(...params)?.count || 0
 }
 
-function groupByStatus(db, table, statusColumn) {
-  return db
-    .prepare(
-      `
-        SELECT ${statusColumn} AS status, COUNT(*) AS count
-        FROM ${table}
-        GROUP BY ${statusColumn}
-        ORDER BY ${statusColumn} ASC
-      `,
-    )
-    .all()
-}
-
 export function getProductReportSummary() {
   const db = getDatabase()
-  const averageProgress =
-    db.prepare('SELECT ROUND(AVG(progress_percentage), 0) AS value FROM improvement_records').get()
-      .value || 0
 
   return {
     assets: {
@@ -34,7 +18,6 @@ export function getProductReportSummary() {
         db,
         "SELECT COUNT(*) AS count FROM tourism_assets WHERE development_status = 'Archived'",
       ),
-      byStatus: groupByStatus(db, 'tourism_assets', 'development_status'),
     },
     developmentPlans: {
       total: countRows(db, 'SELECT COUNT(*) AS count FROM development_plans'),
@@ -46,32 +29,6 @@ export function getProductReportSummary() {
         db,
         "SELECT COUNT(*) AS count FROM development_plans WHERE plan_status = 'Archived'",
       ),
-      byStatus: groupByStatus(db, 'development_plans', 'plan_status'),
-    },
-    improvements: {
-      total: countRows(db, 'SELECT COUNT(*) AS count FROM improvement_records'),
-      delayed: countRows(
-        db,
-        "SELECT COUNT(*) AS count FROM improvement_records WHERE improvement_status = 'Delayed'",
-      ),
-      completed: countRows(
-        db,
-        "SELECT COUNT(*) AS count FROM improvement_records WHERE improvement_status = 'Completed'",
-      ),
-      averageProgress,
-      byStatus: groupByStatus(db, 'improvement_records', 'improvement_status'),
-    },
-    activities: {
-      total: countRows(db, 'SELECT COUNT(*) AS count FROM tourism_activities'),
-      active: countRows(
-        db,
-        "SELECT COUNT(*) AS count FROM tourism_activities WHERE activity_status != 'Archived'",
-      ),
-      archived: countRows(
-        db,
-        "SELECT COUNT(*) AS count FROM tourism_activities WHERE activity_status = 'Archived'",
-      ),
-      byStatus: groupByStatus(db, 'tourism_activities', 'activity_status'),
     },
     packages: {
       total: countRows(db, 'SELECT COUNT(*) AS count FROM tourism_packages'),
@@ -101,7 +58,6 @@ export function getProductReportSummary() {
           )
         `,
       ),
-      byStatus: groupByStatus(db, 'tourism_packages', 'package_status'),
     },
   }
 }

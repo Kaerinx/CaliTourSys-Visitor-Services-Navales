@@ -13,7 +13,7 @@ export function up(db) {
 
   db.exec(`
     ALTER TABLE tourism_packages
-    ADD COLUMN category TEXT NOT NULL DEFAULT 'Nature & Eco' CHECK (
+    ADD COLUMN category TEXT NOT NULL DEFAULT 'Nature' CHECK (
       category IN (${sqlList(PACKAGE_CATEGORIES)})
     );
   `)

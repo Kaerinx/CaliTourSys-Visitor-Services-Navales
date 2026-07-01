@@ -34,6 +34,7 @@ function mapPlan(row) {
     id: row.id,
     assetId: row.asset_id,
     assetName: row.asset_name,
+    assetLocation: row.asset_location,
     assetStatus: row.asset_status,
     title: row.title,
     objectives: row.objectives,
@@ -42,6 +43,8 @@ function mapPlan(row) {
     proposedActivities: row.proposed_activities,
     timelineStart: row.timeline_start,
     timelineEnd: row.timeline_end,
+    timelineStartTime: row.timeline_start_time,
+    timelineEndTime: row.timeline_end_time,
     assignedPersonnel: row.assigned_personnel,
     planStatus: row.plan_status,
     remarks: row.remarks || '',
@@ -100,13 +103,14 @@ function mapPackage(row) {
     slug: packageSlug(row),
     name: row.name,
     description: row.description,
-    category: row.category || 'Nature & Eco',
+    category: row.category || 'Nature',
     targetMarket: row.target_market,
     estimatedDuration: row.estimated_duration,
     packageStatus: row.package_status,
     remarks: row.remarks || '',
     imageUrl: row.image_url || categoryImage(row.category),
     itemCount: Number(row.item_count || 0),
+    planCount: Number(row.plan_count || 0),
     assetCount: Number(row.asset_count || 0),
     activityCount: Number(row.activity_count || 0),
     createdBy: row.created_by,
@@ -162,18 +166,24 @@ function packageSlug(row) {
 
 function categoryImage(category) {
   const images = {
-    'Faith & Heritage':
+    Cultural:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Quipayo%20Church%20%28S.%20Ciencia%29%20-%20Flickr.jpg',
-    'Coastal & Island':
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
-    'Nature & Eco':
+    Nature:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Sunset%20at%20San%20Miguel%20Bay%2C%20Calabanga.jpg',
-    'Agri-Tourism & Farm':
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Kabgan%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
-    'Food & Local Products':
+    Food:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Sea%20Side%20Calabanga%20Camarines%20Sur.jpg',
+    Events:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
   }
-  return images[category] || images['Nature & Eco']
+  return images[categoryImageKey(category)] || images.Nature
+}
+
+function categoryImageKey(category) {
+  const value = String(category || '').toLowerCase()
+  if (value.includes('food')) return 'Food'
+  if (value.includes('event')) return 'Events'
+  if (value.includes('cultural')) return 'Cultural'
+  return 'Nature'
 }
 
 function filteredWhere(filters, columns) {
@@ -283,7 +293,7 @@ async function listPlans(filters = {}) {
   })
   const result = await query(
     `
-      SELECT dp.*, ta.name AS asset_name, ta.development_status AS asset_status
+      SELECT dp.*, ta.name AS asset_name, ta.location AS asset_location, ta.development_status AS asset_status
       FROM development_plans dp
       JOIN tourism_assets ta ON ta.id = dp.asset_id
       ${whereSql}
@@ -297,7 +307,7 @@ async function listPlans(filters = {}) {
 async function getPlanById(id) {
   const result = await query(
     `
-      SELECT dp.*, ta.name AS asset_name, ta.development_status AS asset_status
+      SELECT dp.*, ta.name AS asset_name, ta.location AS asset_location, ta.development_status AS asset_status
       FROM development_plans dp
       JOIN tourism_assets ta ON ta.id = dp.asset_id
       WHERE dp.id = $1
@@ -313,9 +323,10 @@ async function createPlan(data, userId) {
     `
       INSERT INTO development_plans (
         asset_id, title, objectives, target_market, improvement_needs, proposed_activities,
-        timeline_start, timeline_end, assigned_personnel, plan_status, remarks, created_by
+        timeline_start, timeline_end, timeline_start_time, timeline_end_time, assigned_personnel,
+        plan_status, remarks, created_by
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING id
     `,
     [
@@ -327,6 +338,8 @@ async function createPlan(data, userId) {
       data.proposedActivities,
       data.timelineStart || null,
       data.timelineEnd || null,
+      data.timelineStartTime || null,
+      data.timelineEndTime || null,
       data.assignedPersonnel,
       data.planStatus || 'Draft',
       data.remarks || '',
@@ -342,7 +355,8 @@ async function updatePlan(id, data) {
       UPDATE development_plans
       SET asset_id = $2, title = $3, objectives = $4, target_market = $5,
           improvement_needs = $6, proposed_activities = $7, timeline_start = $8,
-          timeline_end = $9, assigned_personnel = $10, plan_status = $11, remarks = $12
+          timeline_end = $9, timeline_start_time = $10, timeline_end_time = $11,
+          assigned_personnel = $12, plan_status = $13, remarks = $14
       WHERE id = $1
       RETURNING id
     `,
@@ -356,6 +370,8 @@ async function updatePlan(id, data) {
       data.proposedActivities,
       data.timelineStart || null,
       data.timelineEnd || null,
+      data.timelineStartTime || null,
+      data.timelineEndTime || null,
       data.assignedPersonnel,
       data.planStatus,
       data.remarks || '',
@@ -548,27 +564,35 @@ function packageSelect(extraWhere = '') {
       tp.*,
       COALESCE(first_asset.image_url, category_asset.image_url) AS image_url,
       COUNT(pi.id)::integer AS item_count,
+      COUNT(pi.id) FILTER (WHERE pi.item_type = 'Plan')::integer AS plan_count,
       COUNT(pi.id) FILTER (WHERE pi.item_type = 'Asset')::integer AS asset_count,
       COUNT(pi.id) FILTER (WHERE pi.item_type = 'Activity')::integer AS activity_count
     FROM tourism_packages tp
     LEFT JOIN package_items pi ON pi.package_id = tp.id
     LEFT JOIN LATERAL (
-      SELECT ta.image_url
-      FROM package_items asset_item
-      JOIN tourism_assets ta ON ta.id = asset_item.item_reference_id
-      WHERE asset_item.package_id = tp.id
-        AND asset_item.item_type = 'Asset'
-        AND ta.image_url IS NOT NULL
-      ORDER BY asset_item.sort_order ASC
+      SELECT COALESCE(direct_asset.image_url, plan_asset.image_url) AS image_url
+      FROM package_items item
+      LEFT JOIN tourism_assets direct_asset
+        ON item.item_type = 'Asset'
+       AND direct_asset.id = item.item_reference_id
+      LEFT JOIN development_plans dp
+        ON item.item_type = 'Plan'
+       AND dp.id = item.item_reference_id
+      LEFT JOIN tourism_assets plan_asset
+        ON plan_asset.id = dp.asset_id
+      WHERE item.package_id = tp.id
+        AND COALESCE(direct_asset.image_url, plan_asset.image_url) IS NOT NULL
+      ORDER BY item.sort_order ASC
       LIMIT 1
     ) first_asset ON true
     LEFT JOIN LATERAL (
       SELECT ta.image_url
       FROM tourism_assets ta
       WHERE ta.category = CASE
-        WHEN tp.category = 'Faith & Heritage' THEN 'Religious'
-        WHEN tp.category = 'Coastal & Island' THEN 'Natural'
-        WHEN tp.category = 'Agri-Tourism & Farm' THEN 'Agricultural'
+        WHEN tp.category ILIKE '%Cultural%' THEN 'Cultural'
+        WHEN tp.category ILIKE '%Food%' THEN 'Agricultural'
+        WHEN tp.category ILIKE '%Events%' THEN 'Recreational'
+        WHEN tp.category ILIKE '%Nature%' THEN 'Natural'
         ELSE ta.category
       END
         AND ta.image_url IS NOT NULL
@@ -608,10 +632,7 @@ async function listPublicPackages(filters = {}) {
   const result = await query(
     `
       ${packageSelect(`WHERE ${where.join(' AND ')}`)}
-      ORDER BY
-        CASE tp.package_status WHEN 'Published' THEN 1 WHEN 'Approved' THEN 2 ELSE 3 END,
-        tp.updated_at DESC,
-        tp.name ASC
+      ORDER BY tp.updated_at DESC, tp.name ASC
     `,
     params,
   )
@@ -636,14 +657,40 @@ async function listPackageItems(packageId) {
     `
       SELECT
         pi.*,
-        CASE WHEN pi.item_type = 'Asset' THEN ta.name ELSE act.name END AS item_name,
-        CASE WHEN pi.item_type = 'Asset' THEN ta.description ELSE act.description END AS item_description,
-        CASE WHEN pi.item_type = 'Asset' THEN ta.location ELSE act_asset.location END AS item_location,
-        CASE WHEN pi.item_type = 'Asset' THEN ta.development_status ELSE act.activity_status END AS item_status,
-        CASE WHEN pi.item_type = 'Asset' THEN ta.development_status ELSE act_asset.development_status END AS asset_status,
-        CASE WHEN pi.item_type = 'Asset' THEN ta.image_url ELSE act_asset.image_url END AS item_image_url
+        CASE
+          WHEN pi.item_type = 'Asset' THEN ta.name
+          WHEN pi.item_type = 'Plan' THEN dp.title
+          ELSE act.name
+        END AS item_name,
+        CASE
+          WHEN pi.item_type = 'Asset' THEN ta.description
+          WHEN pi.item_type = 'Plan' THEN dp.objectives
+          ELSE act.description
+        END AS item_description,
+        CASE
+          WHEN pi.item_type = 'Asset' THEN ta.location
+          WHEN pi.item_type = 'Plan' THEN plan_asset.location
+          ELSE act_asset.location
+        END AS item_location,
+        CASE
+          WHEN pi.item_type = 'Asset' THEN ta.development_status
+          WHEN pi.item_type = 'Plan' THEN dp.plan_status
+          ELSE act.activity_status
+        END AS item_status,
+        CASE
+          WHEN pi.item_type = 'Asset' THEN ta.development_status
+          WHEN pi.item_type = 'Plan' THEN plan_asset.development_status
+          ELSE act_asset.development_status
+        END AS asset_status,
+        CASE
+          WHEN pi.item_type = 'Asset' THEN ta.image_url
+          WHEN pi.item_type = 'Plan' THEN plan_asset.image_url
+          ELSE act_asset.image_url
+        END AS item_image_url
       FROM package_items pi
       LEFT JOIN tourism_assets ta ON pi.item_type = 'Asset' AND ta.id = pi.item_reference_id
+      LEFT JOIN development_plans dp ON pi.item_type = 'Plan' AND dp.id = pi.item_reference_id
+      LEFT JOIN tourism_assets plan_asset ON pi.item_type = 'Plan' AND plan_asset.id = dp.asset_id
       LEFT JOIN tourism_activities act ON pi.item_type = 'Activity' AND act.id = pi.item_reference_id
       LEFT JOIN tourism_assets act_asset ON pi.item_type = 'Activity' AND act_asset.id = act.asset_id
       WHERE pi.package_id = $1
@@ -786,45 +833,22 @@ async function listStatusHistory(recordType, recordId) {
 async function getReportSummary() {
   const [
     assets,
-    assetsByStatus,
     plans,
-    plansByStatus,
-    improvements,
-    improvementsByStatus,
-    activities,
-    activitiesByStatus,
     packages,
-    packagesByStatus,
   ] = await Promise.all([
     query("SELECT COUNT(*)::integer AS total, COUNT(*) FILTER (WHERE development_status != 'Archived')::integer AS active, COUNT(*) FILTER (WHERE development_status = 'Archived')::integer AS archived FROM tourism_assets"),
-    query('SELECT development_status AS status, COUNT(*)::integer AS count FROM tourism_assets GROUP BY development_status ORDER BY development_status'),
     query("SELECT COUNT(*)::integer AS total, COUNT(*) FILTER (WHERE plan_status != 'Archived')::integer AS active, COUNT(*) FILTER (WHERE plan_status = 'Archived')::integer AS archived FROM development_plans"),
-    query('SELECT plan_status AS status, COUNT(*)::integer AS count FROM development_plans GROUP BY plan_status ORDER BY plan_status'),
-    query("SELECT COUNT(*)::integer AS total, COALESCE(ROUND(AVG(progress_percentage)), 0)::integer AS average_progress, COUNT(*) FILTER (WHERE improvement_status = 'Delayed')::integer AS delayed, COUNT(*) FILTER (WHERE improvement_status = 'Completed')::integer AS completed FROM improvement_records"),
-    query('SELECT improvement_status AS status, COUNT(*)::integer AS count FROM improvement_records GROUP BY improvement_status ORDER BY improvement_status'),
-    query("SELECT COUNT(*)::integer AS total, COUNT(*) FILTER (WHERE activity_status != 'Archived')::integer AS active, COUNT(*) FILTER (WHERE activity_status = 'Archived')::integer AS archived FROM tourism_activities"),
-    query('SELECT activity_status AS status, COUNT(*)::integer AS count FROM tourism_activities GROUP BY activity_status ORDER BY activity_status'),
     query("SELECT COUNT(*)::integer AS total, COUNT(*) FILTER (WHERE package_status != 'Archived')::integer AS active, COUNT(*) FILTER (WHERE package_status = 'Archived')::integer AS archived, COUNT(*) FILTER (WHERE package_status = 'Ready for Promotion')::integer AS ready_for_promotion FROM tourism_packages"),
-    query('SELECT package_status AS status, COUNT(*)::integer AS count FROM tourism_packages GROUP BY package_status ORDER BY package_status'),
   ])
 
   return {
-    assets: { ...assets.rows[0], byStatus: assetsByStatus.rows },
-    developmentPlans: { ...plans.rows[0], byStatus: plansByStatus.rows },
-    improvements: {
-      total: improvements.rows[0].total,
-      averageProgress: improvements.rows[0].average_progress,
-      delayed: improvements.rows[0].delayed,
-      completed: improvements.rows[0].completed,
-      byStatus: improvementsByStatus.rows,
-    },
-    activities: { ...activities.rows[0], byStatus: activitiesByStatus.rows },
+    assets: assets.rows[0],
+    developmentPlans: plans.rows[0],
     packages: {
       total: packages.rows[0].total,
       active: packages.rows[0].active,
       archived: packages.rows[0].archived,
       readyForPromotion: packages.rows[0].ready_for_promotion,
-      byStatus: packagesByStatus.rows,
     },
   }
 }

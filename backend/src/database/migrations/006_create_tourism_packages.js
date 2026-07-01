@@ -13,7 +13,7 @@ export function up(db) {
       package_id TEXT PRIMARY KEY,
       package_name TEXT NOT NULL,
       description TEXT NOT NULL,
-      category TEXT NOT NULL DEFAULT 'Nature & Eco' CHECK (
+      category TEXT NOT NULL DEFAULT 'Nature' CHECK (
         category IN (${sqlList(PACKAGE_CATEGORIES)})
       ),
       target_market TEXT NOT NULL,

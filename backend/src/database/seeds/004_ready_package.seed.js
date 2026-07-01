@@ -12,19 +12,7 @@ export function run(db) {
       `,
     )
     .get()
-  const activity = db
-    .prepare(
-      `
-        SELECT activity_id
-        FROM tourism_activities
-        WHERE activity_status != 'Archived'
-        ORDER BY created_at ASC
-        LIMIT 1
-      `,
-    )
-    .get()
-
-  if (!asset && !activity) {
+  if (!asset) {
     return { packages: 0, packageItems: 0, statusHistory: 0 }
   }
 
@@ -51,7 +39,7 @@ export function run(db) {
       packageId,
       'Calabanga Ready Tourism Sample Package',
       'A sample package already approved for promotion handoff testing.',
-      'Nature & Eco',
+      'Nature',
       'Students, families, and eco-tourists',
       'Half day',
       'Ready for Promotion',
@@ -78,16 +66,6 @@ export function run(db) {
       'Asset',
       asset.asset_id,
       1,
-    ).changes
-  }
-
-  if (activity) {
-    itemChanges += insertItem.run(
-      'PKGITEM-READY-SAMPLE-ACTIVITY',
-      packageId,
-      'Activity',
-      activity.activity_id,
-      2,
     ).changes
   }
 

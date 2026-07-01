@@ -119,19 +119,25 @@ function packageSlug(row) {
 
 function packageCategoryImage(category) {
   const images = {
-    'Faith & Heritage':
+    Cultural:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Quipayo%20Church%20%28S.%20Ciencia%29%20-%20Flickr.jpg',
-    'Coastal & Island':
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
-    'Nature & Eco':
+    Nature:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Sunset%20at%20San%20Miguel%20Bay%2C%20Calabanga.jpg',
-    'Agri-Tourism & Farm':
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Kabgan%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
-    'Food & Local Products':
+    Food:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Sea%20Side%20Calabanga%20Camarines%20Sur.jpg',
+    Events:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
   }
 
-  return images[category] || images['Nature & Eco']
+  return images[packageCategoryImageKey(category)] || images.Nature
+}
+
+function packageCategoryImageKey(category) {
+  const value = String(category || '').toLowerCase()
+  if (value.includes('food')) return 'Food'
+  if (value.includes('event')) return 'Events'
+  if (value.includes('cultural')) return 'Cultural'
+  return 'Nature'
 }
 
 function mapPackage(row) {
@@ -155,7 +161,7 @@ function mapPackage(row) {
     itemCount: Number(row.item_count || 0),
     assetCount: Number(row.asset_count || 0),
     activityCount: Number(row.activity_count || 0),
-    isFeatured: row.package_status === 'Published',
+    isFeatured: row.package_status === 'Ready for Promotion',
     updatedAt: row.updated_at,
   }
 }
@@ -426,9 +432,10 @@ function packageSelect() {
       SELECT ta.image_url
       FROM tourism_assets ta
       WHERE ta.category = CASE
-        WHEN tp.category = 'Faith & Heritage' THEN 'Religious'
-        WHEN tp.category = 'Coastal & Island' THEN 'Natural'
-        WHEN tp.category = 'Agri-Tourism & Farm' THEN 'Agricultural'
+        WHEN tp.category ILIKE '%Cultural%' THEN 'Cultural'
+        WHEN tp.category ILIKE '%Food%' THEN 'Agricultural'
+        WHEN tp.category ILIKE '%Events%' THEN 'Recreational'
+        WHEN tp.category ILIKE '%Nature%' THEN 'Natural'
         ELSE ta.category
       END
         AND ta.image_url IS NOT NULL
@@ -450,7 +457,7 @@ async function listPackages(filters, pagination) {
     const ref = addParam(params, `%${filters.search}%`)
     where.push(`(tp.name ILIKE ${ref} OR tp.description ILIKE ${ref} OR tp.target_market ILIKE ${ref})`)
   }
-  if (filters.category) where.push(`tp.category = ${addParam(params, filters.category)}`)
+  if (filters.category) where.push(`tp.category ILIKE ${addParam(params, `%${filters.category}%`)}`)
   if (filters.targetMarket) where.push(`tp.target_market ILIKE ${addParam(params, `%${filters.targetMarket}%`)}`)
 
   const orderBy =
@@ -459,7 +466,7 @@ async function listPackages(filters, pagination) {
       '-name': 'tp.name DESC',
       updatedAt: 'tp.updated_at ASC',
       '-updatedAt': 'tp.updated_at DESC',
-    }[filters.sort] || "CASE tp.package_status WHEN 'Published' THEN 1 WHEN 'Approved' THEN 2 ELSE 3 END, tp.updated_at DESC"
+    }[filters.sort] || 'tp.updated_at DESC'
 
   const whereSql = where.join(' AND ')
   const countResult = await query(
@@ -1209,9 +1216,10 @@ async function listMapLocations(filters) {
 }
 
 async function getHome() {
-  const [promotions, products, destinations, events, artifacts, stats] = await Promise.all([
+  const [promotions, products, packages, destinations, events, artifacts, stats] = await Promise.all([
     listPromotions({ featured: true }, { limit: 3, offset: 0 }),
     listProducts({ featured: true }, { limit: 4, offset: 0 }),
+    listPackages({}, { limit: 3, offset: 0 }),
     listDestinations({ featured: true }, { limit: 4, offset: 0 }),
     listEvents({ from: new Date().toISOString() }, { limit: 4, offset: 0 }),
     listMuseumArtifacts({ featured: true }, { limit: 4, offset: 0 }),
@@ -1231,6 +1239,7 @@ async function getHome() {
   return {
     featuredPromotions: promotions.items,
     featuredProducts: products.items,
+    featuredPackages: packages.items,
     featuredDestinations: destinations.items,
     upcomingEvents: events.items,
     featuredMuseumArtifacts: artifacts.items,

@@ -12,9 +12,23 @@ const { errorHandler } = require('./middleware/errorHandler')
 
 const app = express()
 
+function isLocalDevOrigin(origin) {
+  if (env.IS_PRODUCTION) return false
+
+  try {
+    const { hostname, protocol } = new URL(origin)
+    return (
+      protocol === 'http:' &&
+      ['localhost', '127.0.0.1', '[::1]'].includes(hostname)
+    )
+  } catch (_error) {
+    return false
+  }
+}
+
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin || env.CORS_ORIGINS.includes(origin)) {
+    if (!origin || env.CORS_ORIGINS.includes(origin) || isLocalDevOrigin(origin)) {
       return callback(null, true)
     }
 

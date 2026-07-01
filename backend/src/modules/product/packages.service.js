@@ -1,4 +1,3 @@
-import { findActivityById } from './activities.model.js'
 import { findAssetById } from './assets.model.js'
 import {
   archivePackage,
@@ -37,7 +36,7 @@ function normalizePackageInput(input = {}) {
   return {
     name: String(input.name || '').trim(),
     description: String(input.description || '').trim(),
-    category: String(input.category || 'Nature & Eco').trim(),
+    category: String(input.category || 'Nature').trim(),
     targetMarket: String(input.targetMarket || '').trim(),
     estimatedDuration: String(input.estimatedDuration || '').trim(),
     packageStatus: String(input.packageStatus || 'Draft').trim(),
@@ -68,7 +67,7 @@ function validatePackageInput(packageInput) {
   }
 
   if (!packageInput.items.length) {
-    const error = new Error('Select at least one tourism asset or tourism activity for the package.')
+    const error = new Error('Select at least one tourism asset for the package.')
     error.status = 400
     throw error
   }
@@ -132,27 +131,6 @@ function ensureSelectablePackageItems(items) {
       }
     }
 
-    if (item.itemType === 'Activity') {
-      const activity = findActivityById(item.referenceId)
-
-      if (!activity) {
-        const error = new Error('Selected package activity not found.')
-        error.status = 404
-        throw error
-      }
-
-      if (activity.activityStatus === 'Archived') {
-        const error = new Error('Archived tourism activities cannot be selected for tourism packages.')
-        error.status = 400
-        throw error
-      }
-
-      if (activity.assetStatus === 'Archived') {
-        const error = new Error('Activities linked to archived assets cannot be selected.')
-        error.status = 400
-        throw error
-      }
-    }
   }
 }
 
@@ -180,7 +158,7 @@ function validateReadiness(tourismPackage) {
   }
 
   if (!tourismPackage.items?.length) {
-    issues.push('At least one linked asset or activity is required.')
+    issues.push('At least one linked asset is required.')
   }
 
   for (const item of tourismPackage.items || []) {

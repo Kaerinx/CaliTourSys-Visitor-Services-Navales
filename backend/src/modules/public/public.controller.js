@@ -34,11 +34,11 @@ function paginatedHandler(schema, serviceFn, cacheFn = setPublicReadCache) {
   }
 }
 
-function detailHandler(serviceFn) {
+function detailHandler(serviceFn, cacheFn = setPublicReadCache) {
   return async (req, res, next) => {
     try {
       const { slug } = parse(validators.slugParamsSchema, req.params)
-      setPublicReadCache(res)
+      cacheFn(res)
       return successResponse(req, res, await serviceFn(slug))
     } catch (error) {
       return next(error)
@@ -143,8 +143,8 @@ module.exports = {
   listEventCategories: categoryHandler(service.listEventCategories),
   listProducts: paginatedHandler(validators.productListQuerySchema, service.listProducts),
   getProductBySlug: detailHandler(service.getProductBySlug),
-  listPackages: paginatedHandler(validators.packageListQuerySchema, service.listPackages),
-  getPackageBySlug: detailHandler(service.getPackageBySlug),
+  listPackages: paginatedHandler(validators.packageListQuerySchema, service.listPackages, setNoStore),
+  getPackageBySlug: detailHandler(service.getPackageBySlug, setNoStore),
   listProductCategories: categoryHandler(service.listProductCategories),
   listAccreditedBusinesses: paginatedHandler(
     validators.businessListQuerySchema,

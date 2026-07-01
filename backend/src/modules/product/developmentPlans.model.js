@@ -19,6 +19,8 @@ function mapDevelopmentPlan(row) {
     proposedActivities: row.proposed_activities,
     timelineStart: row.timeline_start,
     timelineEnd: row.timeline_end,
+    timelineStartTime: row.timeline_start_time,
+    timelineEndTime: row.timeline_end_time,
     assignedPersonnel: row.assigned_personnel,
     planStatus: row.plan_status,
     remarks: row.remarks || '',
@@ -120,12 +122,14 @@ export function createDevelopmentPlan(planInput, user) {
         proposed_activities,
         timeline_start,
         timeline_end,
+        timeline_start_time,
+        timeline_end_time,
         assigned_personnel,
         plan_status,
         remarks,
         created_by
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
   ).run(
     planId,
@@ -137,6 +141,8 @@ export function createDevelopmentPlan(planInput, user) {
     planInput.proposedActivities,
     planInput.timelineStart,
     planInput.timelineEnd,
+    planInput.timelineStartTime || null,
+    planInput.timelineEndTime || null,
     planInput.assignedPersonnel,
     planInput.planStatus || 'Draft',
     planInput.remarks || '',
@@ -161,6 +167,8 @@ export function updateDevelopmentPlan(planId, planInput) {
         proposed_activities = ?,
         timeline_start = ?,
         timeline_end = ?,
+        timeline_start_time = ?,
+        timeline_end_time = ?,
         assigned_personnel = ?,
         plan_status = ?,
         remarks = ?,
@@ -176,6 +184,8 @@ export function updateDevelopmentPlan(planId, planInput) {
     planInput.proposedActivities,
     planInput.timelineStart,
     planInput.timelineEnd,
+    planInput.timelineStartTime || null,
+    planInput.timelineEndTime || null,
     planInput.assignedPersonnel,
     planInput.planStatus,
     planInput.remarks || '',

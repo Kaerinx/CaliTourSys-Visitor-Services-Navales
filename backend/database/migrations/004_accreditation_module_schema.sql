@@ -32,9 +32,36 @@ CREATE TABLE IF NOT EXISTS business_profiles (
   barangay VARCHAR(120) NOT NULL,
   street_address TEXT NOT NULL,
   zip_code VARCHAR(20),
+  latitude NUMERIC(9,6),
+  longitude NUMERIC(9,6),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT business_profiles_latitude_valid CHECK (latitude IS NULL OR latitude BETWEEN -90 AND 90),
+  CONSTRAINT business_profiles_longitude_valid CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180)
 );
+
+ALTER TABLE business_profiles
+  ADD COLUMN IF NOT EXISTS latitude NUMERIC(9,6),
+  ADD COLUMN IF NOT EXISTS longitude NUMERIC(9,6);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'business_profiles_latitude_valid'
+  ) THEN
+    ALTER TABLE business_profiles
+      ADD CONSTRAINT business_profiles_latitude_valid
+      CHECK (latitude IS NULL OR latitude BETWEEN -90 AND 90);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'business_profiles_longitude_valid'
+  ) THEN
+    ALTER TABLE business_profiles
+      ADD CONSTRAINT business_profiles_longitude_valid
+      CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180);
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS accreditation_applications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
