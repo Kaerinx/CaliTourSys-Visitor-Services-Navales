@@ -1,14 +1,16 @@
 <script setup>
 import { computed, reactive, watch } from 'vue'
 
-import { PACKAGE_CATEGORIES } from '@/modules/product/constants/productOptions'
+import {
+  PACKAGE_CATEGORIES,
+  PACKAGE_DURATIONS,
+  PACKAGE_TARGET_MARKETS,
+} from '@/modules/product/constants/productOptions'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
   value: { type: Object, default: null },
-  assets: { type: Array, default: () => [] },
-  activities: { type: Array, default: () => [] },
-  statuses: { type: Array, default: () => [] },
+  plans: { type: Array, default: () => [] },
   busy: { type: Boolean, default: false },
   serverError: { type: String, default: '' },
 })
@@ -19,7 +21,10 @@ const form = reactive(defaultForm())
 
 const isEditing = computed(() => Boolean(props.value?.id))
 const title = computed(() => (isEditing.value ? 'Edit package' : 'Create package'))
-const selectedItemCount = computed(() => form.assetIds.length + form.activityIds.length)
+const selectedItemCount = computed(() => form.planIds.length)
+const categoryOptions = computed(() => withCurrentOption(PACKAGE_CATEGORIES, form.category))
+const targetMarketOptions = computed(() => withCurrentOption(PACKAGE_TARGET_MARKETS, form.targetMarket))
+const durationOptions = computed(() => withCurrentOption(PACKAGE_DURATIONS, form.estimatedDuration))
 const submitLabel = computed(() => {
   if (props.busy) return 'Saving...'
   return isEditing.value ? 'Save changes' : 'Create package'
@@ -33,11 +38,7 @@ const errors = computed(() => {
   if (!form.category) output.category = 'Package category is required.'
   if (!form.targetMarket.trim()) output.targetMarket = 'Target market is required.'
   if (!form.estimatedDuration.trim()) output.estimatedDuration = 'Estimated duration is required.'
-  if (!form.packageStatus) output.packageStatus = 'Package status is required.'
-  if (form.packageStatus === 'Ready for Promotion') {
-    output.packageStatus = 'Use the readiness review action to mark packages Ready for Promotion.'
-  }
-  if (!selectedItemCount.value) output.items = 'Select at least one asset or activity.'
+  if (!selectedItemCount.value) output.items = 'Select at least one development plan.'
   return output
 })
 
@@ -52,26 +53,21 @@ watch(
 
 function defaultForm(value = null) {
   const items = value?.items || []
+  const isArchived = value?.packageStatus === 'Archived'
 
   return {
     name: value?.name || '',
     description: value?.description || '',
-    category: value?.category || 'Nature & Eco',
-    targetMarket: value?.targetMarket || '',
-    estimatedDuration: value?.estimatedDuration || '',
-    packageStatus:
-      value?.packageStatus && value.packageStatus !== 'Ready for Promotion' ? value.packageStatus : 'Draft',
+    category: value?.category || 'Nature',
+    targetMarket: value?.targetMarket || PACKAGE_TARGET_MARKETS[0],
+    estimatedDuration: value?.estimatedDuration || PACKAGE_DURATIONS[1],
+    packageStatus: isArchived ? 'Archived' : 'Draft',
     remarks: value?.remarks || '',
-    assetIds: items
-      .filter((item) => item.itemType === 'Asset' && item.status !== 'Archived')
+    planIds: items
+      .filter((item) => item.itemType === 'Plan' && item.status !== 'Archived' && item.assetStatus !== 'Archived')
       .map((item) => item.referenceId),
-    activityIds: items
-      .filter(
-        (item) =>
-          item.itemType === 'Activity' &&
-          item.status !== 'Archived' &&
-          item.assetStatus !== 'Archived',
-      )
+    legacyAssetIds: items
+      .filter((item) => item.itemType === 'Asset' && item.status !== 'Archived')
       .map((item) => item.referenceId),
   }
 }
@@ -79,6 +75,11 @@ function defaultForm(value = null) {
 function emptyToNull(value) {
   const trimmed = String(value || '').trim()
   return trimmed ? trimmed : null
+}
+
+function withCurrentOption(options, value) {
+  if (!value || options.includes(value)) return options
+  return [value, ...options]
 }
 
 function submitForm() {
@@ -94,8 +95,8 @@ function submitForm() {
     packageStatus: form.packageStatus,
     remarks: emptyToNull(form.remarks),
     items: [
-      ...form.assetIds.map((assetId) => ({ itemType: 'Asset', referenceId: assetId })),
-      ...form.activityIds.map((activityId) => ({ itemType: 'Activity', referenceId: activityId })),
+      ...form.planIds.map((planId) => ({ itemType: 'Plan', referenceId: planId })),
+      ...form.legacyAssetIds.map((assetId) => ({ itemType: 'Asset', referenceId: assetId })),
     ],
   })
 }
@@ -122,21 +123,11 @@ function submitForm() {
                 <label>
                   <span>Category</span>
                   <select v-model="form.category" :aria-invalid="Boolean(errors.category)">
-                    <option v-for="category in PACKAGE_CATEGORIES" :key="category" :value="category">
+                    <option v-for="category in categoryOptions" :key="category" :value="category">
                       {{ category }}
                     </option>
                   </select>
                   <small v-if="errors.category">{{ errors.category }}</small>
-                </label>
-
-                <label>
-                  <span>Package status</span>
-                  <select v-model="form.packageStatus" :aria-invalid="Boolean(errors.packageStatus)">
-                    <option v-for="status in statuses" :key="status" :value="status">
-                      {{ status }}
-                    </option>
-                  </select>
-                  <small v-if="errors.packageStatus">{{ errors.packageStatus }}</small>
                 </label>
               </div>
 
@@ -164,21 +155,27 @@ function submitForm() {
               <div class="package-grid">
                 <label>
                   <span>Target market</span>
-                  <input
+                  <select
                     v-model="form.targetMarket"
                     :aria-invalid="Boolean(errors.targetMarket)"
-                    placeholder="Families, students, eco-tourists"
-                  />
+                  >
+                    <option v-for="market in targetMarketOptions" :key="market" :value="market">
+                      {{ market }}
+                    </option>
+                  </select>
                   <small v-if="errors.targetMarket">{{ errors.targetMarket }}</small>
                 </label>
 
                 <label>
                   <span>Estimated duration</span>
-                  <input
+                  <select
                     v-model="form.estimatedDuration"
                     :aria-invalid="Boolean(errors.estimatedDuration)"
-                    placeholder="Half day"
-                  />
+                  >
+                    <option v-for="duration in durationOptions" :key="duration" :value="duration">
+                      {{ duration }}
+                    </option>
+                  </select>
                   <small v-if="errors.estimatedDuration">{{ errors.estimatedDuration }}</small>
                 </label>
               </div>
@@ -194,30 +191,21 @@ function submitForm() {
 
               <div class="package-picker">
                 <section>
-                  <h4>Tourism assets</h4>
-                  <p>Select non-archived assets to include.</p>
-                  <label v-for="asset in assets" :key="asset.id" class="package-check">
-                    <input v-model="form.assetIds" type="checkbox" :value="asset.id" />
+                  <h4>Development plans</h4>
+                  <p>Select non-archived plans to include.</p>
+                  <label v-for="plan in plans" :key="plan.id" class="package-check">
+                    <input v-model="form.planIds" type="checkbox" :value="plan.id" />
                     <span>
-                      <strong>{{ asset.name }}</strong>
-                      <small>{{ asset.location }} - {{ asset.developmentStatus }}</small>
+                      <strong>{{ plan.title }}</strong>
+                      <small>{{ plan.assetName }}{{ plan.assetLocation ? ` - ${plan.assetLocation}` : '' }}</small>
                     </span>
                   </label>
-                  <p v-if="!assets.length">No selectable assets.</p>
+                  <p v-if="!plans.length">No selectable plans.</p>
+                  <p v-if="form.legacyAssetIds.length">
+                    Existing asset links are kept for this package. Add plans before removing legacy links.
+                  </p>
                 </section>
 
-                <section>
-                  <h4>Tourism activities</h4>
-                  <p>Select non-archived activities to include.</p>
-                  <label v-for="activity in activities" :key="activity.id" class="package-check">
-                    <input v-model="form.activityIds" type="checkbox" :value="activity.id" />
-                    <span>
-                      <strong>{{ activity.name }}</strong>
-                      <small>{{ activity.assetName }} - {{ activity.activityStatus }}</small>
-                    </span>
-                  </label>
-                  <p v-if="!activities.length">No selectable activities.</p>
-                </section>
               </div>
             </section>
 

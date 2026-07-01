@@ -8,12 +8,11 @@ import ProductPackageForm from '@/modules/product/components/ProductPackageForm.
 import ProductPackageReadinessDialog from '@/modules/product/components/ProductPackageReadinessDialog.vue'
 import RoleNotice from '@/modules/product/components/RoleNotice.vue'
 import { useProductAccess } from '@/modules/product/composables/useProductAccess'
-import { PACKAGE_CATEGORIES, PACKAGE_STATUSES } from '@/modules/product/constants/productOptions'
+import { PACKAGE_CATEGORIES } from '@/modules/product/constants/productOptions'
 import {
   archiveTourismPackage,
   createTourismPackage,
-  getTourismActivities,
-  getTourismAssets,
+  getDevelopmentPlans,
   getTourismPackage,
   getTourismPackages,
   markTourismPackageReady,
@@ -21,10 +20,13 @@ import {
 } from '@/modules/product/services/productApi'
 import { USER_ROLES } from '@/stores/auth'
 
+const props = defineProps({
+  embedded: { type: Boolean, default: false },
+})
+
 const auth = useProductAccess()
 
-const assets = ref([])
-const activities = ref([])
+const plans = ref([])
 const packages = ref([])
 const loading = ref(false)
 const error = ref('')
@@ -45,7 +47,6 @@ const readinessErrors = ref([])
 const filters = reactive({
   search: '',
   category: '',
-  status: '',
   targetMarket: '',
 })
 
@@ -54,7 +55,7 @@ const columns = [
   { key: 'category', label: 'Category' },
   { key: 'targetMarket', label: 'Target market' },
   { key: 'items', label: 'Items' },
-  { key: 'status', label: 'Status' },
+  { key: 'readiness', label: 'Readiness' },
   { key: 'actions', label: 'Actions' },
 ]
 
@@ -72,30 +73,14 @@ const canApproveReadiness = computed(() =>
   [USER_ROLES.TOURISM_OFFICER, USER_ROLES.SYSTEM_ADMINISTRATOR].includes(auth.user?.role),
 )
 
-const editablePackageStatuses = computed(() =>
-  PACKAGE_STATUSES.filter((status) => status !== 'Ready for Promotion'),
+const selectablePlans = computed(() =>
+  plans.value.filter((plan) => plan.planStatus !== 'Archived' && plan.assetStatus !== 'Archived'),
 )
 
-const selectableAssets = computed(() =>
-  assets.value.filter((asset) => asset.developmentStatus !== 'Archived'),
-)
+const hasSelectableItems = computed(() => selectablePlans.value.length)
 
-const selectableActivities = computed(() =>
-  activities.value.filter(
-    (activity) => activity.activityStatus !== 'Archived' && activity.assetStatus !== 'Archived',
-  ),
-)
-
-const hasSelectableItems = computed(() => selectableAssets.value.length || selectableActivities.value.length)
-
-const activePackages = computed(() =>
-  packages.value.filter((tourismPackage) => tourismPackage.packageStatus !== 'Archived').length,
-)
 const readyPackages = computed(() =>
   packages.value.filter((tourismPackage) => tourismPackage.packageStatus === 'Ready for Promotion').length,
-)
-const archivedPackages = computed(() =>
-  packages.value.filter((tourismPackage) => tourismPackage.packageStatus === 'Archived').length,
 )
 
 const reviewReadinessIssues = computed(() =>
@@ -143,19 +128,13 @@ async function openEdit(tourismPackage) {
 function clearFilters() {
   filters.search = ''
   filters.category = ''
-  filters.status = ''
   filters.targetMarket = ''
   loadPackages()
 }
 
-async function loadAssets() {
-  const response = await getTourismAssets()
-  assets.value = response.data || []
-}
-
-async function loadActivities() {
-  const response = await getTourismActivities()
-  activities.value = response.data || []
+async function loadPlans() {
+  const response = await getDevelopmentPlans()
+  plans.value = response.data || []
 }
 
 async function loadPackages() {
@@ -166,10 +145,9 @@ async function loadPackages() {
     const response = await getTourismPackages({
       search: filters.search,
       category: filters.category,
-      status: filters.status,
       targetMarket: filters.targetMarket,
     })
-    packages.value = response.data || []
+    packages.value = (response.data || []).filter((tourismPackage) => tourismPackage.packageStatus !== 'Archived')
   } catch (err) {
     error.value = err.message || 'Unable to load tourism packages.'
   } finally {
@@ -182,7 +160,7 @@ async function loadPageData() {
   error.value = ''
 
   try {
-    await Promise.all([loadAssets(), loadActivities(), loadPackages()])
+    await Promise.all([loadPlans(), loadPackages()])
   } catch (err) {
     error.value = err.message || 'Unable to load tourism package data.'
   } finally {
@@ -284,15 +262,17 @@ function getReadinessIssues(packageDetail) {
   if (!packageDetail.description) issues.push('Description is required.')
   if (!packageDetail.targetMarket) issues.push('Target market is required.')
   if (!packageDetail.estimatedDuration) issues.push('Estimated duration is required.')
-  if (!packageDetail.items?.length) issues.push('At least one linked asset or activity is required.')
+  if (!packageDetail.items?.some((item) => item.itemType === 'Plan')) {
+    issues.push('At least one linked plan is required.')
+  }
 
   ;(packageDetail.items || []).forEach((item) => {
-    if (item.itemType === 'Asset' && item.status === 'Archived') {
-      issues.push(`Linked asset "${item.name || item.referenceId}" is archived.`)
+    if (item.itemType === 'Plan' && item.status === 'Archived') {
+      issues.push(`Linked plan "${item.name || item.referenceId}" is archived.`)
     }
 
-    if (item.itemType === 'Activity' && item.status === 'Archived') {
-      issues.push(`Linked activity "${item.name || item.referenceId}" is archived.`)
+    if (item.itemType === 'Asset' && item.status === 'Archived') {
+      issues.push(`Linked asset "${item.name || item.referenceId}" is archived.`)
     }
 
     if (item.assetStatus === 'Archived') {
@@ -306,11 +286,11 @@ function getReadinessIssues(packageDetail) {
 
 <template>
   <section class="cms-content-page" aria-labelledby="cms-packages-title">
-    <header class="cms-content-page__header">
+    <header v-if="!props.embedded" class="cms-content-page__header">
       <div>
         <p>Product Development</p>
         <h1 id="cms-packages-title">Packages</h1>
-        <span>Combine assets and activities into tourism packages, then run readiness review for promotion.</span>
+        <span>Combine development plans into packages, then run readiness review for promotion.</span>
       </div>
     </header>
 
@@ -343,16 +323,6 @@ function getReadinessIssues(packageDetail) {
       </label>
 
       <label>
-        <span>Status</span>
-        <select v-model="filters.status" @change="loadPackages">
-          <option value="">All statuses</option>
-          <option v-for="status in PACKAGE_STATUSES" :key="status" :value="status">
-            {{ status }}
-          </option>
-        </select>
-      </label>
-
-      <label>
         <span>Target market</span>
         <input v-model="filters.targetMarket" placeholder="Filter by market" @keyup.enter="loadPackages" />
       </label>
@@ -374,7 +344,7 @@ function getReadinessIssues(packageDetail) {
     </section>
 
     <div v-if="canEditPackages && !hasSelectableItems" class="package-warning" role="status">
-      Add or restore a non-archived tourism asset or activity before creating packages.
+      Create or restore a non-archived development plan before creating packages.
     </div>
 
     <CmsDataTable
@@ -383,7 +353,7 @@ function getReadinessIssues(packageDetail) {
       :loading="loading"
       :error="error"
       empty-title="No tourism packages found"
-      empty-text="Create the first package from active assets and activities or adjust your filters."
+      empty-text="Create the first package from active plans or adjust your filters."
       @retry="loadPageData"
     >
       <template #rows="{ items: tableItems }">
@@ -405,17 +375,16 @@ function getReadinessIssues(packageDetail) {
           <td>
             <span class="package-items">
               <strong>{{ tourismPackage.itemCount }} item(s)</strong>
-              <span>{{ tourismPackage.assetCount }} asset(s)</span>
-              <span>{{ tourismPackage.activityCount }} activity item(s)</span>
+              <span>{{ tourismPackage.planCount || 0 }} plan(s)</span>
             </span>
           </td>
           <td>
-            <span class="package-status" :data-status="tourismPackage.packageStatus">
-              {{ tourismPackage.packageStatus }}
+            <span class="package-readiness" :data-ready="tourismPackage.packageStatus === 'Ready for Promotion'">
+              {{ tourismPackage.packageStatus === 'Ready for Promotion' ? 'Ready for Promotion' : 'Draft' }}
             </span>
           </td>
           <td>
-            <span class="cms-table-actions">
+            <span class="cms-table-actions product-table-actions">
               <button v-if="canReviewPackage(tourismPackage)" type="button" @click="openReadinessReview(tourismPackage)">
                 Review
               </button>
@@ -444,15 +413,15 @@ function getReadinessIssues(packageDetail) {
             <span>{{ tourismPackage.description }}</span>
           </span>
           <div class="cms-mobile-meta">
-            <span class="package-status" :data-status="tourismPackage.packageStatus">
-              {{ tourismPackage.packageStatus }}
+            <span class="package-readiness" :data-ready="tourismPackage.packageStatus === 'Ready for Promotion'">
+              {{ tourismPackage.packageStatus === 'Ready for Promotion' ? 'Ready for Promotion' : 'Draft' }}
             </span>
             <span>{{ tourismPackage.category }}</span>
           </div>
           <span>{{ tourismPackage.targetMarket }}</span>
           <span>{{ tourismPackage.estimatedDuration }}</span>
           <span>{{ tourismPackage.itemCount }} item(s)</span>
-          <div class="cms-mobile-card__actions cms-table-actions">
+          <div class="cms-mobile-card__actions cms-table-actions product-table-actions">
             <button v-if="canReviewPackage(tourismPackage)" type="button" @click="openReadinessReview(tourismPackage)">
               Review
             </button>
@@ -475,16 +444,14 @@ function getReadinessIssues(packageDetail) {
     <div class="package-pagination">
       <div>
         <strong>{{ packages.length }} records</strong>
-        <span>{{ activePackages }} active, {{ readyPackages }} ready, {{ archivedPackages }} archived</span>
+        <span>{{ readyPackages }} ready for public handoff</span>
       </div>
     </div>
 
     <ProductPackageForm
       :open="formOpen"
       :value="selectedPackage"
-      :assets="selectableAssets"
-      :activities="selectableActivities"
-      :statuses="editablePackageStatuses"
+      :plans="selectablePlans"
       :busy="saving"
       :server-error="formError"
       @close="formOpen = false"
@@ -650,7 +617,7 @@ function getReadinessIssues(packageDetail) {
   font-weight: 800;
 }
 
-.package-status {
+.package-readiness {
   display: inline-flex;
   align-items: center;
   min-height: 26px;
@@ -663,36 +630,48 @@ function getReadinessIssues(packageDetail) {
   font-weight: 800;
 }
 
-.package-status[data-status='Draft'] {
+.package-readiness[data-ready='false'] {
   color: #075985;
   border-color: #bae6fd;
   background: #e0f2fe;
 }
 
-.package-status[data-status='In Development'],
-.package-status[data-status='Approved'],
-.package-status[data-status='Published'] {
-  color: #0f766e;
-  border-color: #99f6e4;
-  background: #ccfbf1;
-}
-
-.package-status[data-status='For Review'] {
-  color: #92400e;
-  border-color: #fed7aa;
-  background: #ffedd5;
-}
-
-.package-status[data-status='Ready for Promotion'] {
+.package-readiness[data-ready='true'] {
   color: #166534;
   border-color: #bbf7d0;
   background: #dcfce7;
 }
 
-.package-status[data-status='Archived'] {
-  color: #991b1b;
-  border-color: #fecaca;
-  background: #fef2f2;
+:deep(.cms-data-table__desktop table) {
+  min-width: 1160px;
+}
+
+:deep(.cms-data-table__desktop th),
+:deep(.cms-data-table__desktop td) {
+  padding-block: 16px;
+}
+
+:deep(.cms-table-title) {
+  max-width: 460px;
+}
+
+:deep(.cms-table-title strong) {
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+:deep(.cms-table-title span) {
+  line-height: 1.45;
+}
+
+:deep(.product-table-actions) {
+  flex-wrap: nowrap;
+  min-width: 220px;
+  justify-content: flex-end;
+}
+
+:deep(.product-table-actions button) {
+  min-width: 64px;
 }
 
 .package-pagination {

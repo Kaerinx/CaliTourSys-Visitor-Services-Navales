@@ -105,7 +105,12 @@ async function submit() {
   error.value = "";
   verificationUrl.value = "";
   try {
-    await auth.login(form);
+    const user = await auth.login(form);
+    if (user.role !== "business_owner") {
+      auth.logout();
+      router.push({ name: "cms-login", query: { redirect: "/cms/businesses" } });
+      return;
+    }
     router.push("/accreditation/app/dashboard");
   } catch (err) {
     error.value = err.response?.data?.message || "Unable to sign in.";

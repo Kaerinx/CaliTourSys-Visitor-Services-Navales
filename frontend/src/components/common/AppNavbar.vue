@@ -27,8 +27,6 @@ function logout() {
       <RouterLink to="/product">Product Module</RouterLink>
       <RouterLink to="/product/assets">Assets</RouterLink>
       <RouterLink to="/product/development-plans">Plans</RouterLink>
-      <RouterLink to="/product/improvements">Improvements</RouterLink>
-      <RouterLink to="/product/activities">Activities</RouterLink>
       <RouterLink to="/product/packages">Packages</RouterLink>
     </nav>
 

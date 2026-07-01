@@ -82,33 +82,18 @@
           </label>
           <div class="form-grid form-grid--two">
             <label>Region *
-              <select v-model="form.business.region" required>
-                <option value="">Select region</option>
-                <option v-for="location in philippineLocations" :key="location.name" :value="location.name">
-                  {{ location.name }}
-                </option>
-              </select>
+              <input :value="calabangaLocation.region" readonly />
             </label>
             <label>Province *
-              <select v-model="form.business.province" required>
-                <option value="">Select province</option>
-                <option v-for="location in provinceOptions" :key="location.name" :value="location.name">
-                  {{ location.name }}
-                </option>
-              </select>
+              <input :value="calabangaLocation.province" readonly />
             </label>
             <label>City or municipality *
-              <select v-model="form.business.cityMunicipality" required>
-                <option value="">Select city or municipality</option>
-                <option v-for="location in cityOptions" :key="location.name" :value="location.name">
-                  {{ location.name }}
-                </option>
-              </select>
+              <input :value="calabangaLocation.cityMunicipality" readonly />
             </label>
             <label>Barangay *
               <select v-model="form.business.barangay" required>
                 <option value="">Select barangay</option>
-                <option v-for="location in barangayOptions" :key="location" :value="location">
+                <option v-for="location in calabangaBarangays" :key="location" :value="location">
                   {{ location }}
                 </option>
               </select>
@@ -120,8 +105,13 @@
               <small>Building, house, block, lot number, and street</small>
               <input v-model="form.business.streetAddress" autocomplete="street-address" required />
             </label>
-            <label>Zip code<input v-model="form.business.zipCode" autocomplete="postal-code" /></label>
+            <label>Zip code<input :value="calabangaLocation.zipCode" autocomplete="postal-code" readonly /></label>
           </div>
+          <EstablishmentLocationPicker
+            v-model:address="form.business.streetAddress"
+            v-model:latitude="form.business.latitude"
+            v-model:longitude="form.business.longitude"
+          />
         </section>
 
         <section class="registration-section" aria-labelledby="account-title">
@@ -195,11 +185,12 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from "vue";
+import { reactive, ref } from "vue";
 import DataPrivacyModal from "@/modules/accreditation/components/modals/DataPrivacyModal.vue";
+import EstablishmentLocationPicker from "@/modules/accreditation/components/EstablishmentLocationPicker.vue";
 import PublicServiceFooter from "@/modules/accreditation/components/PublicServiceFooter.vue";
 import PublicServiceHeader from "@/modules/accreditation/components/PublicServiceHeader.vue";
-import { philippineLocations } from "@/modules/accreditation/data/mockData";
+import { calabangaBarangays, calabangaLocation } from "@/modules/accreditation/data/mockData";
 import { registerBusinessOwner } from "@/modules/accreditation/services/accreditationApi";
 
 const error = ref("");
@@ -222,58 +213,32 @@ const form = reactive({
     businessName: "",
     businessType: "",
     businessPermitNumber: "",
-    region: "",
-    province: "",
-    cityMunicipality: "",
-    barangay: "",
+    region: calabangaLocation.region,
+    province: calabangaLocation.province,
+    cityMunicipality: calabangaLocation.cityMunicipality,
+    barangay: calabangaBarangays[0] || "",
     streetAddress: "",
-    zipCode: "",
+    zipCode: calabangaLocation.zipCode,
+    latitude: "",
+    longitude: "",
   },
 });
 
-const selectedRegion = computed(() =>
-  philippineLocations.find((location) => location.name === form.business.region),
-);
-const provinceOptions = computed(() => selectedRegion.value?.provinces || []);
-const selectedProvince = computed(() =>
-  provinceOptions.value.find((location) => location.name === form.business.province),
-);
-const cityOptions = computed(() => selectedProvince.value?.cities || []);
-const selectedCity = computed(() =>
-  cityOptions.value.find((location) => location.name === form.business.cityMunicipality),
-);
-const barangayOptions = computed(() => selectedCity.value?.barangays || []);
-
-watch(
-  () => form.business.region,
-  () => {
-    const firstProvince = provinceOptions.value[0];
-    form.business.province = firstProvince?.name || "";
-    form.business.cityMunicipality = firstProvince?.cities?.[0]?.name || "";
-    form.business.barangay = firstProvince?.cities?.[0]?.barangays?.[0] || "";
-  },
-);
-
-watch(
-  () => form.business.province,
-  () => {
-    const firstCity = cityOptions.value[0];
-    form.business.cityMunicipality = firstCity?.name || "";
-    form.business.barangay = firstCity?.barangays?.[0] || "";
-  },
-);
-
-watch(
-  () => form.business.cityMunicipality,
-  () => {
-    form.business.barangay = barangayOptions.value[0] || "";
-  },
-);
+function applyCalabangaLocation() {
+  form.business.region = calabangaLocation.region;
+  form.business.province = calabangaLocation.province;
+  form.business.cityMunicipality = calabangaLocation.cityMunicipality;
+  form.business.zipCode = calabangaLocation.zipCode;
+  if (!calabangaBarangays.includes(form.business.barangay)) {
+    form.business.barangay = calabangaBarangays[0] || "";
+  }
+}
 
 async function submit() {
   error.value = "";
   message.value = "";
   verificationUrl.value = "";
+  applyCalabangaLocation();
 
   if (form.password !== confirmPassword.value) {
     error.value = "Password and confirmation password do not match.";

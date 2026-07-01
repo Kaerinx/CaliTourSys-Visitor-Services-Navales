@@ -128,22 +128,26 @@ function inferPackageCategory(tourismPackage) {
     .toLowerCase()
 
   if (/church|faith|heritage|devotion|pilgrim|relig|quipayo|hinulid|santo|visita/.test(content)) {
-    return 'Faith & Heritage'
+    return 'Cultural'
   }
 
   if (/bay|coast|island|sea|fish|fishing|kawit|tanglad|cabgan|san miguel/.test(content)) {
-    return 'Coastal & Island'
+    return 'Nature'
   }
 
   if (/farm|agri|hacienda|harvest|countryside/.test(content)) {
-    return 'Agri-Tourism & Farm'
+    return 'Food'
   }
 
   if (/food|product|bagoong|pili|seafood|producer|market|local/.test(content)) {
-    return 'Food & Local Products'
+    return 'Food'
   }
 
-  return 'Nature & Eco'
+  if (/festival|event|calendar|celebration|parade/.test(content)) {
+    return 'Events'
+  }
+
+  return 'Nature'
 }
 
 function mapReadyPackage(tourismPackage, index = 0) {
@@ -226,19 +230,25 @@ async function getReadyPackageById(id) {
 
 function packageImageForCategory(category) {
   const images = {
-    'Faith & Heritage':
+    Cultural:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Quipayo%20Church%20%28S.%20Ciencia%29%20-%20Flickr.jpg',
-    'Coastal & Island':
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
-    'Nature & Eco':
+    Nature:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Sunset%20at%20San%20Miguel%20Bay%2C%20Calabanga.jpg',
-    'Agri-Tourism & Farm':
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Kabgan%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
-    'Food & Local Products':
+    Food:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Sea%20Side%20Calabanga%20Camarines%20Sur.jpg',
+    Events:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
   }
 
-  return images[category] || images['Nature & Eco']
+  return images[packageCategoryImageKey(category)] || images.Nature
+}
+
+function packageCategoryImageKey(category) {
+  const value = String(category || '').toLowerCase()
+  if (value.includes('food')) return 'Food'
+  if (value.includes('event')) return 'Events'
+  if (value.includes('cultural')) return 'Cultural'
+  return 'Nature'
 }
 
 function mapProductDetail(detail) {

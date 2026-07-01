@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { getPromotionalPackages } from '../services/promotionService'
 import { useNewsletterForm } from '../composables/useNewsletterForm'
 
@@ -12,40 +12,33 @@ const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = 
 
 const packageCategories = [
   {
-    name: 'Faith & Heritage',
-    slug: 'faith-heritage',
+    name: 'Nature',
+    slug: 'nature',
+    accent: '#2d6a4f',
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Sunset%20at%20San%20Miguel%20Bay%2C%20Calabanga.jpg',
+    description: 'Eco routes, outdoor learning, bay views, and nature-focused trips.',
+  },
+  {
+    name: 'Cultural',
+    slug: 'cultural',
     accent: '#d4ac0d',
     image:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Quipayo%20Church%20%28S.%20Ciencia%29%20-%20Flickr.jpg',
-    description: 'Historic churches, devotion sites, and living faith traditions.',
+    description: 'Heritage sites, local traditions, and cultural discovery routes.',
   },
   {
-    name: 'Coastal & Island',
-    slug: 'coastal-island',
-    accent: '#1565c0',
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Sea%20Side%20Calabanga%20Camarines%20Sur.jpg',
-    description: 'Bay views, island stops, and coastal community experiences.',
-  },
-  {
-    name: 'Nature & Eco',
-    slug: 'nature-eco',
-    accent: '#2d6a4f',
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Sunset%20at%20San%20Miguel%20Bay%2C%20Calabanga.jpg',
-    description: 'Mangroves, rivers, eco-walks, and outdoor learning trips.',
-  },
-  {
-    name: 'Agri-Tourism & Farm',
-    slug: 'agri-farm',
-    accent: '#7b341e',
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Kabgan%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
-    description: 'Farm escapes, local livelihoods, and countryside visits.',
-  },
-  {
-    name: 'Food & Local Products',
-    slug: 'food-products',
+    name: 'Food',
+    slug: 'food',
     accent: '#b5451b',
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Sea%20Side%20Calabanga%20Camarines%20Sur.jpg',
+    description: 'Food stops, local producers, and Calabanga-made flavors.',
+  },
+  {
+    name: 'Events',
+    slug: 'events',
+    accent: '#1565c0',
     image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
-    description: 'Seafood, local producers, and Calabanga-made products.',
+    description: 'Festival routes, calendar-based trips, and event-ready packages.',
   },
 ]
 
@@ -57,7 +50,7 @@ const categoryFilters = computed(() => [
 const categoryCards = computed(() => {
   return packageCategories.map((category) => ({
     ...category,
-    count: packages.value.filter((tourismPackage) => tourismPackage.category === category.name).length,
+    count: packages.value.filter((tourismPackage) => packageMatchesCategory(tourismPackage, category.name)).length,
   }))
 })
 
@@ -75,11 +68,17 @@ const filteredPackages = computed(() => {
       .toLowerCase()
     const matchesQuery = !query || searchable.includes(query)
     const matchesCategory =
-      activeCategory.value === 'All' || tourismPackage.category === activeCategory.value
+      activeCategory.value === 'All' || packageMatchesCategory(tourismPackage, activeCategory.value)
 
     return matchesQuery && matchesCategory
   })
 })
+
+function packageMatchesCategory(tourismPackage, categoryName) {
+  return String(tourismPackage.category || '')
+    .toLowerCase()
+    .includes(String(categoryName || '').toLowerCase())
+}
 
 function selectCategory(categoryName) {
   activeCategory.value = categoryName
@@ -103,7 +102,20 @@ async function loadPackages() {
   }
 }
 
-onMounted(loadPackages)
+function refreshVisiblePackages() {
+  if (document.visibilityState === 'visible') loadPackages()
+}
+
+onMounted(() => {
+  loadPackages()
+  window.addEventListener('focus', loadPackages)
+  document.addEventListener('visibilitychange', refreshVisiblePackages)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus', loadPackages)
+  document.removeEventListener('visibilitychange', refreshVisiblePackages)
+})
 </script>
 
 <template>
@@ -155,7 +167,7 @@ onMounted(loadPackages)
             <p class="eyebrow">Tourism Product Development</p>
             <h1>Explore Calabanga through curated packages</h1>
             <p>
-              Discover faith, coast, nature, farms, and local flavors through visitor-ready
+              Discover nature, culture, food, and events through visitor-ready
               experiences prepared by the Tourism Product Development Module.
             </p>
             <div class="hero-actions">

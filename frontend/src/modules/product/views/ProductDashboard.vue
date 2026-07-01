@@ -25,7 +25,7 @@ const reportCards = computed(() => {
   return [
     { label: 'Tourism assets', value: reports.assets.total },
     { label: 'Active plans', value: reports.developmentPlans.active },
-    { label: 'Average progress', value: `${reports.improvements.averageProgress}%` },
+    { label: 'Package records', value: reports.packages.total },
     { label: 'Ready packages', value: reports.packages.readyForPromotion },
   ]
 })
@@ -49,25 +49,11 @@ const workflowCards = computed(() => {
       description: 'Turn selected assets into objectives, timelines, needs, and assigned work.',
     },
     {
-      title: 'Improvements',
-      path: `${productBasePath.value}/improvements`,
-      count: reports?.improvements.total ?? 0,
-      helper: `${reports?.improvements.delayed ?? 0} delayed, ${reports?.improvements.completed ?? 0} completed`,
-      description: 'Track progress updates so development work is visible before packaging.',
-    },
-    {
-      title: 'Activities',
-      path: `${productBasePath.value}/activities`,
-      count: reports?.activities.total ?? 0,
-      helper: `${reports?.activities.active ?? 0} active activities`,
-      description: 'Design visitor activities linked to active assets and optional development plans.',
-    },
-    {
       title: 'Packages',
       path: `${productBasePath.value}/packages`,
       count: reports?.packages.total ?? 0,
       helper: `${reports?.packages.readyForPromotion ?? 0} ready for promotion`,
-      description: 'Combine assets and activities, then review complete packages for public handoff.',
+      description: 'Combine approved assets into tourism packages, then review them for public handoff.',
     },
   ]
 })
@@ -77,9 +63,6 @@ const quickActions = computed(() => [
   { label: 'Create plan', path: `${productBasePath.value}/development-plans` },
   { label: 'Review packages', path: `${productBasePath.value}/packages` },
 ])
-
-const packageStatusSummary = computed(() => reportSummary.value?.packages.byStatus || [])
-const planStatusSummary = computed(() => reportSummary.value?.developmentPlans.byStatus || [])
 
 onMounted(async () => {
   try {
@@ -103,19 +86,19 @@ onMounted(async () => {
       <p class="eyebrow">Product Module</p>
       <h1>Tourism Product Development Program</h1>
       <p>
-        Manage tourism assets, development plans, improvement updates, activity records, and package
-        records through readiness review, reporting, and promotion handoff preparation.
+        Manage tourism assets, development plans, and package records through readiness review,
+        reporting, and promotion handoff preparation.
       </p>
     </div>
 
     <div class="role-notice" :class="{ readonly: auth.isViewOnly }">
       <strong>{{ auth.user?.role }}</strong>
       <span v-if="auth.isViewOnly">
-        LGU Officials have view-only access for reports, summaries, and development status.
+        LGU Officials have view-only access for reports, summaries, and package readiness.
       </span>
       <span v-else>
-        Your role can work with assets, development plans, improvements, activities, and packages
-        according to the assigned permissions.
+        Your role can work with assets, development plans, and packages according to the assigned
+        permissions.
       </span>
     </div>
 
@@ -141,24 +124,9 @@ onMounted(async () => {
       <div>
         <h2>Module report summary</h2>
         <p>
-          Current records are organized for package readiness review, status monitoring, and future
-          handoff to the Promotion and Marketing module.
+          Current records are organized for package readiness review and handoff to the public
+          Home page and Packages page.
         </p>
-      </div>
-
-      <div class="report-groups">
-        <section>
-          <h3>Packages by status</h3>
-          <span v-for="item in packageStatusSummary" :key="item.status">
-            {{ item.status }}: {{ item.count }}
-          </span>
-        </section>
-        <section>
-          <h3>Plans by status</h3>
-          <span v-for="item in planStatusSummary" :key="item.status">
-            {{ item.status }}: {{ item.count }}
-          </span>
-        </section>
       </div>
     </section>
 
@@ -166,8 +134,8 @@ onMounted(async () => {
       <div>
         <h2>Future consolidation contract</h2>
         <p>
-          This module will stay standalone for now, but it prepares shared role names, status
-          values, and API group naming for eventual integration with the group system.
+          This module will stay standalone for now, but it prepares shared role names and API
+          group naming for eventual integration with the group system.
         </p>
       </div>
 
@@ -206,7 +174,7 @@ onMounted(async () => {
 
 .workflow-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 20px;
 }
@@ -253,32 +221,6 @@ onMounted(async () => {
 
 .report-panel {
   align-items: flex-start;
-}
-
-.report-groups {
-  display: grid;
-  gap: 16px;
-  min-width: min(100%, 420px);
-}
-
-.report-groups section {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.report-groups h3 {
-  width: 100%;
-  margin-bottom: 0;
-}
-
-.report-groups span {
-  border-radius: 999px;
-  padding: 8px 10px;
-  background: #edf4f8;
-  color: #245a8d;
-  font-size: 12px;
-  font-weight: 800;
 }
 
 @media (max-width: 1200px) {

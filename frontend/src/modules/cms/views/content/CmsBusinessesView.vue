@@ -1,11 +1,11 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AccreditationRecords from '@/modules/accreditation/views/AccreditationRecords.vue'
 import ApplicationReview from '@/modules/accreditation/views/ApplicationReview.vue'
-import DashboardRouter from '@/modules/accreditation/views/DashboardRouter.vue'
 import ReportsPage from '@/modules/accreditation/views/ReportsPage.vue'
 import StaffApplications from '@/modules/accreditation/views/StaffApplications.vue'
+import TourismStaffDashboard from '@/modules/accreditation/views/TourismStaffDashboard.vue'
 import { useAuthStore as useAccreditationAuthStore } from '@/stores/authStore'
 import { cmsContentApi } from '../../services/cmsContentApi'
 
@@ -27,10 +27,20 @@ const activeView = computed(() => {
   if (route.path.endsWith('/records')) return AccreditationRecords
   if (route.path.endsWith('/reports')) return ReportsPage
   if (route.path.endsWith('/review')) return ApplicationReview
-  return DashboardRouter
+  return TourismStaffDashboard
 })
+const activeViewKey = computed(() => route.fullPath)
 
 onMounted(prepareAccreditationSession)
+
+watch(
+  () => route.path,
+  async () => {
+    if (!accreditationAuth.token || accreditationAuth.role !== 'tourism_staff') {
+      await prepareAccreditationSession()
+    }
+  },
+)
 
 async function prepareAccreditationSession() {
   isPreparingSession.value = true
@@ -84,7 +94,7 @@ function goTo(tab) {
       {{ sessionError }}
     </div>
     <div v-else class="cms-accreditation-page__app">
-      <component :is="activeView" />
+      <component :is="activeView" :key="activeViewKey" />
     </div>
   </section>
 </template>

@@ -38,7 +38,7 @@ async function submitLogin() {
       <p class="eyebrow">CaliTourSys Module</p>
       <h1>Tourism Product Development Program</h1>
       <p class="lede">
-        Sign in to manage tourism assets, development plans, improvements, and activities.
+        Sign in to manage tourism assets, development plans, and packages.
       </p>
 
       <form class="login-form" @submit.prevent="submitLogin">

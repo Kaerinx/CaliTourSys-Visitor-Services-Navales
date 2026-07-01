@@ -7,7 +7,6 @@ import CmsIcon from '@/modules/cms/components/CmsIcon.vue'
 import ProductPlanForm from '@/modules/product/components/ProductPlanForm.vue'
 import RoleNotice from '@/modules/product/components/RoleNotice.vue'
 import { useProductAccess } from '@/modules/product/composables/useProductAccess'
-import { DEVELOPMENT_PLAN_STATUSES } from '@/modules/product/constants/productOptions'
 import {
   archiveDevelopmentPlan,
   createDevelopmentPlan,
@@ -16,6 +15,10 @@ import {
   updateDevelopmentPlan,
 } from '@/modules/product/services/productApi'
 import { USER_ROLES } from '@/stores/auth'
+
+const props = defineProps({
+  embedded: { type: Boolean, default: false },
+})
 
 const auth = useProductAccess()
 
@@ -34,7 +37,6 @@ const actionBusy = ref(false)
 const filters = reactive({
   search: '',
   assetId: '',
-  status: '',
   targetMarket: '',
 })
 
@@ -43,7 +45,6 @@ const columns = [
   { key: 'asset', label: 'Linked asset' },
   { key: 'targetMarket', label: 'Target market' },
   { key: 'timeline', label: 'Timeline' },
-  { key: 'status', label: 'Status' },
   { key: 'actions', label: 'Actions' },
 ]
 
@@ -65,9 +66,6 @@ const displayedPlans = computed(() => {
   if (!filters.assetId) return plans.value
   return plans.value.filter((plan) => plan.assetId === filters.assetId)
 })
-
-const activePlans = computed(() => plans.value.filter((plan) => plan.planStatus !== 'Archived').length)
-const archivedPlans = computed(() => plans.value.filter((plan) => plan.planStatus === 'Archived').length)
 
 onMounted(loadPageData)
 
@@ -98,7 +96,6 @@ function openEdit(plan) {
 function clearFilters() {
   filters.search = ''
   filters.assetId = ''
-  filters.status = ''
   filters.targetMarket = ''
   loadPlans()
 }
@@ -115,10 +112,9 @@ async function loadPlans() {
   try {
     const response = await getDevelopmentPlans({
       search: filters.search,
-      status: filters.status,
       targetMarket: filters.targetMarket,
     })
-    plans.value = response.data || []
+    plans.value = (response.data || []).filter((plan) => plan.planStatus !== 'Archived')
   } catch (err) {
     error.value = err.message || 'Unable to load development plans.'
   } finally {
@@ -194,11 +190,29 @@ function formatDate(value) {
     year: 'numeric',
   }).format(date)
 }
+
+function formatTime(value) {
+  if (!value) return ''
+  const match = String(value).match(/^(\d{2}):(\d{2})/)
+  if (!match) return String(value)
+  const date = new Date()
+  date.setHours(Number(match[1]), Number(match[2]), 0, 0)
+  return new Intl.DateTimeFormat('en', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function formatDateTime(dateValue, timeValue) {
+  const dateText = formatDate(dateValue)
+  const timeText = formatTime(timeValue)
+  return timeText ? `${dateText} ${timeText}` : dateText
+}
 </script>
 
 <template>
   <section class="cms-content-page" aria-labelledby="cms-plans-title">
-    <header class="cms-content-page__header">
+    <header v-if="!props.embedded" class="cms-content-page__header">
       <div>
         <p>Product Development</p>
         <h1 id="cms-plans-title">Development Plans</h1>
@@ -228,18 +242,8 @@ function formatDate(value) {
         <span>Asset</span>
         <select v-model="filters.assetId">
           <option value="">All assets</option>
-          <option v-for="asset in assets" :key="asset.id" :value="asset.id">
+          <option v-for="asset in selectableAssets" :key="asset.id" :value="asset.id">
             {{ asset.name }}
-          </option>
-        </select>
-      </label>
-
-      <label>
-        <span>Status</span>
-        <select v-model="filters.status" @change="loadPlans">
-          <option value="">All statuses</option>
-          <option v-for="status in DEVELOPMENT_PLAN_STATUSES" :key="status" :value="status">
-            {{ status }}
           </option>
         </select>
       </label>
@@ -290,23 +294,17 @@ function formatDate(value) {
           <td>
             <span class="cms-table-title">
               <strong>{{ plan.assetName }}</strong>
-              <span>{{ plan.assetStatus }}</span>
             </span>
           </td>
           <td>{{ plan.targetMarket }}</td>
           <td>
             <span class="plan-timeline">
-              <span>{{ formatDate(plan.timelineStart) }}</span>
-              <span>{{ formatDate(plan.timelineEnd) }}</span>
+              <span>{{ formatDateTime(plan.timelineStart, plan.timelineStartTime) }}</span>
+              <span>{{ formatDateTime(plan.timelineEnd, plan.timelineEndTime) }}</span>
             </span>
           </td>
           <td>
-            <span class="plan-status" :data-status="plan.planStatus">
-              {{ plan.planStatus }}
-            </span>
-          </td>
-          <td>
-            <span class="cms-table-actions">
+            <span class="cms-table-actions product-table-actions">
               <button v-if="canEditPlan(plan)" type="button" @click="openEdit(plan)">Edit</button>
               <button v-if="canArchivePlan(plan)" class="is-danger" type="button" @click="askArchive(plan)">
                 Archive
@@ -325,14 +323,14 @@ function formatDate(value) {
             <span>{{ plan.objectives }}</span>
           </span>
           <div class="cms-mobile-meta">
-            <span class="plan-status" :data-status="plan.planStatus">
-              {{ plan.planStatus }}
-            </span>
             <span>{{ plan.assetName }}</span>
           </div>
           <span>{{ plan.targetMarket }}</span>
-          <span>{{ formatDate(plan.timelineStart) }} to {{ formatDate(plan.timelineEnd) }}</span>
-          <div class="cms-mobile-card__actions cms-table-actions">
+          <span>
+            {{ formatDateTime(plan.timelineStart, plan.timelineStartTime) }} to
+            {{ formatDateTime(plan.timelineEnd, plan.timelineEndTime) }}
+          </span>
+          <div class="cms-mobile-card__actions cms-table-actions product-table-actions">
             <button v-if="canEditPlan(plan)" type="button" @click="openEdit(plan)">Edit</button>
             <button v-if="canArchivePlan(plan)" class="is-danger" type="button" @click="askArchive(plan)">
               Archive
@@ -345,7 +343,7 @@ function formatDate(value) {
     <div class="plan-pagination">
       <div>
         <strong>{{ displayedPlans.length }} records</strong>
-        <span>{{ activePlans }} active, {{ archivedPlans }} archived</span>
+        <span>Use Archive to remove plans from active product development work.</span>
       </div>
     </div>
 
@@ -498,47 +496,36 @@ function formatDate(value) {
   color: #334155;
 }
 
-.plan-status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 0 10px;
-  color: #475569;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  background: #f8fafc;
-  font-size: 0.78rem;
-  font-weight: 800;
+:deep(.cms-data-table__desktop table) {
+  min-width: 1100px;
 }
 
-.plan-status[data-status='Draft'] {
-  color: #075985;
-  border-color: #bae6fd;
-  background: #e0f2fe;
+:deep(.cms-data-table__desktop th),
+:deep(.cms-data-table__desktop td) {
+  padding-block: 16px;
 }
 
-.plan-status[data-status='Ongoing'] {
-  color: #0f766e;
-  border-color: #99f6e4;
-  background: #ccfbf1;
+:deep(.cms-table-title) {
+  max-width: 480px;
 }
 
-.plan-status[data-status='Completed'] {
-  color: #166534;
-  border-color: #bbf7d0;
-  background: #dcfce7;
+:deep(.cms-table-title strong) {
+  font-size: 0.95rem;
+  line-height: 1.35;
 }
 
-.plan-status[data-status='On Hold'] {
-  color: #92400e;
-  border-color: #fed7aa;
-  background: #ffedd5;
+:deep(.cms-table-title span) {
+  line-height: 1.45;
 }
 
-.plan-status[data-status='Archived'] {
-  color: #991b1b;
-  border-color: #fecaca;
-  background: #fef2f2;
+:deep(.product-table-actions) {
+  flex-wrap: nowrap;
+  min-width: 150px;
+  justify-content: flex-end;
+}
+
+:deep(.product-table-actions button) {
+  min-width: 64px;
 }
 
 .plan-pagination {

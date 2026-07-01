@@ -1,7 +1,7 @@
 import { request } from '@/services/http'
 
 function productRequest(path, options) {
-  return request(path, options).then((response) => {
+  return request(path, { ...options, auth: true }).then((response) => {
     if (response && Object.prototype.hasOwnProperty.call(response, 'data')) {
       return response
     }

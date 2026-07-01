@@ -12,8 +12,6 @@ import LoginView from '@/views/LoginView.vue'
 const ProductDashboard = () => import('@/modules/product/views/ProductDashboard.vue')
 const ProductList = () => import('@/modules/product/views/ProductList.vue')
 const DevelopmentPlanList = () => import('@/modules/product/views/DevelopmentPlanList.vue')
-const ImprovementMonitoring = () => import('@/modules/product/views/ImprovementMonitoring.vue')
-const TourismActivityList = () => import('@/modules/product/views/TourismActivityList.vue')
 const TourismPackageList = () => import('@/modules/product/views/TourismPackageList.vue')
 
 const VisitorAdminDashboard = () => import('@/modules/visitor/views/AdminDashboard.vue')
@@ -35,6 +33,21 @@ function redirectToCmsVisitor(path) {
     query: to.query,
     hash: to.hash,
   })
+}
+
+function cmsBusinessRedirectForAccreditationStaff(to) {
+  const routeMap = [
+    ['/accreditation/app/staff-dashboard', '/cms/businesses/applications'],
+    ['/accreditation/app/review', '/cms/businesses/review'],
+    ['/accreditation/app/records', '/cms/businesses/records'],
+    ['/accreditation/app/reports', '/cms/businesses/reports'],
+  ]
+  const match = routeMap.find(([from]) => to.path.startsWith(from))
+  return {
+    path: match?.[1] || '/cms/businesses',
+    query: to.query,
+    hash: to.hash,
+  }
 }
 
 const productRoutes = [
@@ -70,15 +83,11 @@ const productRoutes = [
   },
   {
     path: '/product/improvements',
-    name: 'product-improvements',
-    component: ImprovementMonitoring,
-    meta: { productRequiresAuth: true },
+    redirect: '/product',
   },
   {
     path: '/product/activities',
-    name: 'product-activities',
-    component: TourismActivityList,
-    meta: { productRequiresAuth: true },
+    redirect: '/product',
   },
   {
     path: '/product/packages',
@@ -242,6 +251,14 @@ router.beforeEach(async (to) => {
 
     if (accreditationRequiresAuth && !accreditationToken) {
       return '/accreditation/login'
+    }
+
+    if (to.path.startsWith('/accreditation/app') && accreditationUser?.role === 'tourism_staff') {
+      if (String(accreditationToken || '').startsWith('demo-token')) {
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('auth_user')
+      }
+      return cmsBusinessRedirectForAccreditationStaff(to)
     }
 
     if (accreditationAllowedRoles.length && !accreditationAllowedRoles.includes(accreditationUser?.role)) {

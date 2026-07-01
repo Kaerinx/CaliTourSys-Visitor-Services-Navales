@@ -17,6 +17,11 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error) => {
+    const backendMessage = error.response?.data?.error?.message;
+    if (backendMessage && !error.response.data.message) {
+      error.response.data.message = backendMessage;
+    }
+
     if (error.response?.status === 401) {
       localStorage.removeItem("auth_token");
       localStorage.removeItem("auth_user");

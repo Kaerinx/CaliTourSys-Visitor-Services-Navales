@@ -62,19 +62,11 @@
       </div>
 
       <div class="demo-box">
-        <p>Demo Accounts for Testing</p>
+        <p>Demo Account for Testing</p>
         <div class="demo-list">
           <button type="button" @click="fillDemo('john@sunsetresort.com')">
             Business Owner
             <span>john@sunsetresort.com</span>
-          </button>
-          <button type="button" @click="fillDemo('maria.santos@tourism.gov.ph')">
-            Tourism Staff / Officer
-            <span>maria.santos@tourism.gov.ph</span>
-          </button>
-          <button type="button" @click="fillDemo('system.admin@tourism.gov.ph')">
-            System Administrator
-            <span>system.admin@tourism.gov.ph</span>
           </button>
         </div>
         <small>Password: password123</small>
@@ -107,7 +99,12 @@ async function submit() {
   error.value = "";
   verificationUrl.value = "";
   try {
-    await auth.login(form);
+    const user = await auth.login(form);
+    if (user.role !== "business_owner") {
+      auth.logout();
+      router.push({ name: "cms-login", query: { redirect: "/cms/businesses" } });
+      return;
+    }
     router.push("/accreditation/app/dashboard");
   } catch (err) {
     error.value = err.response?.data?.message || "Unable to sign in.";

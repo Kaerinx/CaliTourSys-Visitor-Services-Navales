@@ -1,7 +1,15 @@
 <script setup>
 import { computed, reactive, watch } from 'vue'
 
-import { DEVELOPMENT_PLAN_STATUSES } from '@/modules/product/constants/productOptions'
+const PLAN_TARGET_MARKETS = Object.freeze([
+  'Local tourist',
+  'Domestic tourist',
+  'International tourist',
+  'Students',
+  'Families',
+  'Adventure travelers',
+  'Cultural tourist',
+])
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -18,6 +26,7 @@ const form = reactive(defaultForm())
 const isEditing = computed(() => Boolean(props.value?.id))
 const title = computed(() => (isEditing.value ? 'Edit plan' : 'Create plan'))
 const selectedAsset = computed(() => props.assets.find((asset) => asset.id === form.assetId))
+const targetMarketOptions = computed(() => withCurrentOption(PLAN_TARGET_MARKETS, form.targetMarket))
 const submitLabel = computed(() => {
   if (props.busy) return 'Saving...'
   return isEditing.value ? 'Save changes' : 'Create plan'
@@ -30,16 +39,24 @@ const errors = computed(() => {
   if (!form.title.trim()) output.title = 'Plan title is required.'
   if (!form.objectives.trim()) output.objectives = 'Objectives are required.'
   if (!form.targetMarket.trim()) output.targetMarket = 'Target market is required.'
-  if (!form.improvementNeeds.trim()) output.improvementNeeds = 'Improvement needs are required.'
   if (!form.proposedActivities.trim()) output.proposedActivities = 'Proposed activities are required.'
   if (!form.assignedPersonnel.trim()) output.assignedPersonnel = 'Assigned personnel is required.'
-  if (!form.planStatus) output.planStatus = 'Plan status is required.'
   if (
     form.timelineStart &&
     form.timelineEnd &&
     new Date(form.timelineEnd).getTime() < new Date(form.timelineStart).getTime()
   ) {
     output.timelineEnd = 'Timeline end must be after the start date.'
+  }
+  if (
+    form.timelineStart &&
+    form.timelineEnd &&
+    form.timelineStart === form.timelineEnd &&
+    form.timelineStartTime &&
+    form.timelineEndTime &&
+    form.timelineEndTime < form.timelineStartTime
+  ) {
+    output.timelineEndTime = 'Time end must be after time start.'
   }
   return output
 })
@@ -58,11 +75,12 @@ function defaultForm(value = null) {
     assetId: value?.assetId || '',
     title: value?.title || value?.planTitle || '',
     objectives: value?.objectives || '',
-    targetMarket: value?.targetMarket || '',
-    improvementNeeds: value?.improvementNeeds || '',
+    targetMarket: value?.targetMarket || PLAN_TARGET_MARKETS[0],
     proposedActivities: value?.proposedActivities || '',
     timelineStart: toDateInput(value?.timelineStart),
     timelineEnd: toDateInput(value?.timelineEnd),
+    timelineStartTime: toTimeInput(value?.timelineStartTime),
+    timelineEndTime: toTimeInput(value?.timelineEndTime),
     assignedPersonnel: value?.assignedPersonnel || '',
     planStatus: value?.planStatus || 'Draft',
     remarks: value?.remarks || '',
@@ -78,9 +96,21 @@ function toDateInput(value) {
   return date.toISOString().slice(0, 10)
 }
 
+function toTimeInput(value) {
+  if (!value) return ''
+  const text = String(value)
+  const match = text.match(/^(\d{2}):(\d{2})/)
+  return match ? `${match[1]}:${match[2]}` : ''
+}
+
 function emptyToNull(value) {
   const trimmed = String(value || '').trim()
   return trimmed ? trimmed : null
+}
+
+function withCurrentOption(options, value) {
+  if (!value || options.includes(value)) return options
+  return [value, ...options]
 }
 
 function syncTargetMarketFromAsset() {
@@ -93,17 +123,20 @@ function submitForm() {
   submitted.value = true
   if (Object.keys(errors.value).length) return
 
+  const internalStatus = form.planStatus === 'Archived' ? 'Archived' : 'Draft'
+
   emit('submit', {
     assetId: form.assetId,
-    title: form.title.trim(),
+    planTitle: form.title.trim(),
     objectives: form.objectives.trim(),
     targetMarket: form.targetMarket.trim(),
-    improvementNeeds: form.improvementNeeds.trim(),
     proposedActivities: form.proposedActivities.trim(),
     timelineStart: emptyToNull(form.timelineStart),
     timelineEnd: emptyToNull(form.timelineEnd),
+    timelineStartTime: emptyToNull(form.timelineStartTime),
+    timelineEndTime: emptyToNull(form.timelineEndTime),
     assignedPersonnel: form.assignedPersonnel.trim(),
-    planStatus: form.planStatus,
+    planStatus: internalStatus,
     remarks: emptyToNull(form.remarks),
   })
 }
@@ -126,28 +159,16 @@ function submitForm() {
             <section class="plan-section" aria-labelledby="plan-basic-title">
               <h3 id="plan-basic-title">Basic Information</h3>
 
-              <div class="plan-grid">
-                <label>
-                  <span>Tourism asset</span>
-                  <select v-model="form.assetId" :aria-invalid="Boolean(errors.assetId)" @change="syncTargetMarketFromAsset">
-                    <option value="">Select non-archived asset</option>
-                    <option v-for="asset in assets" :key="asset.id" :value="asset.id">
-                      {{ asset.name }} - {{ asset.developmentStatus }}
-                    </option>
-                  </select>
-                  <small v-if="errors.assetId">{{ errors.assetId }}</small>
-                </label>
-
-                <label>
-                  <span>Status</span>
-                  <select v-model="form.planStatus" :aria-invalid="Boolean(errors.planStatus)">
-                    <option v-for="status in DEVELOPMENT_PLAN_STATUSES" :key="status" :value="status">
-                      {{ status }}
-                    </option>
-                  </select>
-                  <small v-if="errors.planStatus">{{ errors.planStatus }}</small>
-                </label>
-              </div>
+              <label>
+                <span>Tourism asset</span>
+                <select v-model="form.assetId" :aria-invalid="Boolean(errors.assetId)" @change="syncTargetMarketFromAsset">
+                  <option value="">Select non-archived asset</option>
+                  <option v-for="asset in assets" :key="asset.id" :value="asset.id">
+                    {{ asset.name }}
+                  </option>
+                </select>
+                <small v-if="errors.assetId">{{ errors.assetId }}</small>
+              </label>
 
               <label>
                 <span>Plan title</span>
@@ -167,14 +188,12 @@ function submitForm() {
 
               <label>
                 <span>Target market</span>
-                <input v-model="form.targetMarket" :aria-invalid="Boolean(errors.targetMarket)" />
+                <select v-model="form.targetMarket" :aria-invalid="Boolean(errors.targetMarket)">
+                  <option v-for="market in targetMarketOptions" :key="market" :value="market">
+                    {{ market }}
+                  </option>
+                </select>
                 <small v-if="errors.targetMarket">{{ errors.targetMarket }}</small>
-              </label>
-
-              <label>
-                <span>Improvement needs</span>
-                <textarea v-model="form.improvementNeeds" rows="3" :aria-invalid="Boolean(errors.improvementNeeds)"></textarea>
-                <small v-if="errors.improvementNeeds">{{ errors.improvementNeeds }}</small>
               </label>
 
               <label>
@@ -197,6 +216,19 @@ function submitForm() {
                   <span>Timeline end</span>
                   <input v-model="form.timelineEnd" type="date" :aria-invalid="Boolean(errors.timelineEnd)" />
                   <small v-if="errors.timelineEnd">{{ errors.timelineEnd }}</small>
+                </label>
+              </div>
+
+              <div class="plan-grid">
+                <label>
+                  <span>Time start</span>
+                  <input v-model="form.timelineStartTime" type="time" />
+                </label>
+
+                <label>
+                  <span>Time end</span>
+                  <input v-model="form.timelineEndTime" type="time" :aria-invalid="Boolean(errors.timelineEndTime)" />
+                  <small v-if="errors.timelineEndTime">{{ errors.timelineEndTime }}</small>
                 </label>
               </div>
 

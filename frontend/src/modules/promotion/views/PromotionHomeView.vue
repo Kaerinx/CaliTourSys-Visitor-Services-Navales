@@ -5,6 +5,7 @@ import {
   getEvents,
   getMapLocations,
   getMuseumItems,
+  getPromotionalPackages,
   getPromotionalProducts,
 } from '../services/promotionService'
 import { useNewsletterForm } from '../composables/useNewsletterForm'
@@ -50,6 +51,7 @@ const products = ref([
 
 const destinations = ref([])
 const museumItems = ref([])
+const packages = ref([])
 
 const events = ref([
   {
@@ -128,12 +130,13 @@ async function loadHomeData() {
   errorMessage.value = ''
 
   try {
-    const [productData, eventData, destinationData, locationData, museumData] = await Promise.all([
+    const [productData, eventData, destinationData, locationData, museumData, packageData] = await Promise.all([
       getPromotionalProducts({ featured: true, limit: 8 }),
       getEvents({ featured: true, limit: 4 }),
       getDestinations({ featured: true, limit: 3 }),
       getMapLocations({ format: 'list' }),
       getMuseumItems({ featured: true, limit: 3 }),
+      getPromotionalPackages(),
     ])
 
     products.value = productData
@@ -141,6 +144,7 @@ async function loadHomeData() {
     destinations.value = destinationData.slice(0, 3)
     locations.value = locationData.slice(0, 5)
     museumItems.value = museumData.slice(0, 3)
+    packages.value = packageData.slice(0, 3)
   } catch (error) {
     errorMessage.value = error.message || 'Unable to load public tourism content.'
   } finally {
@@ -208,7 +212,7 @@ onMounted(loadHomeData)
       <section class="hero-section">
         <div class="hero-section__inner">
           <div class="hero-copy">
-            <p class="eyebrow hero-copy__eyebrow"><span></span>Calabanga Â· Camarines Sur</p>
+            <p class="eyebrow hero-copy__eyebrow"><span></span>Calabanga Camarines Sur</p>
             <h1>Discover the Heart of Bicol</h1>
             <p>
               Explore Calabanga's coastal wonders, centuries-old churches, and the local treasures
@@ -356,6 +360,44 @@ onMounted(loadHomeData)
                   <span>{{ product.price }}</span>
                   <span>View product -></span>
                 </span>
+              </span>
+            </RouterLink>
+          </div>
+        </div>
+      </section>
+
+      <section class="content-section content-section--white">
+        <div class="page-shell">
+          <div class="section-heading">
+            <div>
+              <h2>Featured Tourism Packages</h2>
+              <p>Visitor-ready packages from the Product Development module, prepared for public promotion.</p>
+            </div>
+            <RouterLink to="/packages">Browse packages -></RouterLink>
+          </div>
+
+          <div class="feature-grid feature-grid--three">
+            <p v-if="!isLoading && packages.length === 0" class="empty-copy">No tourism packages are available yet.</p>
+            <RouterLink
+              v-for="tourismPackage in packages"
+              :key="tourismPackage.id"
+              :to="`/packages/${tourismPackage.slug || tourismPackage.id}`"
+              class="destination-card"
+            >
+              <span
+                class="destination-card__media"
+                :style="{
+                  '--card-accent': tourismPackage.accent || '#1b4332',
+                  backgroundImage: tourismPackage.imageUrl ? `url(${tourismPackage.imageUrl})` : undefined,
+                }"
+              >
+                <span class="category-badge">{{ tourismPackage.category }}</span>
+              </span>
+              <span class="destination-card__body">
+                <strong>{{ tourismPackage.name }}</strong>
+                <span>{{ tourismPackage.estimatedDuration || 'Duration to be confirmed' }}</span>
+                <p>{{ tourismPackage.description }}</p>
+                <span class="card-link">View package -></span>
               </span>
             </RouterLink>
           </div>

@@ -7,7 +7,7 @@ import CmsIcon from '@/modules/cms/components/CmsIcon.vue'
 import ProductAssetForm from '@/modules/product/components/ProductAssetForm.vue'
 import RoleNotice from '@/modules/product/components/RoleNotice.vue'
 import { useProductAccess } from '@/modules/product/composables/useProductAccess'
-import { ASSET_CATEGORIES, ASSET_STATUSES } from '@/modules/product/constants/productOptions'
+import { ASSET_CATEGORIES } from '@/modules/product/constants/productOptions'
 import {
   archiveTourismAsset,
   createTourismAsset,
@@ -15,6 +15,10 @@ import {
   updateTourismAsset,
 } from '@/modules/product/services/productApi'
 import { USER_ROLES } from '@/stores/auth'
+
+const props = defineProps({
+  embedded: { type: Boolean, default: false },
+})
 
 const auth = useProductAccess()
 
@@ -32,7 +36,6 @@ const actionBusy = ref(false)
 const filters = reactive({
   search: '',
   category: '',
-  status: '',
   location: '',
   targetMarket: '',
 })
@@ -42,7 +45,6 @@ const columns = [
   { key: 'category', label: 'Category' },
   { key: 'location', label: 'Location' },
   { key: 'targetMarket', label: 'Target market' },
-  { key: 'status', label: 'Status' },
   { key: 'actions', label: 'Actions' },
 ]
 
@@ -54,14 +56,6 @@ const canEditAssets = computed(() =>
 
 const canArchiveAssets = computed(() =>
   [USER_ROLES.TOURISM_OFFICER, USER_ROLES.SYSTEM_ADMINISTRATOR].includes(auth.user?.role),
-)
-
-const activeAssets = computed(() =>
-  assets.value.filter((asset) => asset.developmentStatus !== 'Archived').length,
-)
-
-const archivedAssets = computed(() =>
-  assets.value.filter((asset) => asset.developmentStatus === 'Archived').length,
 )
 
 onMounted(loadAssets)
@@ -81,7 +75,6 @@ function openEdit(asset) {
 function clearFilters() {
   filters.search = ''
   filters.category = ''
-  filters.status = ''
   filters.location = ''
   filters.targetMarket = ''
   loadAssets()
@@ -93,7 +86,7 @@ async function loadAssets() {
 
   try {
     const response = await getTourismAssets(filters)
-    assets.value = response.data || []
+    assets.value = (response.data || []).filter((asset) => asset.developmentStatus !== 'Archived')
   } catch (err) {
     error.value = err.message || 'Unable to load tourism assets.'
   } finally {
@@ -149,7 +142,7 @@ async function archiveAsset() {
 
 <template>
   <section class="cms-content-page" aria-labelledby="cms-assets-title">
-    <header class="cms-content-page__header">
+    <header v-if="!props.embedded" class="cms-content-page__header">
       <div>
         <p>Product Development</p>
         <h1 id="cms-assets-title">Assets</h1>
@@ -173,16 +166,6 @@ async function archiveAsset() {
           placeholder="Search by name, description, or location"
           @keyup.enter="loadAssets"
         />
-      </label>
-
-      <label>
-        <span>Status</span>
-        <select v-model="filters.status" @change="loadAssets">
-          <option value="">All statuses</option>
-          <option v-for="status in ASSET_STATUSES" :key="status" :value="status">
-            {{ status }}
-          </option>
-        </select>
       </label>
 
       <label>
@@ -221,7 +204,7 @@ async function archiveAsset() {
       :loading="loading"
       :error="error"
       empty-title="No assets found"
-      empty-text="Create the first tourism asset draft or adjust your filters."
+      empty-text="Create the first tourism asset or adjust your filters."
       @retry="loadAssets"
     >
       <template #rows="{ items: tableItems }">
@@ -237,12 +220,7 @@ async function archiveAsset() {
           <td>{{ asset.location }}</td>
           <td>{{ asset.targetMarket }}</td>
           <td>
-            <span class="asset-status" :data-status="asset.developmentStatus">
-              {{ asset.developmentStatus }}
-            </span>
-          </td>
-          <td>
-            <span class="cms-table-actions">
+            <span class="cms-table-actions product-table-actions">
               <button
                 v-if="canEditAssets && asset.developmentStatus !== 'Archived'"
                 type="button"
@@ -271,14 +249,11 @@ async function archiveAsset() {
             <span>{{ asset.description }}</span>
           </span>
           <div class="cms-mobile-meta">
-            <span class="asset-status" :data-status="asset.developmentStatus">
-              {{ asset.developmentStatus }}
-            </span>
             <span>{{ asset.category }}</span>
             <span>{{ asset.location }}</span>
           </div>
           <span>{{ asset.targetMarket }}</span>
-          <div class="cms-mobile-card__actions cms-table-actions">
+          <div class="cms-mobile-card__actions cms-table-actions product-table-actions">
             <button
               v-if="canEditAssets && asset.developmentStatus !== 'Archived'"
               type="button"
@@ -302,7 +277,7 @@ async function archiveAsset() {
     <div class="asset-pagination">
       <div>
         <strong>{{ assets.length }} records</strong>
-        <span>{{ activeAssets }} active, {{ archivedAssets }} archived</span>
+        <span>Use Archive to remove assets from active package selection.</span>
       </div>
     </div>
 
@@ -429,43 +404,36 @@ async function archiveAsset() {
   background: #115e59 !important;
 }
 
-.asset-status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 0 10px;
-  color: #475569;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  background: #f8fafc;
-  font-size: 0.78rem;
-  font-weight: 800;
+:deep(.cms-data-table__desktop table) {
+  min-width: 1040px;
 }
 
-.asset-status[data-status='Draft'] {
-  color: #075985;
-  border-color: #bae6fd;
-  background: #e0f2fe;
+:deep(.cms-data-table__desktop th),
+:deep(.cms-data-table__desktop td) {
+  padding-block: 16px;
 }
 
-.asset-status[data-status='Validated'],
-.asset-status[data-status='Ready for Promotion'] {
-  color: #0f766e;
-  border-color: #99f6e4;
-  background: #ccfbf1;
+:deep(.cms-table-title) {
+  max-width: 460px;
 }
 
-.asset-status[data-status='In Development'],
-.asset-status[data-status='For Review'] {
-  color: #92400e;
-  border-color: #fed7aa;
-  background: #ffedd5;
+:deep(.cms-table-title strong) {
+  font-size: 0.95rem;
+  line-height: 1.35;
 }
 
-.asset-status[data-status='Archived'] {
-  color: #991b1b;
-  border-color: #fecaca;
-  background: #fef2f2;
+:deep(.cms-table-title span) {
+  line-height: 1.45;
+}
+
+:deep(.product-table-actions) {
+  flex-wrap: nowrap;
+  min-width: 150px;
+  justify-content: flex-end;
+}
+
+:deep(.product-table-actions button) {
+  min-width: 64px;
 }
 
 .asset-pagination {

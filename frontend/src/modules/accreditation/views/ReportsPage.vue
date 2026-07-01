@@ -211,7 +211,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 import StatCard from "@/modules/accreditation/components/StatCard.vue";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import { getApplications, getRecords } from "@/modules/accreditation/services/accreditationApi";
-import { requiredDocuments } from "@/modules/accreditation/data/mockData";
+import { getRequiredDocumentsForBusinessType } from "@/modules/accreditation/data/mockData";
 import { useAuthStore } from "@/stores/authStore";
 
 const auth = useAuthStore();
@@ -276,10 +276,16 @@ const monthlySummary = computed(() => summarize(
 const topBusinessTypes = computed(() => summarize(filteredApplications.value, (app) => app.business_type || "Unspecified").slice(0, 6));
 const topLocations = computed(() => summarize(filteredApplications.value, (app) => app.city_municipality || "Unspecified").slice(0, 6));
 const completeDocumentCount = computed(() =>
-  filteredApplications.value.filter((app) => requiredDocuments.every((name) => hasDocument(app, name))).length
+  filteredApplications.value.filter((app) =>
+    getRequiredDocumentsForBusinessType(app.business_type).every((name) => hasDocument(app, name))
+  ).length
 );
 const missingDocumentCount = computed(() =>
-  filteredApplications.value.reduce((count, app) => count + requiredDocuments.filter((name) => !hasDocument(app, name)).length, 0)
+  filteredApplications.value.reduce(
+    (count, app) =>
+      count + getRequiredDocumentsForBusinessType(app.business_type).filter((name) => !hasDocument(app, name)).length,
+    0
+  )
 );
 const documentRevisionCount = computed(() =>
   filteredApplications.value.reduce((count, app) => count + app.documents.filter((doc) => doc.status === "for_revision").length, 0)

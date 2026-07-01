@@ -63,9 +63,9 @@ function formatDate(value) {
           <template v-else-if="packageDetail">
             <section class="readiness-summary" aria-label="Package summary">
               <article>
-                <span>Status</span>
+                <span>Readiness</span>
                 <strong class="readiness-status" :data-status="packageDetail.packageStatus">
-                  {{ packageDetail.packageStatus }}
+                  {{ packageDetail.packageStatus === 'Ready for Promotion' ? 'Ready for Promotion' : 'Draft' }}
                 </strong>
               </article>
               <article>
@@ -73,12 +73,8 @@ function formatDate(value) {
                 <strong>{{ packageDetail.items?.length || 0 }}</strong>
               </article>
               <article>
-                <span>Assets</span>
-                <strong>{{ packageDetail.assetCount || 0 }}</strong>
-              </article>
-              <article>
-                <span>Activities</span>
-                <strong>{{ packageDetail.activityCount || 0 }}</strong>
+                <span>Plans</span>
+                <strong>{{ packageDetail.planCount || 0 }}</strong>
               </article>
             </section>
 
@@ -107,7 +103,7 @@ function formatDate(value) {
               <div class="readiness-items">
                 <article v-for="item in packageDetail.items" :key="item.id">
                   <strong>{{ item.itemType }}: {{ item.name }}</strong>
-                  <span>{{ item.status }}</span>
+                  <span>{{ item.location || item.description || 'Linked package item' }}</span>
                 </article>
               </div>
             </section>
@@ -124,10 +120,10 @@ function formatDate(value) {
             </div>
 
             <section class="readiness-section" aria-labelledby="readiness-history-title">
-              <h3 id="readiness-history-title">Status History</h3>
+              <h3 id="readiness-history-title">Readiness History</h3>
               <div v-if="packageDetail.statusHistory?.length" class="readiness-history">
                 <article v-for="history in packageDetail.statusHistory" :key="history.id">
-                  <strong>{{ history.previousStatus }} to {{ history.newStatus }}</strong>
+                  <strong>{{ history.previousStatus || 'Draft' }} to {{ history.newStatus }}</strong>
                   <span>
                     {{ history.changedByName || 'Unknown user' }} - {{ history.changedByRole || 'Unknown role' }} -
                     {{ formatDate(history.changedAt) }}
@@ -135,7 +131,7 @@ function formatDate(value) {
                   <small v-if="history.remarks">{{ history.remarks }}</small>
                 </article>
               </div>
-              <p v-else>No status changes recorded yet.</p>
+              <p v-else>No readiness changes recorded yet.</p>
             </section>
 
             <label v-if="canApprove && packageDetail.packageStatus !== 'Ready for Promotion'" class="readiness-remarks">

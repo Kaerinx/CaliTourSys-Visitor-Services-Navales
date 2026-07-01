@@ -80,9 +80,13 @@ import { getApplications } from "@/modules/accreditation/services/accreditationA
 import { useAuthStore } from "@/stores/authStore";
 
 const auth = useAuthStore();
-const applications = ref(demoApplications);
+const applications = ref([]);
 const firstName = computed(() => auth.user?.firstName || "Business Owner");
-const recentApplications = computed(() => applications.value.slice(0, 2));
+const recentApplications = computed(() =>
+  [...applications.value]
+    .sort((first, second) => new Date(second.updated_at || second.submitted_at || second.created_at || 0) - new Date(first.updated_at || first.submitted_at || first.created_at || 0))
+    .slice(0, 2)
+);
 const approvedCount = computed(() => applications.value.filter((app) => app.status === "approved").length);
 const underReviewCount = computed(() => applications.value.filter((app) => app.status === "under_review").length);
 const revisionCount = computed(() => applications.value.filter((app) => app.status === "for_revision").length);
@@ -96,13 +100,16 @@ const activityTimeline = computed(() =>
 
 onMounted(async () => {
   await auth.connectDemoToBackend();
-  if (isDemoSession()) return;
+  if (isDemoSession()) {
+    applications.value = demoApplications.map(normalizeApplication);
+    return;
+  }
 
   try {
     const result = await getApplications();
     applications.value = result.applications.map(normalizeApplication);
   } catch (_err) {
-    applications.value = demoApplications;
+    applications.value = [];
   }
 });
 

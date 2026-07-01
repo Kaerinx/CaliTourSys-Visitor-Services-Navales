@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, watch } from 'vue'
 
-import { ASSET_CATEGORIES, ASSET_STATUSES } from '@/modules/product/constants/productOptions'
+import { ASSET_CATEGORIES } from '@/modules/product/constants/productOptions'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -29,7 +29,6 @@ const errors = computed(() => {
   if (!form.location.trim()) output.location = 'Location is required.'
   if (!form.category) output.category = 'Category is required.'
   if (!form.targetMarket.trim()) output.targetMarket = 'Target market is required.'
-  if (!form.developmentStatus) output.developmentStatus = 'Development status is required.'
   if (form.imageUrl.trim() && !isValidUrl(form.imageUrl.trim())) output.imageUrl = 'Enter a valid image URL.'
   return output
 })
@@ -74,13 +73,15 @@ function submitForm() {
   submitted.value = true
   if (Object.keys(errors.value).length) return
 
+  const internalStatus = form.developmentStatus === 'Archived' ? 'Archived' : 'Draft'
+
   emit('submit', {
     name: form.name.trim(),
     description: form.description.trim(),
     location: form.location.trim(),
     category: form.category,
     targetMarket: form.targetMarket.trim(),
-    developmentStatus: form.developmentStatus,
+    developmentStatus: internalStatus,
     imageUrl: emptyToNull(form.imageUrl),
     remarks: emptyToNull(form.remarks),
   })
@@ -104,27 +105,15 @@ function submitForm() {
             <section class="asset-section" aria-labelledby="asset-basic-title">
               <h3 id="asset-basic-title">Basic Information</h3>
 
-              <div class="asset-grid">
-                <label>
-                  <span>Category</span>
-                  <select v-model="form.category" :aria-invalid="Boolean(errors.category)">
-                    <option v-for="category in ASSET_CATEGORIES" :key="category" :value="category">
-                      {{ category }}
-                    </option>
-                  </select>
-                  <small v-if="errors.category">{{ errors.category }}</small>
-                </label>
-
-                <label>
-                  <span>Status</span>
-                  <select v-model="form.developmentStatus" :aria-invalid="Boolean(errors.developmentStatus)">
-                    <option v-for="status in ASSET_STATUSES" :key="status" :value="status">
-                      {{ status }}
-                    </option>
-                  </select>
-                  <small v-if="errors.developmentStatus">{{ errors.developmentStatus }}</small>
-                </label>
-              </div>
+              <label>
+                <span>Category</span>
+                <select v-model="form.category" :aria-invalid="Boolean(errors.category)">
+                  <option v-for="category in ASSET_CATEGORIES" :key="category" :value="category">
+                    {{ category }}
+                  </option>
+                </select>
+                <small v-if="errors.category">{{ errors.category }}</small>
+              </label>
 
               <label>
                 <span>Asset name</span>

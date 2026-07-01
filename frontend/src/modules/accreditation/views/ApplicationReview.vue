@@ -80,10 +80,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
-import { demoApplications, requiredDocuments } from "@/modules/accreditation/data/mockData";
+import { demoApplications, getRequiredDocumentsForBusinessType } from "@/modules/accreditation/data/mockData";
 import { getApplication, openApplicationDocument, reviewApplication } from "@/modules/accreditation/services/accreditationApi";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -95,11 +95,14 @@ const remarks = ref("");
 const documents = ref([]);
 const savingDecision = ref(false);
 const application = reactive(normalizeApplication(demoApplications[0]));
-const queuePath = computed(() =>
-  route.path.startsWith("/cms/businesses") ? "/cms/businesses/applications" : "/accreditation/app/staff-dashboard"
-);
+const queuePath = computed(() => "/cms/businesses/applications");
 
 onMounted(loadApplication);
+
+watch(
+  () => route.query.application,
+  () => loadApplication()
+);
 
 const ownerName = computed(
   () => application.owner || `${application.first_name || ""} ${application.last_name || ""}`.trim() || "Business Owner"
@@ -118,7 +121,7 @@ const decisionHint = computed(() => {
   return "Record the next application decision.";
 });
 const normalizedDocuments = computed(() =>
-  requiredDocuments.map((name) => {
+  getRequiredDocumentsForBusinessType(application.business_type).map((name) => {
     const document = documents.value.find((item) => item.document_type === name || item.name === name);
     return document || { name, document_type: name, status: "pending", uploaded_at: null };
   })

@@ -141,7 +141,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Eye } from "@lucide/vue";
-import { demoApplications, requiredDocuments } from "@/modules/accreditation/data/mockData";
+import { demoApplications, getRequiredDocumentsForBusinessType } from "@/modules/accreditation/data/mockData";
 import { getApplications, openApplicationDocument } from "@/modules/accreditation/services/accreditationApi";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import { useAuthStore } from "@/stores/authStore";
@@ -152,18 +152,22 @@ const auth = useAuthStore();
 const search = ref(String(route.query.q || ""));
 const statusFilter = ref("all");
 const selectedApplication = ref(null);
-const applications = ref(demoApplications.map(normalizeApplication));
+const applications = ref([]);
 
 onMounted(async () => {
   await auth.connectDemoToBackend();
 
-  if (!isDemoSession()) {
-    try {
-      const result = await getApplications();
-      applications.value = result.applications.map(normalizeApplication);
-    } catch (_err) {
-      applications.value = demoApplications.map(normalizeApplication);
-    }
+  if (isDemoSession()) {
+    applications.value = demoApplications.map(normalizeApplication);
+    openApplicationFromRoute();
+    return;
+  }
+
+  try {
+    const result = await getApplications();
+    applications.value = result.applications.map(normalizeApplication);
+  } catch (_err) {
+    applications.value = [];
   }
   openApplicationFromRoute();
 });
@@ -211,7 +215,7 @@ function normalizeApplication(app) {
 }
 
 function normalizedDocuments(app) {
-  return requiredDocuments.map((name) => {
+  return getRequiredDocumentsForBusinessType(app.business_type).map((name) => {
     const document = app.documents?.find((item) => item.name === name || item.document_type === name);
     return document
       ? {
@@ -234,9 +238,12 @@ function formatDate(value) {
 
 function openApplicationFromRoute() {
   const applicationId = route.query.application;
-  if (!applicationId) return;
+  if (!applicationId) {
+    selectedApplication.value = null;
+    return;
+  }
   const application = applications.value.find((app) => app.id === applicationId || app.application_number === applicationId);
-  if (application) selectedApplication.value = application;
+  selectedApplication.value = application || null;
 }
 
 function openApplication(app) {

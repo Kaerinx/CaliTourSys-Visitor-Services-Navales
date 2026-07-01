@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { ApiError, isAuthFailureError, setAuthTokenGetter } from '@/services/http'
+import { ApiError, isAuthFailureError, setAuthRefreshHandler, setAuthTokenGetter } from '@/services/http'
 import { useAuthStore } from '@/stores/auth'
 import { authApi } from '../services/authApi'
 
@@ -17,6 +17,7 @@ export const useCmsAuthStore = defineStore('cmsAuth', () => {
   const hasBootstrapped = ref(false)
 
   setAuthTokenGetter(() => accessToken.value)
+  setAuthRefreshHandler(() => refreshSession())
 
   const roles = computed(() => currentUser.value?.roles || [])
   const permissions = computed(() => currentUser.value?.permissions || [])

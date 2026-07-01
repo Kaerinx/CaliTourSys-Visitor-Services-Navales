@@ -55,7 +55,7 @@
           <StatusBadge :status="applicationId ? applicationStatus : 'draft'" />
         </div>
         <div class="document-checklist">
-          <div v-for="doc in requiredDocuments" :key="doc" class="document-check-row">
+          <div v-for="doc in requiredDocumentList" :key="doc" class="document-check-row">
             <div class="document-check-icon">
               <FileText :size="20" />
             </div>
@@ -141,11 +141,11 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { Eye, FileText, Upload, X } from "@lucide/vue";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
-import { businessTypeGroups, requiredDocuments } from "@/modules/accreditation/data/mockData";
+import { businessTypeGroups, getRequiredDocumentsForBusinessType } from "@/modules/accreditation/data/mockData";
 import {
   createApplication,
   getApplication,
@@ -183,6 +183,7 @@ const form = reactive({
   dtiSecRegistrationNumber: savedDraft?.form?.dtiSecRegistrationNumber || "",
   remarks: savedDraft?.form?.remarks || "",
 });
+const requiredDocumentList = computed(() => getRequiredDocumentsForBusinessType(form.businessType));
 
 onMounted(async () => {
   await auth.connectDemoToBackend();
@@ -345,7 +346,7 @@ function setFile(doc, event) {
 }
 
 async function uploadPendingDocuments() {
-  for (const doc of requiredDocuments) {
+  for (const doc of requiredDocumentList.value) {
     if (selectedFiles[doc]) {
       await uploadDocumentFile(doc);
     }
@@ -481,7 +482,7 @@ function removeSelectedFile(doc) {
 }
 
 function ensureRequiredDocumentsUploaded() {
-  const missing = requiredDocuments.filter((doc) => !uploadedDocuments[doc]);
+  const missing = requiredDocumentList.value.filter((doc) => !uploadedDocuments[doc]);
   if (missing.length) {
     throw new Error(`Please upload required documents: ${missing.join(", ")}.`);
   }

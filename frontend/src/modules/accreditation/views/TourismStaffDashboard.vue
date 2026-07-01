@@ -58,7 +58,6 @@
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { useRoute } from "vue-router";
 import StatCard from "@/modules/accreditation/components/StatCard.vue";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import { demoApplications } from "@/modules/accreditation/data/mockData";
@@ -66,12 +65,10 @@ import { getApplications } from "@/modules/accreditation/services/accreditationA
 import { useAuthStore } from "@/stores/authStore";
 
 const auth = useAuthStore();
-const route = useRoute();
 const applications = ref([]);
-const isCmsAccreditation = computed(() => route.path.startsWith("/cms/businesses"));
-const applicationsPath = computed(() => isCmsAccreditation.value ? "/cms/businesses/applications" : "/accreditation/app/staff-dashboard");
-const recordsPath = computed(() => isCmsAccreditation.value ? "/cms/businesses/records" : "/accreditation/app/records");
-const reviewPath = computed(() => isCmsAccreditation.value ? "/cms/businesses/review" : "/accreditation/app/review");
+const applicationsPath = computed(() => "/cms/businesses/applications");
+const recordsPath = computed(() => "/cms/businesses/records");
+const reviewPath = computed(() => "/cms/businesses/review");
 
 onMounted(async () => {
   await auth.connectDemoToBackend();

@@ -21,30 +21,6 @@ const demoAccounts = {
     role: "business_owner",
     status: "active",
   },
-  "maria.santos@tourism.gov.ph": {
-    id: "demo-tourism-staff",
-    firstName: "Maria",
-    middleName: "",
-    lastName: "Santos",
-    sex: "Female",
-    email: "maria.santos@tourism.gov.ph",
-    phone: "+63 911 111 1111",
-    telephone: "",
-    role: "tourism_staff",
-    status: "active",
-  },
-  "system.admin@tourism.gov.ph": {
-    id: "demo-system-admin",
-    firstName: "System",
-    middleName: "",
-    lastName: "Administrator",
-    sex: "Male",
-    email: "system.admin@tourism.gov.ph",
-    phone: "+63 900 000 0000",
-    telephone: "",
-    role: "admin",
-    status: "active",
-  },
 };
 
 export const useAuthStore = defineStore("accreditationAuth", {
@@ -117,8 +93,6 @@ export const useAuthStore = defineStore("accreditationAuth", {
     useDemoRole(role) {
       if (!demoModeEnabled) return;
       const labels = {
-        admin: ["System", "Administrator", "system.admin@demo.local"],
-        tourism_staff: ["Maria", "Santos", "tourism_staff@demo.local"],
         business_owner: ["John", "Martinez", "business_owner@demo.local"],
       };
       const [firstName, lastName, email] = labels[role] || labels.business_owner;
@@ -127,11 +101,11 @@ export const useAuthStore = defineStore("accreditationAuth", {
         firstName,
         middleName: "",
         lastName,
-        sex: role === "tourism_staff" ? "Female" : "Male",
+        sex: "Male",
         email,
         phone: "",
         telephone: "",
-        role,
+        role: "business_owner",
         status: "active",
       };
       this.setSession("demo-token", demoUser);

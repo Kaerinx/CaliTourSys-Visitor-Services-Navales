@@ -110,7 +110,7 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
-import { requiredDocuments } from "@/modules/accreditation/data/mockData";
+import { getRequiredDocumentsForBusinessType } from "@/modules/accreditation/data/mockData";
 import { getRecords, openApplicationDocument } from "@/modules/accreditation/services/accreditationApi";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -146,7 +146,7 @@ const filteredRecords = computed(() => {
 });
 
 function normalizedDocuments(record) {
-  return requiredDocuments.map((name) => {
+  return getRequiredDocumentsForBusinessType(record.business_type).map((name) => {
     const document = record.documents?.find((item) => item.document_type === name || item.name === name);
     return document
       ? {

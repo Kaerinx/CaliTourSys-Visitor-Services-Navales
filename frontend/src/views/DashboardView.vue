@@ -40,19 +40,9 @@ const moduleCards = [
     description: 'Create product development plans linked to active tourism assets.',
   },
   {
-    title: 'Improvement monitoring',
-    status: 'Available',
-    description: 'Record progress updates for active product development plans.',
-  },
-  {
-    title: 'Tourism activities',
-    status: 'Available',
-    description: 'Prepare activity records connected to tourism assets and plans.',
-  },
-  {
     title: 'Tourism packages',
     status: 'Available',
-    description: 'Combine active tourism assets and activities into package records.',
+    description: 'Combine active tourism assets into package records.',
   },
 ]
 </script>

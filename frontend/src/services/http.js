@@ -30,6 +30,7 @@ const AUTH_FAILURE_CODES = new Set([
 
 let authTokenGetter = () => null
 let authFailureHandler = () => {}
+let authRefreshHandler = async () => null
 
 function getVisitorToken() {
   if (typeof window === 'undefined') return null
@@ -42,6 +43,10 @@ export function setAuthTokenGetter(getter) {
 
 export function setAuthFailureHandler(handler) {
   authFailureHandler = typeof handler === 'function' ? handler : () => {}
+}
+
+export function setAuthRefreshHandler(handler) {
+  authRefreshHandler = typeof handler === 'function' ? handler : async () => null
 }
 
 export function isAuthFailureError(error) {
@@ -106,20 +111,21 @@ async function parseJsonSafely(response) {
   }
 }
 
-async function apiRequest(method, path, { params, body, headers, auth = false } = {}) {
+async function apiRequest(method, path, { params, body, headers, auth = false, retryOnExpiredToken = true } = {}) {
   let response
-  const token = auth ? authTokenGetter() : getVisitorToken()
+  const token = auth ? authTokenGetter() || getVisitorToken() : getVisitorToken()
   const isFormData = body instanceof FormData
 
   try {
     response = await fetch(buildUrl(path, params), {
       method,
+      cache: method === 'GET' ? 'no-store' : 'default',
       credentials: 'include',
       headers: {
         Accept: 'application/json',
         ...(body !== undefined && !isFormData ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: body !== undefined && !isFormData ? JSON.stringify(body) : body,
     })
@@ -141,6 +147,24 @@ async function apiRequest(method, path, { params, body, headers, auth = false } 
       details: payload?.error?.details || payload?.details,
       requestId,
     })
+
+    if (
+      auth &&
+      retryOnExpiredToken &&
+      response.status === 401 &&
+      ['TOKEN_EXPIRED', 'SESSION_EXPIRED'].includes(error.code)
+    ) {
+      const refreshedUser = await authRefreshHandler(error)
+      if (refreshedUser) {
+        return apiRequest(method, path, {
+          params,
+          body,
+          headers,
+          auth,
+          retryOnExpiredToken: false,
+        })
+      }
+    }
 
     if (shouldHandleAuthFailure(auth, error)) {
       error.code = normalizeAuthFailureCode(error)
@@ -200,8 +224,9 @@ export async function request(path, options = {}) {
   try {
     const result = await apiRequest(method, path, {
       body: options.body,
+      auth: Boolean(options.auth),
       headers: {
-        ...(legacyToken ? { Authorization: `Bearer ${legacyToken}` } : {}),
+        ...(!options.auth && legacyToken ? { Authorization: `Bearer ${legacyToken}` } : {}),
         ...options.headers,
       },
     })
@@ -236,6 +261,7 @@ async function legacyApiRequest(method, path, { body, headers, token } = {}) {
   try {
     response = await fetch(`${LEGACY_API_BASE_URL}${normalizedPath}`, {
       method,
+      cache: method === 'GET' ? 'no-store' : 'default',
       headers: {
         Accept: 'application/json',
         ...(body !== undefined && !isFormData ? { 'Content-Type': 'application/json' } : {}),

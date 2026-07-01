@@ -125,7 +125,7 @@ onMounted(loadPackage)
         />
 
         <section class="items-panel">
-          <h2>Included Assets and Activities</h2>
+          <h2>Included Assets</h2>
           <p v-if="packageItems.length === 0">
             The Product Development module has not attached detailed package items yet.
           </p>

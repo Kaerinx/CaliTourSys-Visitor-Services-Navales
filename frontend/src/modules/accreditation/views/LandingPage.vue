@@ -23,15 +23,6 @@
             </div>
           </div>
 
-          <aside class="service-summary" aria-label="Service summary">
-            <h2>Before you begin</h2>
-            <ul>
-              <li><CheckCircle2 :size="18" aria-hidden="true" /> The eligibility check is advisory only.</li>
-              <li><CheckCircle2 :size="18" aria-hidden="true" /> Prepare your business information and documents.</li>
-              <li><CheckCircle2 :size="18" aria-hidden="true" /> Use an active email address for official updates.</li>
-            </ul>
-            <RouterLink to="/accreditation/login">Returning applicant? Sign in</RouterLink>
-          </aside>
         </div>
       </section>
 
@@ -113,15 +104,16 @@
                 <FileText :size="22" aria-hidden="true" />
                 <div>
                   <span>Required uploads</span>
-                  <h3>Business documents</h3>
+                  <h3>Common business documents</h3>
                 </div>
               </div>
               <ul>
-                <li v-for="document in requiredDocuments" :key="document">
+                <li v-for="document in commonPermitDocuments" :key="document">
                   <CheckCircle2 :size="17" aria-hidden="true" />
                   {{ document }}
                 </li>
               </ul>
+              <p class="panel-note">Additional permit uploads are shown in the application form after you select your business type.</p>
               <p class="panel-note">Accepted uploads: PDF, JPG, or PNG, up to 10MB per file.</p>
             </article>
           </div>
@@ -218,10 +210,12 @@
 
           <div
             v-if="resultShown"
+            ref="eligibilityResultEl"
             class="eligibility-result"
             :class="{ 'eligibility-result--guidance': !likelyEligible }"
             role="status"
             aria-live="polite"
+            tabindex="-1"
           >
             <ShieldCheck v-if="likelyEligible" :size="28" aria-hidden="true" />
             <CircleHelp v-else :size="28" aria-hidden="true" />
@@ -269,7 +263,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from "vue";
+import { computed, nextTick, reactive, ref } from "vue";
 import {
   ArrowRight,
   CheckCircle2,
@@ -281,7 +275,7 @@ import {
 } from "@lucide/vue";
 import PublicServiceFooter from "@/modules/accreditation/components/PublicServiceFooter.vue";
 import PublicServiceHeader from "@/modules/accreditation/components/PublicServiceHeader.vue";
-import { businessTypeGroups, requiredDocuments } from "@/modules/accreditation/data/mockData";
+import { businessTypeGroups, commonPermitDocuments } from "@/modules/accreditation/data/mockData";
 import {
   eligibilityQuestions,
   processSteps,
@@ -295,17 +289,21 @@ const answers = reactive(
   Object.fromEntries(eligibilityQuestions.map((question) => [question.id, null])),
 );
 const resultShown = ref(false);
+const eligibilityResultEl = ref(null);
 
 const answeredCount = computed(
   () => Object.values(answers).filter((answer) => answer !== null).length,
 );
 const eligibilityComplete = computed(() => answeredCount.value === eligibilityQuestions.length);
-const likelyEligible = computed(
-  () => eligibilityComplete.value && Object.values(answers).every((answer) => answer === true),
-);
+const likelyEligible = computed(() => eligibilityComplete.value);
 
-function evaluateEligibility() {
-  if (eligibilityComplete.value) resultShown.value = true;
+async function evaluateEligibility() {
+  if (!eligibilityComplete.value) return;
+
+  resultShown.value = true;
+  await nextTick();
+  eligibilityResultEl.value?.scrollIntoView({ behavior: "smooth", block: "center" });
+  eligibilityResultEl.value?.focus({ preventScroll: true });
 }
 
 function resetEligibility() {
@@ -315,11 +313,13 @@ function resetEligibility() {
 </script>
 
 <style scoped>
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+
 .service-page {
   min-height: 100vh;
-  background: #f7f9f8;
-  color: #17231e;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f2f0eb;
+  color: #1a1a1a;
+  font-family: Inter, system-ui, sans-serif;
   line-height: 1.6;
 }
 
@@ -331,37 +331,45 @@ function resetEligibility() {
 }
 
 .service-page :focus-visible {
-  outline: 3px solid #e1a928;
+  outline: 3px solid #d4711b;
   outline-offset: 3px;
 }
 
 .service-shell {
-  width: min(1180px, calc(100% - 40px));
+  width: min(100% - 48px, 1200px);
   margin: 0 auto;
 }
 
 .service-hero {
-  border-bottom: 1px solid #cddbd4;
-  background: #eaf3ee;
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid #164225;
+  background:
+    radial-gradient(circle at 82% 18%, rgba(216, 243, 220, 0.18), transparent 26%),
+    radial-gradient(circle at 12% 88%, rgba(212, 113, 27, 0.2), transparent 30%),
+    linear-gradient(135deg, #1b4332 0%, #2d6a4f 52%, #14532d 100%);
+  color: #ffffff;
 }
 
 .service-hero__layout {
-  min-height: 500px;
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  min-height: 560px;
+  display: flex;
   align-items: center;
-  gap: 72px;
-  padding: 72px 0;
+  padding: 84px 0 92px;
 }
 
 .service-kicker,
 .question-label {
   margin: 0 0 12px;
-  color: #176249;
+  color: #1b4332;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.service-kicker {
+  color: rgba(255, 255, 255, 0.78);
 }
 
 h1,
@@ -375,7 +383,8 @@ p {
 h1,
 h2,
 h3 {
-  color: #173f32;
+  color: #1a1a1a;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   line-height: 1.2;
   white-space: normal;
 }
@@ -383,14 +392,18 @@ h3 {
 h1 {
   max-width: 720px;
   margin-bottom: 20px;
-  font-size: clamp(42px, 6vw, 68px);
-  letter-spacing: -0.045em;
+  color: #ffffff;
+  font-size: clamp(42px, 6vw, 64px);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.05;
 }
 
 h2 {
   margin-bottom: 14px;
   font-size: clamp(28px, 4vw, 40px);
-  letter-spacing: -0.025em;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 h3 {
@@ -401,15 +414,15 @@ h3 {
 .service-lede {
   max-width: 720px;
   margin-bottom: 12px;
-  color: #304a40;
+  color: rgba(255, 255, 255, 0.82);
   font-size: 19px;
 }
 
 .service-audience {
   margin-bottom: 0;
-  color: #52665e;
+  color: rgba(255, 255, 255, 0.72);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .service-actions {
@@ -426,22 +439,22 @@ h3 {
   justify-content: center;
   gap: 8px;
   padding: 10px 18px;
-  border: 1px solid #176249;
-  border-radius: 6px;
-  color: #174d3d;
+  border: 1.5px solid #1b4332;
+  border-radius: 8px;
+  color: #1b4332;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 700;
   text-decoration: none;
   cursor: pointer;
 }
 
 .service-button--primary {
-  background: #176249;
+  background: #1b4332;
   color: #ffffff;
 }
 
 .service-button--primary:hover {
-  background: #104c38;
+  background: #14532d;
 }
 
 .service-button--secondary {
@@ -449,19 +462,33 @@ h3 {
 }
 
 .service-button--secondary:hover {
-  background: #edf7f2;
+  background: #d8f3dc;
+}
+
+.service-hero .service-button--primary {
+  border-color: #ffffff;
+  background: #ffffff;
+  color: #1b4332;
+}
+
+.service-hero .service-button--primary:hover {
+  background: #d8f3dc;
+}
+
+.service-hero .service-button--secondary {
+  border-color: rgba(255, 255, 255, 0.72);
+  background: transparent;
+  color: #ffffff;
+}
+
+.service-hero .service-button--secondary:hover {
+  border-color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .service-button:disabled {
   cursor: not-allowed;
   opacity: 0.52;
-}
-
-.service-summary {
-  padding: 28px;
-  border: 1px solid #c8d8d0;
-  border-radius: 8px;
-  background: #ffffff;
 }
 
 .service-hero__layout > *,
@@ -471,11 +498,6 @@ h3 {
   min-width: 0;
 }
 
-.service-summary h2 {
-  font-size: 20px;
-}
-
-.service-summary ul,
 .requirements-panel ul {
   display: grid;
   gap: 13px;
@@ -484,26 +506,17 @@ h3 {
   list-style: none;
 }
 
-.service-summary li,
 .requirements-panel li {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
   gap: 10px;
-  color: #304a40;
+  color: #3f3f3f;
   font-size: 14px;
 }
 
-.service-summary svg,
 .requirements-panel li svg {
   margin-top: 3px;
-  color: #176249;
-}
-
-.service-summary a {
-  color: #176249;
-  font-size: 14px;
-  font-weight: 800;
-  text-underline-offset: 3px;
+  color: #1b4332;
 }
 
 .service-facts,
@@ -513,7 +526,7 @@ h3 {
 }
 
 .service-facts {
-  background: #ffffff;
+  background: #fffdf8;
 }
 
 .section-heading {
@@ -533,7 +546,7 @@ h3 {
 .category-panel p,
 .eligibility-form fieldset p,
 .eligibility-result p {
-  color: #52665e;
+  color: #5c5c5c;
   font-size: 15px;
 }
 
@@ -547,13 +560,13 @@ h3 {
   display: grid;
   align-content: start;
   padding: 22px;
-  border-left: 4px solid #176249;
-  background: #f5f8f6;
+  border-left: 4px solid #1b4332;
+  background: #f2f0eb;
 }
 
 .service-facts__grid span,
 .panel-heading span {
-  color: #52665e;
+  color: #5c5c5c;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -562,13 +575,13 @@ h3 {
 
 .service-facts__grid strong {
   margin-top: 8px;
-  color: #173f32;
+  color: #1a1a1a;
   font-size: 18px;
 }
 
 .service-facts__grid p {
   margin: 8px 0 14px;
-  color: #52665e;
+  color: #5c5c5c;
   font-size: 13px;
 }
 
@@ -586,7 +599,7 @@ h3 {
 }
 
 .service-list {
-  border-top: 1px solid #d9e1dc;
+  border-top: 1px solid #e8e4dc;
 }
 
 .service-list article {
@@ -594,11 +607,11 @@ h3 {
   grid-template-columns: 42px minmax(0, 1fr);
   gap: 16px;
   padding: 22px 0;
-  border-bottom: 1px solid #d9e1dc;
+  border-bottom: 1px solid #e8e4dc;
 }
 
 .service-list article > span {
-  color: #176249;
+  color: #1b4332;
   font-size: 13px;
   font-weight: 800;
 }
@@ -609,8 +622,8 @@ h3 {
 }
 
 .content-section--muted {
-  border-block: 1px solid #dfe7e2;
-  background: #eef3f0;
+  border-block: 1px solid #e8e4dc;
+  background: #fffdf8;
 }
 
 .requirements-grid,
@@ -624,7 +637,7 @@ h3 {
 .eligibility-form,
 .category-panel {
   padding: 26px;
-  border: 1px solid #d4dfd9;
+  border: 1px solid #e8e4dc;
   border-radius: 8px;
   background: #ffffff;
 }
@@ -636,7 +649,7 @@ h3 {
 }
 
 .panel-heading svg {
-  color: #176249;
+  color: #1b4332;
 }
 
 .panel-heading h3 {
@@ -646,7 +659,7 @@ h3 {
 .panel-note {
   margin: 20px 0 0;
   padding-top: 16px;
-  border-top: 1px solid #d9e1dc;
+  border-top: 1px solid #e8e4dc;
 }
 
 .process-list {
@@ -661,13 +674,13 @@ h3 {
 .process-list li {
   min-height: 230px;
   padding: 22px;
-  border-top: 4px solid #176249;
-  border-right: 1px solid #d9e1dc;
-  background: #ffffff;
+  border-top: 4px solid #1b4332;
+  border-right: 1px solid #e8e4dc;
+  background: #fffdf8;
 }
 
 .process-list li:first-child {
-  border-left: 1px solid #d9e1dc;
+  border-left: 1px solid #e8e4dc;
 }
 
 .process-list li > span {
@@ -677,15 +690,15 @@ h3 {
   place-items: center;
   margin-bottom: 36px;
   border-radius: 50%;
-  background: #e5f2eb;
-  color: #176249;
+  background: #d8f3dc;
+  color: #1b4332;
   font-size: 13px;
   font-weight: 800;
 }
 
 .eligibility-section {
   scroll-margin-top: 20px;
-  background: #f7f9f8;
+  background: #f2f0eb;
 }
 
 .eligibility-form {
@@ -698,14 +711,14 @@ h3 {
   margin: 0;
   padding: 24px 0;
   border: 0;
-  border-bottom: 1px solid #d9e1dc;
+  border-bottom: 1px solid #e8e4dc;
 }
 
 .eligibility-form legend {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
   gap: 10px;
-  color: #173f32;
+  color: #1a1a1a;
   font-size: 15px;
   font-weight: 800;
 }
@@ -716,8 +729,8 @@ h3 {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: #e5f2eb;
-  color: #176249;
+  background: #d8f3dc;
+  color: #1b4332;
   font-size: 12px;
 }
 
@@ -740,9 +753,9 @@ h3 {
   justify-content: center;
   gap: 8px;
   padding: 7px 12px;
-  border: 1px solid #cddbd4;
+  border: 1px solid #e8e4dc;
   border-radius: 5px;
-  color: #304a40;
+  color: #3f3f3f;
   font-size: 13px;
   font-weight: 700;
   line-height: 1.2;
@@ -751,8 +764,8 @@ h3 {
 }
 
 .answer-options label:has(input:checked) {
-  border-color: #176249;
-  background: #edf7f2;
+  border-color: #1b4332;
+  background: #d8f3dc;
 }
 
 .answer-options input {
@@ -761,7 +774,7 @@ h3 {
   min-height: 0;
   flex: 0 0 16px;
   margin: 0;
-  accent-color: #176249;
+  accent-color: #1b4332;
 }
 
 .eligibility-form__actions {
@@ -774,7 +787,7 @@ h3 {
 
 .eligibility-form__actions span {
   margin-left: auto;
-  color: #52665e;
+  color: #5c5c5c;
   font-size: 12px;
   font-weight: 700;
 }
@@ -786,7 +799,7 @@ h3 {
   padding: 8px;
   border: 0;
   background: transparent;
-  color: #176249;
+  color: #1b4332;
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
@@ -797,16 +810,16 @@ h3 {
 }
 
 .category-panel details {
-  border-top: 1px solid #d9e1dc;
+  border-top: 1px solid #e8e4dc;
 }
 
 .category-panel details:last-child {
-  border-bottom: 1px solid #d9e1dc;
+  border-bottom: 1px solid #e8e4dc;
 }
 
 .category-panel summary {
   padding: 14px 2px;
-  color: #173f32;
+  color: #1a1a1a;
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
@@ -823,13 +836,13 @@ h3 {
   grid-template-columns: 30px minmax(0, 1fr);
   gap: 16px;
   padding: 24px;
-  border: 1px solid #86b49f;
-  border-left: 5px solid #176249;
-  background: #edf7f2;
+  border: 1px solid #95d5b2;
+  border-left: 5px solid #1b4332;
+  background: #d8f3dc;
 }
 
 .eligibility-result > svg {
-  color: #176249;
+  color: #1b4332;
 }
 
 .eligibility-result--guidance {
@@ -847,8 +860,8 @@ h3 {
 }
 
 .start-section {
-  border-top: 1px solid #cddbd4;
-  background: #eaf3ee;
+  border-top: 1px solid #e8e4dc;
+  background: #fffdf8;
 }
 
 .start-section__layout {
@@ -891,8 +904,8 @@ h3 {
     grid-template-columns: 42px minmax(0, 1fr);
     gap: 14px;
     padding: 20px;
-    border: 1px solid #d9e1dc;
-    border-left: 4px solid #176249;
+    border: 1px solid #e8e4dc;
+    border-left: 4px solid #1b4332;
   }
 
   .process-list li > span {
@@ -906,9 +919,13 @@ h3 {
 }
 
 @media (max-width: 720px) {
+  .service-shell {
+    width: min(100% - 32px, 1200px);
+  }
+
   .service-hero__layout {
     min-height: auto;
-    padding: 54px 0;
+    padding: 64px 0;
   }
 
   h1 {

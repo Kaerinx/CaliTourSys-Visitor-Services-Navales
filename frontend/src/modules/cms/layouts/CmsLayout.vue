@@ -29,15 +29,6 @@ const fallbackNavigation = [
   { key: 'audit', label: 'Audit Logs', path: '/cms/audit-logs', permission: 'audit_logs.view', icon: 'audit' },
 ]
 
-const productDevelopmentNavigation = [
-  { key: 'product-development', label: 'Dashboard', path: '/cms/product-development', permission: 'products.view', icon: 'dashboard', exact: true, group: 'Product Development' },
-  { key: 'product-development-assets', label: 'Assets', path: '/cms/product-development/assets', permission: 'products.view', icon: 'destinations', group: 'Product Development' },
-  { key: 'product-development-plans', label: 'Plans', path: '/cms/product-development/development-plans', permission: 'products.view', icon: 'calendar', group: 'Product Development' },
-  { key: 'product-development-improvements', label: 'Improvements', path: '/cms/product-development/improvements', permission: 'products.view', icon: 'audit', group: 'Product Development' },
-  { key: 'product-development-activities', label: 'Activities', path: '/cms/product-development/activities', permission: 'products.view', icon: 'message', group: 'Product Development' },
-  { key: 'product-development-packages', label: 'Packages', path: '/cms/product-development/packages', permission: 'products.view', icon: 'package', group: 'Product Development' },
-]
-
 const navigationItems = computed(() => {
   const baseItems = backendNavigation.value.length
     ? backendNavigation.value.map((item) => ({
@@ -62,7 +53,18 @@ const navigationItems = computed(() => {
     })
   }
 
-  return mergeNavigationItems(mapped, productDevelopmentNavigation)
+  if (!mapped.some((item) => item.key === 'product-development')) {
+    const insertIndex = mapped.findIndex((item) => item.key === 'categories')
+    mapped.splice(insertIndex >= 0 ? insertIndex : 3, 0, {
+      key: 'product-development',
+      label: 'Product Development',
+      path: '/cms/product-development/assets',
+      permission: 'products.view',
+      icon: 'package',
+    })
+  }
+
+  return mapped
 })
 
 onMounted(async () => {
@@ -110,6 +112,7 @@ function resolveNavigationIcon(item) {
     museum: 'museum',
     newsletter: 'mail',
     products: 'package',
+    'product-development': 'package',
     promotions: 'message',
     users: 'users',
     'visitor-services': 'users',
@@ -118,15 +121,6 @@ function resolveNavigationIcon(item) {
   return icons[item.key] || item.icon || 'circle'
 }
 
-function mergeNavigationItems(baseItems, additionalItems) {
-  const existingKeys = new Set(baseItems.map((item) => item.key))
-  const existingPaths = new Set(baseItems.map((item) => item.path))
-
-  return [
-    ...baseItems,
-    ...additionalItems.filter((item) => !existingKeys.has(item.key) && !existingPaths.has(item.path)),
-  ]
-}
 </script>
 
 <template>
