@@ -80,6 +80,16 @@ async function listDestinations(filters) {
   }
 }
 
+async function listTourismAssets(filters) {
+  const pagination = getPagination(filters)
+  const result = await repository.listTourismAssets(filters, pagination)
+
+  return {
+    data: result.items,
+    pagination: buildPaginationMeta(pagination.page, pagination.limit, result.totalItems),
+  }
+}
+
 async function getDestinationBySlug(slug) {
   const destination = await repository.getDestinationBySlug(slug)
   if (!destination) throw createNotFoundError('Destination not found.')
@@ -279,6 +289,7 @@ module.exports = {
   listEvents,
   getEventBySlug,
   listDestinations,
+  listTourismAssets,
   getDestinationBySlug,
   listMuseumArtifacts,
   getMuseumArtifactBySlug,

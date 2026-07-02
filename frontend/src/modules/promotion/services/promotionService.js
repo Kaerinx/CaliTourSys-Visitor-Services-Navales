@@ -1,21 +1,10 @@
 import * as promotionApi from './promotionApi'
-import {
-  businessProfiles,
-  campaigns as mockCampaigns,
-  destinations as mockDestinations,
-  events as mockEvents,
-  itineraryItems,
-  mapLocations as mockMapLocations,
-  museumItems as mockMuseumItems,
-  otopProducts,
-  promotions as mockPromotions,
-} from '../data/promotionMockData'
 
-let itineraryState = [...itineraryItems]
+let itineraryState = []
 const ITINERARY_SESSION_KEY = 'calitoursys_itinerary_session'
 
 const DEVELOPMENT_FALLBACK_MESSAGE =
-  'Using development-only mock promotion data because the backend API is unavailable.'
+  'Public API is unavailable; showing an empty state instead of demo content.'
 
 const accentPalette = ['#B5451B', '#7B341E', '#1B4332', '#D4711B', '#1565C0', '#D4AC0D']
 
@@ -152,6 +141,14 @@ function inferPackageCategory(tourismPackage) {
 
 function mapReadyPackage(tourismPackage, index = 0) {
   const packageItems = Array.isArray(tourismPackage.items) ? tourismPackage.items : []
+  const gallery = Array.isArray(tourismPackage.gallery)
+    ? tourismPackage.gallery
+        .map((image) => ({
+          ...image,
+          url: image.url || image.imageUrl,
+        }))
+        .filter((image) => image.url)
+    : []
   const category = categoryName(tourismPackage.category) || inferPackageCategory(tourismPackage)
   const packageId = tourismPackage.slug || `package-${slugify(tourismPackage.name)}-${tourismPackage.id}`
 
@@ -183,6 +180,7 @@ function mapReadyPackage(tourismPackage, index = 0) {
       tourismPackage.activityCount ?? packageItems.filter((item) => item.itemType === 'Activity').length,
     remarks: tourismPackage.remarks || '',
     items: packageItems,
+    gallery,
   }
 }
 
@@ -223,7 +221,7 @@ async function getReadyPackageById(id) {
       description: 'Prepared by the Product Development module and approved for public promotion.',
       contacts: [],
     },
-    gallery: [],
+    gallery: tourismPackage.gallery || [],
     relatedProducts: [],
   }
 }
@@ -370,6 +368,33 @@ function mapDestination(destination, index = 0) {
   }
 }
 
+function mapTourismAsset(asset, index = 0) {
+  return {
+    id: asset.slug || `asset-${slugify(asset.name)}-${asset.id}`,
+    apiId: asset.id,
+    slug: asset.slug,
+    name: asset.name,
+    category: categoryName(asset.category),
+    color: colorFor(asset.category, index),
+    distance: asset.barangay || asset.location || 'Calabanga',
+    address: [asset.barangay || asset.location, 'Calabanga', 'Camarines Sur'].filter(Boolean).join(', '),
+    hours: 'Visiting information to be confirmed',
+    description: asset.shortDescription || asset.description || 'Tourism asset details are being prepared.',
+    x: 24 + ((index * 17) % 58),
+    y: 24 + ((index * 23) % 52),
+    latitude: asset.latitude,
+    longitude: asset.longitude,
+    accredited: true,
+    featured: true,
+    imageUrl: asset.primaryImage?.url || asset.imageUrl,
+    targetMarket: asset.targetMarket,
+    sourceBusinessName: asset.sourceBusinessName,
+    sourceBusinessType: asset.sourceBusinessType,
+    sourceAccreditationRecordNumber: asset.sourceAccreditationRecordNumber,
+    sourceModule: asset.sourceModule || 'product-development',
+  }
+}
+
 function mapMapLocation(location, index = 0) {
   return {
     id: location.slug || location.id,
@@ -417,30 +442,30 @@ function userMessageForError(error) {
 
 export async function getHome() {
   return withMockFallback(() => promotionApi.getHome(), () => ({
-    featuredProducts: otopProducts.slice(0, 4),
-    upcomingEvents: mockEvents.slice(0, 3),
-    featuredDestinations: mockDestinations.slice(0, 5),
-    featuredMuseumArtifacts: mockMuseumItems.slice(0, 4),
-    featuredPromotions: mockPromotions,
+    featuredProducts: [],
+    upcomingEvents: [],
+    featuredDestinations: [],
+    featuredMuseumArtifacts: [],
+    featuredPromotions: [],
   }))
 }
 
 export async function getPromotions(params) {
   const data = await withMockFallback(
     () => promotionApi.getPromotions(params),
-    () => mockPromotions,
+    () => [],
   )
   return Array.isArray(data) ? data : []
 }
 
 export function getCampaigns() {
-  return wait(mockCampaigns)
+  return wait([])
 }
 
 export async function getEvents(params) {
   const data = await withMockFallback(
     () => promotionApi.getEvents(params),
-    () => mockEvents,
+    () => [],
   )
   return data.map((event, index) => (event.slug ? mapEvent(event, index) : event))
 }
@@ -448,17 +473,27 @@ export async function getEvents(params) {
 export async function getDestinations(params) {
   const data = await withMockFallback(
     () => promotionApi.getDestinations(params),
-    () => mockDestinations,
+    () => [],
   )
   return data.map((destination, index) =>
     destination.slug ? mapDestination(destination, index) : destination,
   )
 }
 
+export async function getTourismAssets(params) {
+  const data = await withMockFallback(
+    () => promotionApi.getTourismAssets(params),
+    () => [],
+  )
+  return data.map((asset, index) =>
+    asset.sourceModule === 'product-development' ? mapTourismAsset(asset, index) : asset,
+  )
+}
+
 export async function getPromotionalProducts(params) {
   const data = await withMockFallback(
     () => promotionApi.getProducts(params),
-    () => otopProducts,
+    () => [],
   )
 
   return data.map((product, index) => (product.slug ? mapProduct(product, index) : product))
@@ -477,9 +512,7 @@ export async function getProductById(id) {
   const data = await withMockFallback(
     () => promotionApi.getProductBySlug(id),
     () => {
-      const product = otopProducts.find((item) => item.id === id)
-      if (!product) throw new Error('Product not found')
-      return product
+      throw new Error('Product not found')
     },
   )
 
@@ -487,9 +520,7 @@ export async function getProductById(id) {
 
   return {
     ...data,
-    relatedProducts: otopProducts
-      .filter((item) => item.id !== data.id)
-      .slice(0, 4),
+    relatedProducts: [],
   }
 }
 
@@ -501,9 +532,7 @@ export async function getBusinessById(id) {
   const data = await withMockFallback(
     () => promotionApi.getBusinessBySlug(id),
     () => {
-      const business = businessProfiles.find((item) => item.id === id)
-      if (!business) throw new Error('Business profile not found')
-      return business
+      throw new Error('Business profile not found')
     },
   )
 
@@ -513,7 +542,7 @@ export async function getBusinessById(id) {
 export async function getAccreditedBusinesses(params = {}) {
   const data = await withMockFallback(
     () => promotionApi.getBusinesses({ limit: 50, sort: '-issuedAt', ...params }),
-    () => businessProfiles.filter((business) => business.accreditationStatus === 'accredited'),
+    () => [],
   )
 
   return data.map((business) =>
@@ -524,7 +553,7 @@ export async function getAccreditedBusinesses(params = {}) {
 export async function getMapLocations(params = { format: 'list' }) {
   const data = await withMockFallback(
     () => promotionApi.getMapLocations(params),
-    () => mockMapLocations,
+    () => [],
   )
 
   if (data?.type === 'FeatureCollection') {
@@ -555,27 +584,7 @@ export async function getMapLocationGeoJson(params = {}) {
     () => promotionApi.getMapLocations({ ...params, format: 'geojson' }),
     () => ({
       type: 'FeatureCollection',
-      features: mockMapLocations.map((location, index) => ({
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [
-            123.24 + (Number(location.x || index * 8) - 50) / 1000,
-            13.7 + (Number(location.y || index * 8) - 50) / 1000,
-          ],
-        },
-        properties: {
-          id: location.id,
-          locationType: 'destination',
-          slug: location.id,
-          label: location.name,
-          category: location.category,
-          markerColor: location.color,
-          markerIcon: null,
-          primaryImage: location.imageUrl,
-          description: location.description,
-        },
-      })),
+      features: [],
     }),
   )
 }
@@ -583,7 +592,7 @@ export async function getMapLocationGeoJson(params = {}) {
 export async function getMuseumItems(params) {
   const data = await withMockFallback(
     () => promotionApi.getMuseumArtifacts(params),
-    () => mockMuseumItems,
+    () => [],
   )
   return data.map((artifact, index) => (artifact.slug ? mapArtifact(artifact, index) : artifact))
 }

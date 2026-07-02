@@ -195,6 +195,11 @@ onMounted(async () => {
 
   if (isDemoSession()) return;
 
+  if (applicationId.value) {
+    await loadApplicationForRevision(applicationId.value);
+    return;
+  }
+
   try {
     const { profile } = await getBusinessProfile();
     if (profile) applyBusinessProfileDefaults(profile);
@@ -257,6 +262,7 @@ async function submit() {
 
     applicationStatus.value = submittedApplication.status;
     applicationNumber.value = submittedApplication.application_number || applicationNumber.value;
+    localStorage.removeItem(draftStorageKey);
     message.value = `Application ${applicationNumber.value} submitted successfully.`;
   } catch (err) {
     error.value = err.response?.data?.message || err.message || "Unable to submit application.";
@@ -347,13 +353,16 @@ function setFile(doc, event) {
 
 async function uploadPendingDocuments() {
   for (const doc of requiredDocumentList.value) {
-    if (selectedFiles[doc]) {
-      await uploadDocumentFile(doc);
+    if (selectedFiles[doc] && !uploadedDocuments[doc]) {
+      await uploadDocumentFile(doc, true);
     }
+  }
+  if (applicationId.value && !isDemoSession()) {
+    await refreshUploadedDocuments();
   }
 }
 
-async function uploadDocumentFile(doc) {
+async function uploadDocumentFile(doc, rethrow = false) {
   await auth.connectDemoToBackend();
   resetLocalDemoApplicationIfConnected();
 
@@ -389,13 +398,9 @@ async function uploadDocumentFile(doc) {
     data.append("document", selectedFiles[doc]);
     data.append("documentType", doc);
     const result = await uploadApplicationDocument(applicationId.value, data);
-    uploadedDocuments[doc] = {
-      id: result.document.id,
-      name: result.document.original_name,
-      status: result.document.status,
-      uploaded_at: result.document.uploaded_at,
-    };
+    setUploadedDocument(result.document);
     clearSelectedFile(doc);
+    await refreshUploadedDocuments();
     saveLocalDraft();
     message.value = `${doc} uploaded.`;
   } catch (err) {
@@ -404,10 +409,36 @@ async function uploadDocumentFile(doc) {
       err.message ||
       `Unable to upload ${doc}. Please check the basic details and try again.`;
     window.scrollTo({ top: 0, behavior: "smooth" });
+    if (rethrow) throw err;
   } finally {
     uploadingDocument.value = "";
     saving.value = false;
   }
+}
+
+async function refreshUploadedDocuments() {
+  if (!applicationId.value) return;
+  const result = await getApplication(applicationId.value);
+  Object.keys(uploadedDocuments).forEach((doc) => {
+    delete uploadedDocuments[doc];
+  });
+  for (const document of result.documents || []) {
+    setUploadedDocument(document);
+  }
+  saveLocalDraft();
+}
+
+function setUploadedDocument(document) {
+  if (!document) return;
+  const name = document.document_type || document.name;
+  if (!name) return;
+  uploadedDocuments[name] = {
+    id: document.id,
+    name: document.original_name || document.name,
+    status: document.status,
+    uploaded_at: document.uploaded_at,
+    url: document.url,
+  };
 }
 
 function documentFileName(doc) {

@@ -158,6 +158,18 @@ function getRequiredDocumentsForBusinessType(businessType) {
   return Array.from(documents);
 }
 
+function normalizeDocumentLabel(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function resolveRequiredDocumentType(value, requiredDocuments) {
+  const normalized = normalizeDocumentLabel(value);
+  return requiredDocuments.find((document) => normalizeDocumentLabel(document) === normalized);
+}
+
 function publicUser(user) {
   return {
     id: user.id,
@@ -412,8 +424,12 @@ async function addDocument(applicationId, file, body, userId) {
   }
 
   const requiredDocuments = getRequiredDocumentsForBusinessType(application.business_type);
-  if (!requiredDocuments.includes(body.documentType)) {
-    const error = new Error(`Invalid document type for ${application.business_type || "this business type"}.`);
+  const requestedDocumentType = body.documentType || body.document_type || body.type || body.name;
+  const documentType = resolveRequiredDocumentType(requestedDocumentType, requiredDocuments);
+  if (!documentType) {
+    const error = new Error(
+      `Invalid document type "${requestedDocumentType || "not provided"}" for ${application.business_type || "this business type"}.`,
+    );
     error.statusCode = 400;
     throw error;
   }
@@ -425,7 +441,7 @@ async function addDocument(applicationId, file, body, userId) {
   }
 
   return model.addApplicationDocument(application.id, {
-    documentType: body.documentType,
+    documentType,
     originalName: file.originalname,
     filePath: file.path,
     mimeType: file.mimetype,

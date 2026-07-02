@@ -17,7 +17,6 @@ const fallbackNavigation = [
   { key: 'events', label: 'Events', path: '/cms/events', permission: 'events.view', icon: 'calendar' },
   { key: 'categories', label: 'Categories', path: '/cms/categories', permissions: ['events.view', 'products.view', 'destinations.view', 'museum.view'], icon: 'audit' },
   { key: 'products', label: 'Products / OTOP', path: '/cms/products', permission: 'products.view', icon: 'package' },
-  { key: 'destinations', label: 'Destinations', path: '/cms/destinations', permission: 'destinations.view', icon: 'destinations' },
   { key: 'businesses', label: 'Businesses', path: '/cms/businesses', permission: 'businesses.view', icon: 'building' },
   { key: 'map', label: 'Map Locations', path: '/cms/map-locations', permission: 'map_locations.view', icon: 'map' },
   { key: 'museum', label: 'Museum', path: '/cms/museum', permission: 'museum.view', icon: 'museum' },
@@ -41,7 +40,7 @@ const navigationItems = computed(() => {
       }))
     : fallbackNavigation
 
-  const mapped = [...baseItems]
+  const mapped = baseItems.filter((item) => item.key !== 'destinations')
 
   if (!mapped.some((item) => item.key === 'categories')) {
     mapped.splice(3, 0, {

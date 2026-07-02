@@ -2,8 +2,7 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  getDestinations,
-  getMapLocationGeoJson,
+  getTourismAssets,
   loadItinerary,
   removeFromItinerary,
   saveToItinerary,
@@ -35,87 +34,7 @@ const categories = computed(() => {
   return [...grouped.values()]
 })
 
-const locations = ref([
-  {
-    id: 'sabang',
-    name: 'Sabang Beach',
-    category: 'Beach',
-    color: '#1565C0',
-    distance: '4.2 km',
-    address: 'Poblacion, Calabanga, Camarines Sur',
-    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
-    description:
-      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
-    x: 30,
-    y: 34,
-  },
-  {
-    id: 'quipayo',
-    name: 'Quipayo Old Church',
-    category: 'Cultural',
-    color: '#7B341E',
-    distance: '2.1 km',
-    address: 'Quipayo, Calabanga, Camarines Sur',
-    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
-    description:
-      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
-    x: 58,
-    y: 31,
-    selected: true,
-  },
-  {
-    id: 'belen',
-    name: 'Belen Pottery Village',
-    category: 'Cultural',
-    color: '#7B341E',
-    distance: '6.8 km',
-    address: 'Belen, Calabanga, Camarines Sur',
-    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
-    description:
-      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
-    x: 72,
-    y: 55,
-  },
-  {
-    id: 'isarog',
-    name: 'Mt. Isarog Foothills',
-    category: 'Nature',
-    color: '#1B7A4A',
-    distance: '9.4 km',
-    address: 'Mt. Isarog Foothills, Calabanga, Camarines Sur',
-    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
-    description:
-      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
-    x: 83,
-    y: 21,
-  },
-  {
-    id: 'market',
-    name: 'Calabanga Public Market',
-    category: 'Food',
-    color: '#B5451B',
-    distance: '0.6 km',
-    address: 'Calabanga Public Market, Camarines Sur',
-    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
-    description:
-      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
-    x: 43,
-    y: 72,
-  },
-  {
-    id: 'river',
-    name: 'Bicol River Boardwalk',
-    category: 'Nature',
-    color: '#1B7A4A',
-    distance: '1.3 km',
-    address: 'Bicol River Boardwalk, Calabanga, Camarines Sur',
-    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
-    description:
-      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
-    x: 24,
-    y: 59,
-  },
-])
+const locations = ref([])
 
 const searchQuery = ref('')
 const selectedId = ref('')
@@ -212,6 +131,54 @@ function locationFromFeature(feature, index, destinationBySlug) {
   }
 }
 
+function locationFromTourismAsset(asset, index) {
+  const latitude = Number(asset.latitude)
+  const longitude = Number(asset.longitude)
+
+  return {
+    id: asset.id,
+    apiId: null,
+    slug: asset.slug || asset.id,
+    name: asset.name,
+    category: asset.category || 'Tourism',
+    color: asset.color || '#1b4332',
+    distance: asset.distance || 'Product Development asset',
+    address: asset.address || 'Calabanga, Camarines Sur',
+    hours: asset.hours || 'Visiting information to be confirmed',
+    description: asset.description || 'Tourism asset details are being prepared.',
+    x: 24 + ((index * 17) % 58),
+    y: 24 + ((index * 23) % 52),
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null,
+    locationType: 'tourism asset',
+    imageUrl: asset.imageUrl,
+    accredited: asset.accredited ?? true,
+  }
+}
+
+function featureFromAssetLocation(location) {
+  if (!Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) return null
+
+  return {
+    type: 'Feature',
+    geometry: {
+      type: 'Point',
+      coordinates: [location.longitude, location.latitude],
+    },
+    properties: {
+      id: location.id,
+      slug: location.id,
+      label: location.name,
+      category: location.category,
+      markerColor: location.color,
+      primaryImage: location.imageUrl,
+      locationType: location.locationType,
+      accredited: location.accredited,
+      description: location.description,
+    },
+  }
+}
+
 function selectLocation(id) {
   selectedId.value = id
   if (!id) return
@@ -263,16 +230,13 @@ async function loadLocations() {
   mapRuntimeError.value = ''
 
   try {
-    const [geoJsonData, destinationData] = await Promise.all([
-      getMapLocationGeoJson(),
-      getDestinations({ limit: 50 }),
-    ])
-    const destinationBySlug = new Map(destinationData.map((destination) => [destination.id, destination]))
-    const locationData = (geoJsonData.features || []).map((feature, index) =>
-      locationFromFeature(feature, index, destinationBySlug),
-    )
+    const tourismAssetData = await getTourismAssets({ limit: 50, sort: '-updatedAt' })
+    const locationData = tourismAssetData.map((asset, index) => locationFromTourismAsset(asset, index))
 
-    mapGeoJson.value = geoJsonData
+    mapGeoJson.value = {
+      type: 'FeatureCollection',
+      features: locationData.map(featureFromAssetLocation).filter(Boolean),
+    }
     locations.value = locationData
     enabledCategories.value = Object.fromEntries(
       [...new Set(locationData.map((location) => location.category))].map((category) => [category, true]),
@@ -574,8 +538,8 @@ onBeforeUnmount(() => {
           :selected-id="selectedLocation?.id || ''"
           :loading="isLoading"
           :error="errorMessage"
-          :empty-title="hasFilterInteraction || hasActiveFilters ? 'No locations match your filters.' : 'No published map locations yet'"
-          :empty-text="hasFilterInteraction || hasActiveFilters ? 'Try selecting more categories.' : 'Published tourism places will appear here once available.'"
+          :empty-title="hasFilterInteraction || hasActiveFilters ? 'No locations match your filters.' : 'Asset coordinates not set yet'"
+          :empty-text="hasFilterInteraction || hasActiveFilters ? 'Try selecting more categories.' : 'Product Development assets are listed here. Add map coordinates later to place them on the map.'"
           @select="selectLocation"
           @map-error="mapRuntimeError = $event"
         />

@@ -15,50 +15,7 @@ const PENDING_SAVE_KEY = 'calitoursys_pending_event_save'
 const route = useRoute()
 const router = useRouter()
 
-const events = ref([
-  {
-    id: 'pili-fest',
-    title: 'Pili Festival 2026',
-    day: '24',
-    month: 'MAY',
-    date: '24 MAY 2026',
-    location: 'Calabanga Town Plaza',
-    category: 'Festival',
-    accent: '#B5451B',
-    desc: 'A week-long celebration of the pili nut harvest with parades, cooking competitions, and live cultural performances along the plaza.',
-    featured: true,
-  },
-  {
-    id: 'regatta',
-    title: 'San Miguel Bay Regatta',
-    day: '08',
-    month: 'MAY',
-    location: 'Sabang Beach Front',
-    category: 'Sports',
-    accent: '#1565C0',
-    desc: 'Traditional outrigger boats race across the bay at sunrise - a centuries-old tradition of our fishing barangays.',
-  },
-  {
-    id: 'art-walk',
-    title: 'Quipayo Heritage Art Walk',
-    day: '15',
-    month: 'MAY',
-    location: 'Quipayo Old Stone Church',
-    category: 'Culture',
-    accent: '#7B341E',
-    desc: 'Walking tour of murals, weaving demos, and the 18th-century Quipayo church bell tower.',
-  },
-  {
-    id: 'harvest',
-    title: 'Rice Harvest Thanksgiving',
-    day: '02',
-    month: 'MAY',
-    location: 'Belen Barangay Rice Fields',
-    category: 'Culture',
-    accent: '#1B7A4A',
-    desc: 'Join farmers in the planting season ritual followed by a community feast in the rice paddies of Belen.',
-  },
-])
+const events = ref([])
 
 const featuredEvent = computed(() => events.value[0] || null)
 const eventCards = computed(() => events.value.slice(1))

@@ -12,6 +12,7 @@ function addParam(params, value) {
 
 function mapAsset(row) {
   if (!row) return null
+  const images = Array.isArray(row.images) ? row.images : []
   return {
     id: row.id,
     name: row.name,
@@ -20,11 +21,77 @@ function mapAsset(row) {
     category: row.category,
     targetMarket: row.target_market,
     developmentStatus: row.development_status,
-    imageUrl: row.image_url,
+    imageUrl: images[0]?.imageUrl || row.image_url,
+    images,
     remarks: row.remarks || '',
+    latitude: row.latitude == null ? null : Number(row.latitude),
+    longitude: row.longitude == null ? null : Number(row.longitude),
+    sourceAccreditationRecordId: row.source_accreditation_record_id || null,
+    sourceBusinessProfileId: row.source_business_profile_id || null,
+    sourceAccreditationRecordNumber: row.source_accreditation_record_number || null,
+    sourceBusinessName: row.source_business_name || null,
+    sourceBusinessType: row.source_business_type || null,
+    sourceOwnerName: row.source_owner_name || null,
+    sourceOwnerEmail: row.source_owner_email || null,
+    sourceOwnerPhone: row.source_owner_phone || null,
+    sourceLatitude: row.source_latitude == null ? null : Number(row.source_latitude),
+    sourceLongitude: row.source_longitude == null ? null : Number(row.source_longitude),
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  }
+}
+
+function mapAccreditedEstablishment(row) {
+  if (!row) return null
+  const location = [
+    row.street_address,
+    row.barangay,
+    row.city_municipality,
+    row.province,
+  ]
+    .filter(Boolean)
+    .join(', ')
+
+  return {
+    id: row.id,
+    recordNumber: row.record_number,
+    status: row.status,
+    issuedAt: row.issued_at,
+    expiresAt: row.expires_at,
+    applicationNumber: row.application_number,
+    accreditationType: row.accreditation_type,
+    businessProfileId: row.business_profile_id,
+    businessName: row.business_name,
+    businessType: row.business_type,
+    businessPermitNumber: row.business_permit_number,
+    dtiSecRegistrationNumber: row.dti_sec_registration_number,
+    region: row.region,
+    province: row.province,
+    cityMunicipality: row.city_municipality,
+    barangay: row.barangay,
+    streetAddress: row.street_address,
+    location,
+    latitude: row.latitude == null ? null : Number(row.latitude),
+    longitude: row.longitude == null ? null : Number(row.longitude),
+    ownerName: [row.first_name, row.last_name].filter(Boolean).join(' '),
+    ownerEmail: row.email || '',
+    ownerPhone: row.phone || '',
+  }
+}
+
+function mapAssetImage(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    assetId: row.asset_id,
+    imageUrl: row.image_url,
+    originalName: row.original_name || '',
+    mimeType: row.mime_type || '',
+    fileSize: Number(row.file_size || 0),
+    sortOrder: Number(row.display_order || 0),
+    isPrimary: Boolean(row.is_primary),
+    createdAt: row.created_at,
   }
 }
 
@@ -204,77 +271,323 @@ function filteredWhere(filters, columns) {
   return { params, whereSql: where.length ? `WHERE ${where.join(' AND ')}` : '' }
 }
 
-async function listAssets(filters = {}) {
-  const { params, whereSql } = filteredWhere(filters, {
-    search: ['name', 'description', 'location', 'target_market'],
-    status: 'development_status',
-    category: 'category',
-    location: 'location',
-    targetMarket: 'target_market',
-  })
+function firstAssetImageUrl(images = []) {
+  return images.find((image) => image?.imageUrl)?.imageUrl || null
+}
+
+async function listAssetImages(assetId) {
   const result = await query(
     `
       SELECT *
-      FROM tourism_assets
+      FROM tourism_asset_images
+      WHERE asset_id = $1
+      ORDER BY display_order ASC, created_at ASC
+    `,
+    [assetId],
+  )
+  return result.rows.map(mapAssetImage)
+}
+
+async function attachAssetImages(assets) {
+  if (!assets.length) return assets
+
+  const result = await query(
+    `
+      SELECT *
+      FROM tourism_asset_images
+      WHERE asset_id = ANY($1::uuid[])
+      ORDER BY asset_id ASC, display_order ASC, created_at ASC
+    `,
+    [assets.map((asset) => asset.id)],
+  )
+  const grouped = new Map()
+  result.rows.forEach((row) => {
+    const images = grouped.get(row.asset_id) || []
+    images.push(mapAssetImage(row))
+    grouped.set(row.asset_id, images)
+  })
+
+  return assets.map((asset) => {
+    const images = grouped.get(asset.id) || []
+    return { ...asset, images, imageUrl: images[0]?.imageUrl || asset.imageUrl }
+  })
+}
+
+async function replaceAssetImages(client, assetId, images = [], fallbackImageUrl = null) {
+  const normalizedImages = images
+    .filter((image) => image?.imageUrl)
+    .slice(0, 5)
+    .map((image, index) => ({
+      ...image,
+      displayOrder: index + 1,
+      isPrimary: index === 0,
+    }))
+
+  await client.query('DELETE FROM tourism_asset_images WHERE asset_id = $1', [assetId])
+
+  for (const image of normalizedImages) {
+    await client.query(
+      `
+        INSERT INTO tourism_asset_images (
+          asset_id, image_url, original_name, mime_type, file_size, display_order, is_primary
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `,
+      [
+        assetId,
+        image.imageUrl,
+        image.originalName || null,
+        image.mimeType || null,
+        Number.isFinite(Number(image.fileSize)) ? Number(image.fileSize) : null,
+        image.displayOrder,
+        image.isPrimary,
+      ],
+    )
+  }
+
+  await client.query('UPDATE tourism_assets SET image_url = $2 WHERE id = $1', [
+    assetId,
+    normalizedImages[0]?.imageUrl || fallbackImageUrl || null,
+  ])
+}
+
+async function listAssets(filters = {}) {
+  const { params, whereSql } = filteredWhere(filters, {
+    search: ['ta.name', 'ta.description', 'ta.location', 'ta.target_market'],
+    status: 'ta.development_status',
+    category: 'ta.category',
+    location: 'ta.location',
+    targetMarket: 'ta.target_market',
+  })
+  const result = await query(
+    `
+      SELECT
+        ta.*,
+        ar.record_number AS source_accreditation_record_number,
+        bp.business_name AS source_business_name,
+        bp.business_type AS source_business_type,
+        bp.latitude AS source_latitude,
+        bp.longitude AS source_longitude,
+        CONCAT_WS(' ', owner.first_name, owner.last_name) AS source_owner_name,
+        owner.email AS source_owner_email,
+        owner.phone AS source_owner_phone
+      FROM tourism_assets ta
+      LEFT JOIN accreditation_records ar ON ar.id = ta.source_accreditation_record_id
+      LEFT JOIN business_profiles bp ON bp.id = ta.source_business_profile_id
+      LEFT JOIN users owner ON owner.id = bp.owner_id
       ${whereSql}
-      ORDER BY CASE WHEN development_status = 'Archived' THEN 1 ELSE 0 END, updated_at DESC, name ASC
+      ORDER BY CASE WHEN ta.development_status = 'Archived' THEN 1 ELSE 0 END, ta.updated_at DESC, ta.name ASC
     `,
     params,
   )
-  return result.rows.map(mapAsset)
+  return attachAssetImages(result.rows.map(mapAsset))
 }
 
 async function getAssetById(id) {
-  const result = await query('SELECT * FROM tourism_assets WHERE id = $1 LIMIT 1', [id])
-  return mapAsset(result.rows[0])
+  const result = await query(
+    `
+      SELECT
+        ta.*,
+        ar.record_number AS source_accreditation_record_number,
+        bp.business_name AS source_business_name,
+        bp.business_type AS source_business_type,
+        bp.latitude AS source_latitude,
+        bp.longitude AS source_longitude,
+        CONCAT_WS(' ', owner.first_name, owner.last_name) AS source_owner_name,
+        owner.email AS source_owner_email,
+        owner.phone AS source_owner_phone
+      FROM tourism_assets ta
+      LEFT JOIN accreditation_records ar ON ar.id = ta.source_accreditation_record_id
+      LEFT JOIN business_profiles bp ON bp.id = ta.source_business_profile_id
+      LEFT JOIN users owner ON owner.id = bp.owner_id
+      WHERE ta.id = $1
+      LIMIT 1
+    `,
+    [id],
+  )
+  const asset = mapAsset(result.rows[0])
+  if (!asset) return null
+  const images = await listAssetImages(id)
+  return { ...asset, images, imageUrl: images[0]?.imageUrl || asset.imageUrl }
+}
+
+async function listAccreditedEstablishments(filters = {}) {
+  const params = []
+  const where = ["r.status = 'active'"]
+
+  if (filters.search) {
+    const ref = addParam(params, `%${filters.search}%`)
+    where.push(`(
+      b.business_name ILIKE ${ref}
+      OR b.business_type ILIKE ${ref}
+      OR b.street_address ILIKE ${ref}
+      OR b.barangay ILIKE ${ref}
+      OR b.city_municipality ILIKE ${ref}
+      OR r.record_number ILIKE ${ref}
+    )`)
+  }
+
+  const result = await query(
+    `
+      SELECT
+        r.id,
+        r.record_number,
+        r.status,
+        r.issued_at,
+        r.expires_at,
+        a.application_number,
+        a.accreditation_type,
+        b.id AS business_profile_id,
+        b.business_name,
+        b.business_type,
+        b.business_permit_number,
+        b.dti_sec_registration_number,
+        b.region,
+        b.province,
+        b.city_municipality,
+        b.barangay,
+        b.street_address,
+        b.latitude,
+        b.longitude,
+        owner.first_name,
+        owner.last_name,
+        owner.email,
+        owner.phone
+      FROM accreditation_records r
+      JOIN accreditation_applications a ON a.id = r.application_id
+      JOIN business_profiles b ON b.id = r.business_profile_id
+      LEFT JOIN users owner ON owner.id = b.owner_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY r.issued_at DESC, b.business_name ASC
+      LIMIT 100
+    `,
+    params,
+  )
+
+  return result.rows.map(mapAccreditedEstablishment)
+}
+
+async function getAccreditedEstablishmentByRecordId(id) {
+  const result = await query(
+    `
+      SELECT
+        r.id,
+        r.record_number,
+        r.status,
+        r.issued_at,
+        r.expires_at,
+        a.application_number,
+        a.accreditation_type,
+        b.id AS business_profile_id,
+        b.business_name,
+        b.business_type,
+        b.business_permit_number,
+        b.dti_sec_registration_number,
+        b.region,
+        b.province,
+        b.city_municipality,
+        b.barangay,
+        b.street_address,
+        b.latitude,
+        b.longitude,
+        owner.first_name,
+        owner.last_name,
+        owner.email,
+        owner.phone
+      FROM accreditation_records r
+      JOIN accreditation_applications a ON a.id = r.application_id
+      JOIN business_profiles b ON b.id = r.business_profile_id
+      LEFT JOIN users owner ON owner.id = b.owner_id
+      WHERE r.id = $1 AND r.status = 'active'
+      LIMIT 1
+    `,
+    [id],
+  )
+
+  return mapAccreditedEstablishment(result.rows[0])
 }
 
 async function createAsset(data, userId) {
-  const result = await query(
-    `
-      INSERT INTO tourism_assets (
-        name, description, location, category, target_market, development_status, image_url, remarks, created_by
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING *
-    `,
-    [
-      data.name,
-      data.description,
-      data.location,
-      data.category,
-      data.targetMarket,
-      data.developmentStatus || 'Draft',
-      data.imageUrl || null,
-      data.remarks || '',
-      userId || null,
-    ],
-  )
-  return mapAsset(result.rows[0])
+  const client = await require('../../config/db').pool.connect()
+  try {
+    await client.query('BEGIN')
+    const result = await client.query(
+      `
+        INSERT INTO tourism_assets (
+          name, description, location, category, target_market, development_status, image_url, remarks,
+          latitude, longitude, source_accreditation_record_id, source_business_profile_id, created_by
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        RETURNING id
+      `,
+      [
+        data.name,
+        data.description,
+        data.location,
+        data.category,
+        data.targetMarket,
+        data.developmentStatus || 'Draft',
+        firstAssetImageUrl(data.assetImages) || data.imageUrl || null,
+        data.remarks || '',
+        data.latitude ?? null,
+        data.longitude ?? null,
+        data.sourceAccreditationRecordId || null,
+        data.sourceBusinessProfileId || null,
+        userId || null,
+      ],
+    )
+    await replaceAssetImages(client, result.rows[0].id, data.assetImages || [], data.imageUrl)
+    await client.query('COMMIT')
+    return getAssetById(result.rows[0].id)
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 async function updateAsset(id, data) {
-  const result = await query(
-    `
-      UPDATE tourism_assets
-      SET name = $2, description = $3, location = $4, category = $5, target_market = $6,
-          development_status = $7, image_url = $8, remarks = $9
-      WHERE id = $1
-      RETURNING *
-    `,
-    [
-      id,
-      data.name,
-      data.description,
-      data.location,
-      data.category,
-      data.targetMarket,
-      data.developmentStatus,
-      data.imageUrl || null,
-      data.remarks || '',
-    ],
-  )
-  return mapAsset(result.rows[0])
+  const client = await require('../../config/db').pool.connect()
+  try {
+    await client.query('BEGIN')
+    const result = await client.query(
+      `
+        UPDATE tourism_assets
+        SET name = $2, description = $3, location = $4, category = $5, target_market = $6,
+            development_status = $7, image_url = $8, remarks = $9,
+            latitude = $10, longitude = $11,
+            source_accreditation_record_id = $12, source_business_profile_id = $13
+        WHERE id = $1
+        RETURNING id
+      `,
+      [
+        id,
+        data.name,
+        data.description,
+        data.location,
+        data.category,
+        data.targetMarket,
+        data.developmentStatus,
+        firstAssetImageUrl(data.assetImages) || data.imageUrl || null,
+        data.remarks || '',
+        data.latitude ?? null,
+        data.longitude ?? null,
+        data.sourceAccreditationRecordId || null,
+        data.sourceBusinessProfileId || null,
+      ],
+    )
+    if (result.rows[0]?.id) {
+      await replaceAssetImages(client, id, data.assetImages || [], data.imageUrl)
+    }
+    await client.query('COMMIT')
+    return result.rows[0]?.id ? getAssetById(result.rows[0].id) : null
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 async function archiveAsset(id) {
@@ -590,9 +903,9 @@ function packageSelect(extraWhere = '') {
       FROM tourism_assets ta
       WHERE ta.category = CASE
         WHEN tp.category ILIKE '%Cultural%' THEN 'Cultural'
-        WHEN tp.category ILIKE '%Food%' THEN 'Agricultural'
-        WHEN tp.category ILIKE '%Events%' THEN 'Recreational'
-        WHEN tp.category ILIKE '%Nature%' THEN 'Natural'
+        WHEN tp.category ILIKE '%Food%' THEN 'Food'
+        WHEN tp.category ILIKE '%Events%' THEN 'Events'
+        WHEN tp.category ILIKE '%Nature%' THEN 'Nature'
         ELSE ta.category
       END
         AND ta.image_url IS NOT NULL
@@ -643,8 +956,12 @@ async function getPackageById(id) {
   const result = await query(`${packageSelect('WHERE tp.id = $1')}`, [id])
   const tourismPackage = mapPackage(result.rows[0])
   if (!tourismPackage) return null
-  const [items, statusHistory] = await Promise.all([listPackageItems(id), listStatusHistory('Package', id)])
-  return { ...tourismPackage, items, statusHistory }
+  const [items, gallery, statusHistory] = await Promise.all([
+    listPackageItems(id),
+    listPackageGallery(id),
+    listStatusHistory('Package', id),
+  ])
+  return { ...tourismPackage, items, gallery, statusHistory }
 }
 
 async function getPublicPackageBySlug(slug) {
@@ -699,6 +1016,45 @@ async function listPackageItems(packageId) {
     [packageId],
   )
   return result.rows.map(mapPackageItem)
+}
+
+async function listPackageGallery(packageId) {
+  const result = await query(
+    `
+      SELECT DISTINCT ON (tai.id)
+        tai.id,
+        tai.image_url AS "imageUrl",
+        COALESCE(tai.original_name, asset.name || ' image') AS "altText",
+        pi.sort_order AS "itemOrder",
+        tai.display_order AS "imageOrder",
+        asset.name AS "assetName"
+      FROM package_items pi
+      LEFT JOIN tourism_assets direct_asset
+        ON pi.item_type = 'Asset'
+       AND direct_asset.id = pi.item_reference_id
+      LEFT JOIN development_plans dp
+        ON pi.item_type = 'Plan'
+       AND dp.id = pi.item_reference_id
+      LEFT JOIN tourism_assets plan_asset
+        ON pi.item_type = 'Plan'
+       AND plan_asset.id = dp.asset_id
+      JOIN tourism_assets asset
+        ON asset.id = COALESCE(direct_asset.id, plan_asset.id)
+      JOIN tourism_asset_images tai
+        ON tai.asset_id = asset.id
+      WHERE pi.package_id = $1
+      ORDER BY tai.id, pi.sort_order ASC, tai.display_order ASC
+    `,
+    [packageId],
+  )
+
+  return result.rows
+    .sort((left, right) => left.itemOrder - right.itemOrder || left.imageOrder - right.imageOrder)
+    .map(({ itemOrder, imageOrder, assetName, ...image }) => ({
+      ...image,
+      sourceName: assetName,
+      sortOrder: imageOrder,
+    }))
 }
 
 async function createPackage(data, userId) {
@@ -868,6 +1224,7 @@ module.exports = {
   createPlan,
   createStatusHistoryEntry,
   getActivityById,
+  getAccreditedEstablishmentByRecordId,
   getAssetById,
   getImprovementById,
   getPackageById,
@@ -875,6 +1232,7 @@ module.exports = {
   getPublicPackageBySlug,
   getReportSummary,
   listActivities,
+  listAccreditedEstablishments,
   listAssets,
   listImprovements,
   listPackages,

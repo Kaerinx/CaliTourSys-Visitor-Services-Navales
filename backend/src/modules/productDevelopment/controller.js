@@ -2,6 +2,7 @@ const service = require('./service')
 const validators = require('./validators')
 const { successResponse } = require('../../utils/apiResponse')
 const { setNoStore, setPublicReadCache } = require('../../utils/cacheHeaders')
+const { uploadedAssetImages } = require('./uploads')
 
 function parse(schema, value) {
   return schema.parse(value)
@@ -59,6 +60,45 @@ function bodyHandler(schema, serviceFn, statusCode = 200) {
   return async (req, res, next) => {
     try {
       const body = parse(schema, req.body || {})
+      setNoStore(res)
+      return successResponse(req, res, await serviceFn(body, req), statusCode)
+    } catch (error) {
+      return next(error)
+    }
+  }
+}
+
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function normalizeAssetBody(req) {
+  const body = { ...(req.body || {}) }
+  const uploadedImages = uploadedAssetImages(req)
+  const manifest = parseJsonArray(body.assetImages)
+
+  body.assetImages = (manifest.length ? manifest : uploadedImages)
+    .map((image) => {
+      if (image?.kind === 'upload') return uploadedImages[Number(image.fileIndex)]
+      return image
+    })
+    .filter((image) => image?.imageUrl)
+    .slice(0, 5)
+
+  return body
+}
+
+function assetBodyHandler(serviceFn, statusCode = 200) {
+  return async (req, res, next) => {
+    try {
+      const body = parse(validators.assetBodySchema, normalizeAssetBody(req))
       setNoStore(res)
       return successResponse(req, res, await serviceFn(body, req), statusCode)
     } catch (error) {
@@ -128,7 +168,7 @@ module.exports = {
   archivePackage: packageIdHandler(service.archivePackage),
   archivePlan: idHandler(service.archivePlan),
   createActivity: bodyHandler(validators.activityBodySchema, service.createActivity, 201),
-  createAsset: bodyHandler(validators.assetBodySchema, service.createAsset, 201),
+  createAsset: assetBodyHandler(service.createAsset, 201),
   createImprovement: bodyHandler(validators.improvementBodySchema, service.createImprovement, 201),
   createPackage: bodyHandler(validators.packageBodySchema, service.createPackage, 201),
   createPlan: bodyHandler(validators.planBodySchema, service.createPlan, 201),
@@ -141,6 +181,7 @@ module.exports = {
   getReports,
   getStatus,
   listActivities: listHandler(service.listActivities),
+  listAccreditedEstablishments: listHandler(service.listAccreditedEstablishments),
   listAssets: listHandler(service.listAssets),
   listImprovements: listHandler(service.listImprovements),
   listPackages: listHandler(service.listPackages),
@@ -148,7 +189,16 @@ module.exports = {
   listPublicPackages: publicListHandler(service.listPublicPackages),
   markPackageReady: packageBodyHandler(validators.readinessBodySchema, service.markPackageReady),
   updateActivity: idBodyHandler(validators.activityBodySchema, service.updateActivity),
-  updateAsset: idBodyHandler(validators.assetBodySchema, service.updateAsset),
+  updateAsset: async (req, res, next) => {
+    try {
+      const { id } = parse(validators.uuidParamsSchema, req.params)
+      const body = parse(validators.assetBodySchema, normalizeAssetBody(req))
+      setNoStore(res)
+      return successResponse(req, res, await service.updateAsset(id, body, req))
+    } catch (error) {
+      return next(error)
+    }
+  },
   updateImprovement: idBodyHandler(validators.improvementBodySchema, service.updateImprovement),
   updatePackage: packageBodyHandler(validators.packageBodySchema, service.updatePackage),
   updatePlan: idBodyHandler(validators.planBodySchema, service.updatePlan),

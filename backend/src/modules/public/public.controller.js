@@ -145,6 +145,7 @@ module.exports = {
   getProductBySlug: detailHandler(service.getProductBySlug),
   listPackages: paginatedHandler(validators.packageListQuerySchema, service.listPackages, setNoStore),
   getPackageBySlug: detailHandler(service.getPackageBySlug, setNoStore),
+  listTourismAssets: paginatedHandler(validators.tourismAssetListQuerySchema, service.listTourismAssets),
   listProductCategories: categoryHandler(service.listProductCategories),
   listAccreditedBusinesses: paginatedHandler(
     validators.businessListQuerySchema,

@@ -22,6 +22,7 @@ router.get('/products', controller.listProducts)
 router.get('/products/:slug', controller.getProductBySlug)
 router.get('/packages', controller.listPackages)
 router.get('/packages/:slug', controller.getPackageBySlug)
+router.get('/tourism-assets', controller.listTourismAssets)
 
 router.get('/businesses', controller.listAccreditedBusinesses)
 router.get('/businesses/:slug', controller.getBusinessBySlug)

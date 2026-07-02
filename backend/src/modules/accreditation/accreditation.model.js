@@ -456,7 +456,11 @@ async function getApplicationById(id) {
         a.review_remarks,
         CASE WHEN a.status IN ('under_review', 'for_revision', 'approved', 'rejected') THEN a.remarks END
       ) AS review_remarks,
-      b.*, a.id AS id, b.id AS business_profile_id,
+      b.*,
+      a.id AS id,
+      a.business_type AS business_type,
+      b.business_type AS profile_business_type,
+      b.id AS business_profile_id,
       u.first_name, u.last_name, u.email, u.phone
      FROM accreditation_applications a
      JOIN business_profiles b ON b.id = a.business_profile_id

@@ -4,6 +4,7 @@ const helmet = require('helmet')
 const compression = require('compression')
 const pinoHttp = require('pino-http')
 const cookieParser = require('cookie-parser')
+const path = require('path')
 const { env } = require('./config/env')
 const routes = require('./routes')
 const { requestId } = require('./middleware/requestId')
@@ -58,6 +59,11 @@ app.use(compression())
 app.use(cookieParser())
 app.use(express.json({ limit: env.REQUEST_BODY_LIMIT }))
 app.use(express.urlencoded({ extended: false, limit: env.REQUEST_BODY_LIMIT }))
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads'), {
+  setHeaders(res) {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+  },
+}))
 
 app.use('/api/v1', routes)
 

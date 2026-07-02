@@ -1,15 +1,7 @@
 <script setup>
 import { computed, reactive, watch } from 'vue'
 
-const PLAN_TARGET_MARKETS = Object.freeze([
-  'Local tourist',
-  'Domestic tourist',
-  'International tourist',
-  'Students',
-  'Families',
-  'Adventure travelers',
-  'Cultural tourist',
-])
+import { TOURISM_TARGET_MARKETS } from '@/modules/product/constants/productOptions'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -26,7 +18,7 @@ const form = reactive(defaultForm())
 const isEditing = computed(() => Boolean(props.value?.id))
 const title = computed(() => (isEditing.value ? 'Edit plan' : 'Create plan'))
 const selectedAsset = computed(() => props.assets.find((asset) => asset.id === form.assetId))
-const targetMarketOptions = computed(() => withCurrentOption(PLAN_TARGET_MARKETS, form.targetMarket))
+const targetMarketOptions = computed(() => withCurrentOption(TOURISM_TARGET_MARKETS, form.targetMarket))
 const submitLabel = computed(() => {
   if (props.busy) return 'Saving...'
   return isEditing.value ? 'Save changes' : 'Create plan'
@@ -75,7 +67,7 @@ function defaultForm(value = null) {
     assetId: value?.assetId || '',
     title: value?.title || value?.planTitle || '',
     objectives: value?.objectives || '',
-    targetMarket: value?.targetMarket || PLAN_TARGET_MARKETS[0],
+    targetMarket: value?.targetMarket || TOURISM_TARGET_MARKETS[0],
     proposedActivities: value?.proposedActivities || '',
     timelineStart: toDateInput(value?.timelineStart),
     timelineEnd: toDateInput(value?.timelineEnd),

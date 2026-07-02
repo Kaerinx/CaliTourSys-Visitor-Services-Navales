@@ -449,7 +449,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="tourist-mapbox">
-    <div v-show="canRenderMap" ref="mapContainer" class="tourist-mapbox__canvas"></div>
+    <div v-show="canRenderMap && features.length > 0" ref="mapContainer" class="tourist-mapbox__canvas"></div>
 
     <div v-if="!hasToken" class="tourist-mapbox__state">
       <strong>Map unavailable</strong>
@@ -480,7 +480,7 @@ onBeforeUnmount(() => {
       <span>{{ error }}</span>
     </div>
 
-    <div v-else-if="features.length === 0" class="tourist-mapbox__state tourist-mapbox__state--floating">
+    <div v-else-if="features.length === 0" class="tourist-mapbox__state">
       <strong>{{ emptyTitle }}</strong>
       <span>{{ emptyText }}</span>
     </div>

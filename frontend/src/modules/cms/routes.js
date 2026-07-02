@@ -224,10 +224,18 @@ export async function guardCmsRoute(to) {
 
     const requiredPermission = to.meta.permission
     if (requiredPermission && !auth.hasPermission(requiredPermission)) {
+      await auth.fetchMe()
+    }
+
+    if (requiredPermission && !auth.hasPermission(requiredPermission)) {
       return { name: 'cms-unauthorized' }
     }
 
     const requiredAny = to.meta.permissionsAny
+    if (requiredAny?.length && !auth.hasAnyPermission(requiredAny)) {
+      await auth.fetchMe()
+    }
+
     if (requiredAny?.length && !auth.hasAnyPermission(requiredAny)) {
       return { name: 'cms-unauthorized' }
     }

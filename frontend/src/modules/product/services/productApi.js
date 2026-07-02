@@ -10,6 +10,40 @@ function productRequest(path, options) {
   })
 }
 
+function assetToFormData(asset) {
+  const formData = new FormData()
+  const imageManifest = []
+  let fileIndex = 0
+
+  Object.entries(asset).forEach(([key, value]) => {
+    if (key === 'images') return
+    if (value === undefined || value === null) return
+    formData.set(key, value)
+  })
+
+  ;(asset.images || []).slice(0, 5).forEach((image) => {
+    if (image.file) {
+      formData.append('images', image.file)
+      imageManifest.push({ kind: 'upload', fileIndex })
+      fileIndex += 1
+      return
+    }
+
+    if (image.imageUrl) {
+      imageManifest.push({
+        id: image.id || null,
+        imageUrl: image.imageUrl,
+        originalName: image.originalName || '',
+        mimeType: image.mimeType || '',
+        fileSize: image.fileSize || null,
+      })
+    }
+  })
+
+  formData.set('assetImages', JSON.stringify(imageManifest))
+  return formData
+}
+
 export function getProductModuleStatus() {
   return productRequest('/product/status')
 }
@@ -32,17 +66,31 @@ export function getTourismAssets(filters = {}) {
   return productRequest(`/assets${query ? `?${query}` : ''}`)
 }
 
+export function getAccreditedEstablishments(filters = {}) {
+  const params = new URLSearchParams()
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) {
+      params.set(key, value)
+    }
+  })
+
+  const query = params.toString()
+
+  return productRequest(`/accredited-establishments${query ? `?${query}` : ''}`)
+}
+
 export function createTourismAsset(asset) {
   return productRequest('/assets', {
     method: 'POST',
-    body: asset,
+    body: assetToFormData(asset),
   })
 }
 
 export function updateTourismAsset(assetId, asset) {
   return productRequest(`/assets/${assetId}`, {
     method: 'PUT',
-    body: asset,
+    body: assetToFormData(asset),
   })
 }
 

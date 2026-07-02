@@ -1,98 +1,24 @@
 ﻿<script setup>
 import { onMounted, ref } from 'vue'
 import {
-  getDestinations,
   getEvents,
   getMapLocations,
   getMuseumItems,
   getPromotionalPackages,
   getPromotionalProducts,
+  getTourismAssets,
 } from '../services/promotionService'
 import { useNewsletterForm } from '../composables/useNewsletterForm'
 
-const products = ref([
-  {
-    id: 'pili-candy',
-    name: 'Pili Nut Brittle (Glazed)',
-    producer: "Aling Marta's Kitchen",
-    price: 'â‚± 250.00',
-    category: 'Sweets',
-    accent: '#B5451B',
-    accredited: true,
-  },
-  {
-    id: 'abaca-mat',
-    name: 'Hand-woven Abaca Place Mat',
-    producer: 'Quipayo Weavers Coop',
-    price: 'â‚± 480.00',
-    category: 'Crafts',
-    accent: '#7B341E',
-    accredited: true,
-  },
-  {
-    id: 'bagoong',
-    name: 'Calabanga Fermented Bagoong',
-    producer: 'San Miguel Bay Fishers',
-    price: 'â‚± 180.00',
-    category: 'Pantry',
-    accent: '#1B4332',
-    accredited: true,
-  },
-  {
-    id: 'coco-jam',
-    name: 'Slow-cooked Latik Coco Jam',
-    producer: 'Sabang Farm',
-    price: 'â‚± 220.00',
-    category: 'Sweets',
-    accent: '#D4711B',
-    accredited: true,
-  },
-])
+const products = ref([])
 
 const destinations = ref([])
 const museumItems = ref([])
 const packages = ref([])
 
-const events = ref([
-  {
-    id: 'pili-fest',
-    title: 'Pili Festival 2026',
-    day: '24',
-    month: 'MAY',
-    location: 'Calabanga Town Plaza',
-    category: 'Festival',
-    accent: '#B5451B',
-    desc: 'A week-long celebration of the pili nut harvest with parades, cooking competitions, and live cultural performances along the plaza.',
-  },
-  {
-    id: 'regatta',
-    title: 'San Miguel Bay Regatta',
-    day: '08',
-    month: 'JUN',
-    location: 'Sabang Beach Front',
-    category: 'Sports',
-    accent: '#1565C0',
-    desc: 'Traditional outrigger boats race across the bay at sunrise - a centuries-old tradition of our fishing barangays.',
-  },
-  {
-    id: 'art-walk',
-    title: 'Quipayo Heritage Art Walk',
-    day: '15',
-    month: 'JUN',
-    location: 'Quipayo Old Stone Church',
-    category: 'Culture',
-    accent: '#7B341E',
-    desc: 'Walking tour of murals, weaving demos, and the 18th-century Quipayo church bell tower.',
-  },
-])
+const events = ref([])
 
-const locations = ref([
-  { id: 'sabang', name: 'Sabang Beach', color: '#1565C0', distance: '4.2 km', x: 42, y: 40 },
-  { id: 'quipayo', name: 'Quipayo Old Church', color: '#7B341E', distance: '2.1 km', x: 56, y: 30 },
-  { id: 'belen', name: 'Belen Pottery Village', color: '#7B341E', distance: '6.8 km', x: 70, y: 60 },
-  { id: 'isarog', name: 'Mt. Isarog Foothills', color: '#1B7A4A', distance: '9.4 km', x: 82, y: 20 },
-  { id: 'market', name: 'Calabanga Public Market', color: '#B5451B', distance: '0.6 km', x: 58, y: 72 },
-])
+const locations = ref([])
 
 const isLoading = ref(true)
 const errorMessage = ref('')
@@ -106,12 +32,7 @@ const quickCategories = [
   { label: 'Events', helper: 'Browse events', icon: 'calendar' },
 ]
 
-const filters = [
-  { label: 'Nature & Outdoors', count: 18, active: true, color: '#1B7A4A' },
-  { label: 'Beaches', count: 7, active: true, color: '#1565C0' },
-  { label: 'Cultural Sites', count: 12, active: false, color: '#7B341E' },
-  { label: 'Food & Markets', count: 9, active: true, color: '#B5451B' },
-]
+const filters = []
 
 function productImageKey(product) {
   return product.apiId || product.id || product.slug || product.name
@@ -130,10 +51,10 @@ async function loadHomeData() {
   errorMessage.value = ''
 
   try {
-    const [productData, eventData, destinationData, locationData, museumData, packageData] = await Promise.all([
+    const [productData, eventData, assetData, locationData, museumData, packageData] = await Promise.all([
       getPromotionalProducts({ featured: true, limit: 8 }),
       getEvents({ featured: true, limit: 4 }),
-      getDestinations({ featured: true, limit: 3 }),
+      getTourismAssets({ limit: 3, sort: '-updatedAt' }),
       getMapLocations({ format: 'list' }),
       getMuseumItems({ featured: true, limit: 3 }),
       getPromotionalPackages(),
@@ -141,7 +62,7 @@ async function loadHomeData() {
 
     products.value = productData
     events.value = eventData
-    destinations.value = destinationData.slice(0, 3)
+    destinations.value = assetData.slice(0, 3)
     locations.value = locationData.slice(0, 5)
     museumItems.value = museumData.slice(0, 3)
     packages.value = packageData.slice(0, 3)
@@ -396,7 +317,7 @@ onMounted(loadHomeData)
               <span class="destination-card__body">
                 <strong>{{ tourismPackage.name }}</strong>
                 <span>{{ tourismPackage.estimatedDuration || 'Duration to be confirmed' }}</span>
-                <p>{{ tourismPackage.description }}</p>
+                <p v-if="tourismPackage.remarks">{{ tourismPackage.remarks }}</p>
                 <span class="card-link">View package -></span>
               </span>
             </RouterLink>
@@ -409,7 +330,7 @@ onMounted(loadHomeData)
           <div class="section-heading">
             <div>
               <h2>Explore Calabanga</h2>
-              <p>Hundreds of curated locations across the coast, mountains, and town center.</p>
+              <p>Curated locations from the public tourism records and map database.</p>
             </div>
             <RouterLink to="/destinations">Explore map -></RouterLink>
           </div>
@@ -430,7 +351,7 @@ onMounted(loadHomeData)
               </div>
 
               <div class="map-preview__results">
-                <p>Showing 5 highlights</p>
+                <p>Showing {{ locations.length }} highlights</p>
                 <div v-for="location in locations.slice(0, 3)" :key="location.id" class="result-row">
                   <span :style="{ backgroundColor: location.color }"></span>
                   <strong>{{ location.name }}</strong>
@@ -467,7 +388,7 @@ onMounted(loadHomeData)
           <div class="section-heading">
             <div>
               <h2>Upcoming Festivals &amp; Events</h2>
-              <p>From the Pili Festival to the San Miguel Bay Regatta - plan your trip around our calendar.</p>
+              <p>Plan your trip around official festivals, programs, and tourism events.</p>
             </div>
             <RouterLink to="/events">View all events -></RouterLink>
           </div>
