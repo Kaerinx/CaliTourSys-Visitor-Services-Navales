@@ -1,4 +1,6 @@
 ﻿<script setup>
+import AccreditationBadge from '../components/AccreditationBadge.vue'
+import PromotionNavbar from '../components/PromotionNavbar.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
@@ -11,6 +13,7 @@ import {
   submitTourismInquiry,
 } from '../services/promotionService'
 import { validateInquiryForm } from '../utils/formValidation'
+import ReviewsSection from '../components/ReviewsSection.vue'
 
 const VISITOR_SESSION_KEY = 'calitoursys_public_visitor'
 const PENDING_SAVE_KEY = 'calitoursys_pending_product_save'
@@ -73,9 +76,15 @@ const galleryItems = computed(() => {
       accent: product.value.accent || galleryFallbackTones[index % galleryFallbackTones.length],
     }))
     .filter((image) => image.imageUrl)
-    .filter((image, index, images) => images.findIndex((item) => item.imageUrl === image.imageUrl) === index)
+    .filter(
+      (image, index, images) =>
+        images.findIndex((item) => item.imageUrl === image.imageUrl) === index,
+    )
 
-  const items = [...primaryImage, ...imageItems.filter((image) => image.imageUrl !== product.value.imageUrl)]
+  const items = [
+    ...primaryImage,
+    ...imageItems.filter((image) => image.imageUrl !== product.value.imageUrl),
+  ]
 
   while (items.length < 4) {
     const index = items.length
@@ -103,7 +112,8 @@ async function loadProduct() {
   try {
     product.value = await getProductById(route.params.slug || route.params.id)
     selectedGalleryIndex.value = 0
-    business.value = product.value.businessProfile || await getBusinessById(product.value.businessId)
+    business.value =
+      product.value.businessProfile || (await getBusinessById(product.value.businessId))
     await refreshSavedProduct()
   } catch (error) {
     errorMessage.value = error.message || 'Unable to load product.'
@@ -130,7 +140,11 @@ async function performProductItineraryToggle() {
 
   try {
     if (isSaved.value) {
-      await removeFromItinerary({ id: product.value.id, apiId: product.value.apiId, type: 'product' })
+      await removeFromItinerary({
+        id: product.value.id,
+        apiId: product.value.apiId,
+        type: 'product',
+      })
       isSaved.value = false
       feedbackMessage.value = 'Removed from itinerary'
     } else {
@@ -262,53 +276,7 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="detail-page">
-    <header class="site-nav">
-      <div class="site-nav__inner">
-        <RouterLink to="/" class="brand" aria-label="TWBIS Home">
-          <span class="brand__mark">T</span>
-          <span class="brand__copy">
-            <span class="brand__name">TWBIS</span>
-            <span class="brand__tagline">Calabanga Tourism</span>
-          </span>
-        </RouterLink>
-
-        <nav class="site-nav__links" aria-label="Primary navigation">
-          <RouterLink to="/" class="site-nav__link">Home</RouterLink>
-          <RouterLink to="/destinations" class="site-nav__link">Destination</RouterLink>
-          <RouterLink to="/products" class="site-nav__link site-nav__link--active">
-            Products
-          </RouterLink>
-          <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
-          <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
-          <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
-          <div class="site-nav__dropdown">
-            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
-              Accreditation
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <div class="site-nav__dropdown-menu">
-              <RouterLink to="/accreditation">Online Accreditation</RouterLink>
-              <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
-            </div>
-          </div>
-          <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
-        </nav>
-
-        <div class="site-nav__actions">
-          <button class="icon-button" type="button" aria-label="Search planned for later" disabled>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.2-3.2" />
-            </svg>
-          </button>
-          <RouterLink class="login-button" :to="{ path: $route.path, query: { ...$route.query, auth: 'login' } }" aria-label="Open visitor login">
-            Login
-          </RouterLink>
-        </div>
-      </div>
-    </header>
+    <PromotionNavbar />
 
     <div class="breadcrumb-bar">
       <div class="page-shell">
@@ -338,10 +306,12 @@ onBeforeUnmount(() => {
           class="gallery-main"
           :style="{
             '--product-accent': selectedGalleryItem?.accent || product.accent,
-            backgroundImage: selectedGalleryItem?.imageUrl ? `url(${selectedGalleryItem.imageUrl})` : undefined,
+            backgroundImage: selectedGalleryItem?.imageUrl
+              ? `url(${selectedGalleryItem.imageUrl})`
+              : undefined,
           }"
         >
-          <span v-if="product.accredited" class="accreditation-badge"><span></span>LGU Accredited</span>
+          <AccreditationBadge v-if="product.accredited" floating />
         </div>
         <div class="thumbnail-row">
           <button
@@ -373,10 +343,7 @@ onBeforeUnmount(() => {
       <aside class="detail-card">
         <div class="badge-row">
           <span class="category-badge">{{ product.category }}</span>
-          <span v-if="product.accredited" class="accreditation-badge accreditation-badge--static">
-            <span></span>
-            LGU Accredited
-          </span>
+          <AccreditationBadge v-if="product.accredited" />
         </div>
         <h1>{{ product.name }}</h1>
         <p class="price">{{ product.price }}</p>
@@ -394,7 +361,9 @@ onBeforeUnmount(() => {
           <span class="producer-avatar">{{ initials }}</span>
           <span>
             <strong>By {{ business.name }}</strong>
-            <small>Accredited since {{ business.accreditedSince }} Â· {{ business.location }}</small>
+            <small
+              >Accredited since {{ business.accreditedSince }} Â· {{ business.location }}</small
+            >
             <small>{{ business.description }}</small>
           </span>
         </div>
@@ -419,13 +388,12 @@ onBeforeUnmount(() => {
             class="suggested-card__media"
             :style="{
               '--product-accent': suggestedProduct.accent,
-              backgroundImage: suggestedProduct.imageUrl ? `url(${suggestedProduct.imageUrl})` : undefined,
+              backgroundImage: suggestedProduct.imageUrl
+                ? `url(${suggestedProduct.imageUrl})`
+                : undefined,
             }"
           >
-            <span v-if="suggestedProduct.accredited" class="accreditation-badge">
-              <span></span>
-              LGU Accredited
-            </span>
+            <AccreditationBadge v-if="suggestedProduct.accredited" floating />
           </div>
 
           <div class="suggested-card__body">
@@ -433,7 +401,11 @@ onBeforeUnmount(() => {
             <h3>{{ suggestedProduct.name }}</h3>
             <p>
               {{ suggestedProduct.producer }}
-              <span v-if="suggestedProduct.accredited" class="suggested-card__verified" aria-label="Accredited producer"></span>
+              <span
+                v-if="suggestedProduct.accredited"
+                class="suggested-card__verified"
+                aria-label="Accredited producer"
+              ></span>
             </p>
 
             <div class="suggested-card__footer">
@@ -445,11 +417,25 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
+    <section v-if="!isLoading && !errorMessage && product" class="page-shell detail-reviews">
+      <ReviewsSection target-type="product" :target-id="product.id" :target-name="product.name" />
+    </section>
+
     <div v-if="isContactOpen" class="contact-modal" @click.self="closeContactProducer">
-      <form class="contact-modal__panel" role="dialog" aria-modal="true" aria-labelledby="contact-producer-title" @submit.prevent="submitProducerInquiry">
+      <form
+        class="contact-modal__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="contact-producer-title"
+        @submit.prevent="submitProducerInquiry"
+      >
         <header class="contact-modal__header">
           <h2 id="contact-producer-title">Contact Producer</h2>
-          <button type="button" aria-label="Close contact producer form" @click="closeContactProducer">
+          <button
+            type="button"
+            aria-label="Close contact producer form"
+            @click="closeContactProducer"
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M18 6 6 18" />
               <path d="m6 6 12 12" />
@@ -460,17 +446,31 @@ onBeforeUnmount(() => {
         <div class="contact-modal__body">
           <label>
             <span>Name</span>
-            <input v-model="contactForm.fullName" type="text" autocomplete="name" :disabled="isContactSubmitting" />
+            <input
+              v-model="contactForm.fullName"
+              type="text"
+              autocomplete="name"
+              :disabled="isContactSubmitting"
+            />
           </label>
 
           <label>
             <span>Email</span>
-            <input v-model="contactForm.email" type="email" autocomplete="email" :disabled="isContactSubmitting" />
+            <input
+              v-model="contactForm.email"
+              type="email"
+              autocomplete="email"
+              :disabled="isContactSubmitting"
+            />
           </label>
 
           <label>
             <span>Message</span>
-            <textarea v-model="contactForm.message" rows="4" :disabled="isContactSubmitting"></textarea>
+            <textarea
+              v-model="contactForm.message"
+              rows="4"
+              :disabled="isContactSubmitting"
+            ></textarea>
           </label>
 
           <p
@@ -482,7 +482,9 @@ onBeforeUnmount(() => {
           </p>
 
           <div class="contact-modal__actions">
-            <button type="button" :disabled="isContactSubmitting" @click="closeContactProducer">Cancel</button>
+            <button type="button" :disabled="isContactSubmitting" @click="closeContactProducer">
+              Cancel
+            </button>
             <button type="submit" :disabled="isContactSubmitting">
               {{ isContactSubmitting ? 'Sending...' : 'Send inquiry' }}
             </button>
@@ -520,161 +522,6 @@ button {
   margin: 0 auto;
 }
 
-.site-nav {
-  position: fixed;
-  z-index: 50;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #e8e4dc;
-}
-
-.site-nav__inner {
-  width: min(100% - 48px, 1200px);
-  height: 100%;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 32px;
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.brand__mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: #1b4332;
-  color: #ffffff;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-weight: 700;
-}
-
-.brand__copy {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.05;
-}
-
-.brand__name {
-  color: #1b4332;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.brand__tagline {
-  color: #5c5c5c;
-  font-size: 11px;
-}
-
-.site-nav__links {
-  display: flex;
-  align-self: stretch;
-  align-items: stretch;
-  justify-content: center;
-  gap: 14px;
-}
-
-.site-nav__link {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
-  color: #1a1a1a;
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.site-nav__link--active,
-.site-nav__link:hover {
-  color: #1b4332;
-}
-
-.site-nav__link--active::after {
-  position: absolute;
-  right: 6px;
-  bottom: 19px;
-  left: 6px;
-  height: 2px;
-  border-radius: 999px;
-  background: #1b4332;
-  content: '';
-}
-
-.site-nav__actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.icon-button,
-.login-button {
-  border: 0;
-  background: transparent;
-  color: #1a1a1a;
-  cursor: pointer;
-}
-
-.icon-button {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-}
-
-.icon-button:hover {
-  background: #f2f0eb;
-}
-
-.icon-button:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
-.icon-button svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2;
-}
-
-.login-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 38px;
-  padding: 0 18px;
-  border: 1.5px solid #1b4332;
-  border-radius: 8px;
-  color: #1b4332;
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.login-button:hover {
-  background: #d8f3dc;
-}
-
-.login-button:disabled {
-  cursor: default;
-  opacity: 0.72;
-}
-
 .breadcrumb-bar {
   position: sticky;
   z-index: 45;
@@ -710,7 +557,11 @@ button {
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.28), transparent 40%),
     radial-gradient(circle at 75% 75%, rgba(0, 0, 0, 0.26), transparent 50%),
-    linear-gradient(135deg, var(--product-accent), color-mix(in srgb, var(--product-accent) 62%, white));
+    linear-gradient(
+      135deg,
+      var(--product-accent),
+      color-mix(in srgb, var(--product-accent) 62%, white)
+    );
 }
 
 .gallery-main {
@@ -755,7 +606,7 @@ button {
 h1,
 h2 {
   margin: 0;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   line-height: 1.2;
 }
 
@@ -817,34 +668,6 @@ h2 {
   color: #7a2d0e;
   font-size: 12px;
   font-weight: 500;
-}
-
-.accreditation-badge {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 10px;
-  border: 1px solid #d4ac0d;
-  border-radius: 999px;
-  background: #fff9e6;
-  color: #7d5a00;
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.accreditation-badge span {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: #d4ac0d;
-}
-
-.accreditation-badge--static {
-  position: static;
 }
 
 .detail-card h1 {
@@ -930,6 +753,10 @@ h2 {
   background: #ffffff;
 }
 
+.detail-reviews {
+  margin-bottom: 96px;
+}
+
 .suggested-products h2 {
   font-size: 24px;
 }
@@ -965,14 +792,13 @@ h2 {
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.28), transparent 40%),
     radial-gradient(circle at 75% 75%, rgba(0, 0, 0, 0.18), transparent 50%),
-    linear-gradient(135deg, var(--product-accent), color-mix(in srgb, var(--product-accent) 62%, white));
+    linear-gradient(
+      135deg,
+      var(--product-accent),
+      color-mix(in srgb, var(--product-accent) 62%, white)
+    );
   background-position: center;
   background-size: cover;
-}
-
-.suggested-card__media .accreditation-badge {
-  top: 12px;
-  right: 10px;
 }
 
 .suggested-card__body {
@@ -989,7 +815,7 @@ h2 {
   min-height: 44px;
   margin: 0;
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 17px;
   line-height: 1.25;
 }
@@ -1330,7 +1156,3 @@ h2 {
   }
 }
 </style>
-
-
-
-

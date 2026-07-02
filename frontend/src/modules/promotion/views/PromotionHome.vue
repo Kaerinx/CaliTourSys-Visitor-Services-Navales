@@ -3,7 +3,8 @@
     <p class="promotion-placeholder__caption">Calabanga · Camarines Sur</p>
     <h1>Discover the Heart of Bicol</h1>
     <p class="promotion-placeholder__note">
-      Promotion home page skeleton. Final implementation must follow DESIGN_LOCK.md and the Home screenshot section order.
+      Promotion home page skeleton. Final implementation must follow DESIGN_LOCK.md and the Home
+      screenshot section order.
     </p>
   </main>
 </template>
@@ -29,7 +30,7 @@
 h1 {
   margin: 0;
   color: #1b4332;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 44px;
   line-height: 1.2;
 }

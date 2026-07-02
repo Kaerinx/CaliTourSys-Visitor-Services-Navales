@@ -2,6 +2,7 @@ const promotionRoutes = [
   {
     path: '/',
     name: 'promotion-home',
+    alias: '/home',
     component: () => import('./views/PromotionHomeView.vue'),
   },
   {

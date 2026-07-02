@@ -3,7 +3,8 @@
     <p class="promotion-placeholder__caption">Calabanga Heritage Collection</p>
     <h1>Calabanga Cultural Museum</h1>
     <p class="promotion-placeholder__note">
-      Museum page skeleton. Final implementation must follow the locked cinematic hero, artifact grid, and artifact detail modal.
+      Museum page skeleton. Final implementation must follow the locked cinematic hero, artifact
+      grid, and artifact detail modal.
     </p>
   </main>
 </template>
@@ -33,7 +34,7 @@
 h1 {
   margin: 0;
   color: #ffffff;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 44px;
   line-height: 1.2;
 }

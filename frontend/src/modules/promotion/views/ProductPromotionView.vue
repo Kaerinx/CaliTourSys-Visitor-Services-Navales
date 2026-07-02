@@ -1,7 +1,9 @@
 ﻿<script setup>
+import AccreditationBadge from '../components/AccreditationBadge.vue'
+import PromotionNavbar from '../components/PromotionNavbar.vue'
+import PromotionFooter from '../components/PromotionFooter.vue'
 import { computed, onMounted, ref } from 'vue'
 import { getPromotionalProducts } from '../services/promotionService'
-import { useNewsletterForm } from '../composables/useNewsletterForm'
 
 const products = ref([])
 
@@ -12,7 +14,6 @@ const accreditedOnly = ref(false)
 const isLoading = ref(false)
 const errorMessage = ref('')
 const failedProductImages = ref(new Set())
-const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
 
 const categoryOptions = computed(() => [
   'All categories',
@@ -35,7 +36,13 @@ const filteredProducts = computed(() => {
     const matchesAccreditation = !accreditedOnly.value || product.accredited
     const matchesQuery =
       !query ||
-      [product.name, product.producer, product.category, product.description, ...(product.tags || [])]
+      [
+        product.name,
+        product.producer,
+        product.category,
+        product.description,
+        ...(product.tags || []),
+      ]
         .join(' ')
         .toLowerCase()
         .includes(query)
@@ -83,58 +90,7 @@ onMounted(loadProducts)
 
 <template>
   <div class="otop-page">
-    <header class="site-nav">
-      <div class="site-nav__inner">
-        <RouterLink to="/" class="brand" aria-label="TWBIS Home">
-          <span class="brand__mark">T</span>
-          <span class="brand__copy">
-            <span class="brand__name">TWBIS</span>
-            <span class="brand__tagline">Calabanga Tourism</span>
-          </span>
-        </RouterLink>
-
-        <nav class="site-nav__links" aria-label="Primary navigation">
-          <RouterLink to="/" class="site-nav__link">Home</RouterLink>
-          <RouterLink to="/destinations" class="site-nav__link">Destination</RouterLink>
-          <RouterLink to="/products" class="site-nav__link site-nav__link--active">
-            Products
-          </RouterLink>
-          <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
-          <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
-          <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
-          <div class="site-nav__dropdown">
-            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
-              Accreditation
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <div class="site-nav__dropdown-menu">
-              <RouterLink to="/accreditation">Online Accreditation</RouterLink>
-              <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
-            </div>
-          </div>
-          <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
-        </nav>
-
-        <div class="site-nav__actions">
-          <button class="icon-button" type="button" aria-label="Search planned for later" disabled>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.2-3.2" />
-            </svg>
-          </button>
-          <RouterLink class="login-button" :to="{ path: $route.path, query: { ...$route.query, auth: 'login' } }" aria-label="Open visitor login">
-            Login
-          </RouterLink>
-          <button class="icon-button icon-button--menu" type="button" aria-label="Menu" disabled title="Mobile menu is planned for a later phase">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </header>
+    <PromotionNavbar />
 
     <main>
       <section class="products-hero">
@@ -197,7 +153,12 @@ onMounted(loadProducts)
               {{ filteredProducts.length === 1 ? 'product' : 'products' }}
             </p>
             <p
-              v-if="activeCategory !== 'All categories' || activeProducer !== 'All producers' || accreditedOnly || searchQuery"
+              v-if="
+                activeCategory !== 'All categories' ||
+                activeProducer !== 'All producers' ||
+                accreditedOnly ||
+                searchQuery
+              "
               class="result-filters"
             >
               Filtered by
@@ -259,10 +220,7 @@ onMounted(loadProducts)
                     <path d="M18 28h12" />
                   </svg>
                 </span>
-                <span v-if="product.accredited" class="accreditation-badge">
-                  <span></span>
-                  LGU Accredited
-                </span>
+                <AccreditationBadge v-if="product.accredited" floating />
               </span>
               <span class="product-tile__body">
                 <span class="category-badge">{{ product.category }}</span>
@@ -273,7 +231,7 @@ onMounted(loadProducts)
                 </span>
                 <span class="product-tile__footer">
                   <span>{{ product.price }}</span>
-                  <span>View product â†’</span>
+                  <span>View product →</span>
                 </span>
               </span>
             </RouterLink>
@@ -282,67 +240,7 @@ onMounted(loadProducts)
       </section>
     </main>
 
-    <footer class="site-footer">
-      <div class="site-footer__main page-shell">
-        <div>
-          <div class="footer-brand">
-            <span class="footer-brand__mark">T</span>
-            <span>
-              <strong>TWBIS</strong>
-              <small>Calabanga Tourism</small>
-            </span>
-          </div>
-          <p>
-            The official tourism platform of the Local Government of Calabanga, Camarines Sur -
-            celebrating our coast, culture, and craft.
-          </p>
-          <div class="social-row">
-            <a aria-label="Facebook page pending" aria-disabled="true">f</a>
-            <a aria-label="Instagram page pending" aria-disabled="true">â—Ž</a>
-            <a aria-label="Youtube page pending" aria-disabled="true">â–¶</a>
-          </div>
-        </div>
-
-        <div>
-          <h4>Explore</h4>
-          <RouterLink to="/destinations">Destinations &amp; Map</RouterLink>
-          <RouterLink to="/products">Products</RouterLink>
-          <RouterLink to="/packages">Packages</RouterLink>
-          <RouterLink to="/events">Events</RouterLink>
-          <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
-        </div>
-
-        <div>
-          <h4>Visit</h4>
-          <p>LGU Calabanga, Camarines Sur 4405</p>
-          <p>+63 54 871 1234</p>
-          <p>tourism@calabanga.gov.ph</p>
-        </div>
-
-        <div>
-          <h4>Stay updated</h4>
-          <p>Festival dates, new producers, and seasonal guides - once a month.</p>
-          <form class="subscribe-form" @submit.prevent="submitNewsletter">
-            <input v-model="newsletterEmail" aria-label="Email address" placeholder="you@email.com" />
-            <button type="submit" :disabled="isSubscribing">
-              {{ isSubscribing ? 'Joining...' : 'Join' }}
-            </button>
-          </form>
-          <p v-if="newsletterMessage" class="footer-message">{{ newsletterMessage }}</p>
-        </div>
-      </div>
-
-      <div class="site-footer__bottom">
-        <div class="page-shell">
-          <span>Â© 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
-          <span>
-            <a aria-disabled="true">Privacy</a>
-            <a aria-disabled="true">Accessibility</a>
-            <RouterLink to="/promotion/inquiry">Contact</RouterLink>
-          </span>
-        </div>
-      </div>
-    </footer>
+    <PromotionFooter />
   </div>
 </template>
 
@@ -372,133 +270,6 @@ input {
   margin: 0 auto;
 }
 
-.site-nav {
-  position: fixed;
-  z-index: 50;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #e8e4dc;
-}
-
-.site-nav__inner {
-  width: min(100% - 48px, 1200px);
-  height: 100%;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 32px;
-}
-
-.brand,
-.footer-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.brand__mark,
-.footer-brand__mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: #1b4332;
-  color: #ffffff;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-weight: 700;
-}
-
-.brand__copy,
-.footer-brand span:last-child {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.05;
-}
-
-.brand__name,
-.footer-brand strong {
-  color: #1b4332;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.brand__tagline,
-.footer-brand small {
-  color: #5c5c5c;
-  font-size: 11px;
-}
-
-.site-nav__links {
-  display: flex;
-  align-self: stretch;
-  align-items: stretch;
-  justify-content: center;
-  gap: 14px;
-}
-
-.site-nav__link {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
-  color: #1a1a1a;
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.site-nav__link--active,
-.site-nav__link:hover {
-  color: #1b4332;
-}
-
-.site-nav__link--active::after {
-  position: absolute;
-  right: 6px;
-  bottom: 19px;
-  left: 6px;
-  height: 2px;
-  border-radius: 999px;
-  background: #1b4332;
-  content: '';
-}
-
-.site-nav__actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.icon-button,
-.login-button {
-  border: 0;
-  background: transparent;
-  color: #1a1a1a;
-  cursor: pointer;
-}
-
-.icon-button {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-}
-
-.icon-button:hover {
-  background: #f2f0eb;
-}
-
-.icon-button:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
 .icon-button svg,
 .search-field svg {
   width: 20px;
@@ -508,28 +279,6 @@ input {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
-}
-
-.icon-button--menu {
-  display: none;
-}
-
-.login-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 38px;
-  padding: 0 18px;
-  border: 1.5px solid #1b4332;
-  border-radius: 8px;
-  color: #1b4332;
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.login-button:hover {
-  background: #d8f3dc;
 }
 
 .products-hero {
@@ -559,7 +308,7 @@ input {
 h1 {
   margin: 14px 0 0;
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 44px;
   font-weight: 700;
   line-height: 1.2;
@@ -660,11 +409,6 @@ h1 {
   width: 16px;
   height: 16px;
   accent-color: #1b4332;
-}
-
-.login-button:disabled {
-  cursor: default;
-  opacity: 0.72;
 }
 
 .chip-bar {
@@ -857,31 +601,6 @@ h1 {
   background: #e8e4dc;
 }
 
-.accreditation-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 10px;
-  border: 1px solid #d4ac0d;
-  border-radius: 999px;
-  background: #fff9e6;
-  color: #7d5a00;
-  font-size: 11px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.accreditation-badge span {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: #d4ac0d;
-}
-
 .product-tile__body {
   display: flex;
   flex: 1;
@@ -909,7 +628,7 @@ h1 {
 .product-tile__body > strong {
   margin-top: 10px;
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 16px;
   font-weight: 600;
   line-height: 1.25;
@@ -1014,7 +733,7 @@ h1 {
 .empty-state h2 {
   margin: 24px 0 0;
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 20px;
 }
 
@@ -1087,135 +806,6 @@ h1 {
 .pagination span {
   padding: 0 8px;
   color: #5c5c5c;
-}
-
-.site-footer {
-  background: #1b4332;
-  color: #ffffff;
-}
-
-.site-footer__main {
-  display: grid;
-  grid-template-columns: 1.35fr 1fr 1.25fr 1.25fr;
-  gap: 56px;
-  padding: 64px 0;
-}
-
-.site-footer p,
-.site-footer a,
-.site-footer small {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.site-footer p {
-  max-width: 290px;
-  margin: 14px 0 0;
-  font-size: 14px;
-}
-
-.footer-brand__mark {
-  background: #ffffff;
-  color: #1b4332;
-}
-
-.footer-brand strong {
-  color: #ffffff;
-}
-
-.social-row {
-  display: flex;
-  gap: 10px;
-  margin-top: 22px;
-}
-
-.social-row a {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 999px;
-  color: #ffffff;
-  font-size: 14px;
-}
-
-.site-footer h4 {
-  margin: 0 0 18px;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.site-footer__main > div:not(:first-child) a {
-  display: block;
-  margin-top: 11px;
-  font-size: 14px;
-}
-
-.subscribe-form {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.subscribe-form input {
-  min-width: 0;
-  flex: 1;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
-  outline: 0;
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  font-size: 14px;
-}
-
-.subscribe-form input::placeholder {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.subscribe-form button {
-  height: 40px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #1b4332;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.subscribe-form button:disabled {
-  cursor: wait;
-  opacity: 0.72;
-}
-
-.footer-message {
-  margin-top: 10px !important;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 12px !important;
-}
-
-.site-footer__bottom {
-  background: #14532d;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.site-footer__bottom .page-shell {
-  min-height: 58px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 13px;
-}
-
-.site-footer__bottom a {
-  margin-left: 24px;
 }
 
 @media (max-width: 1024px) {
@@ -1329,5 +919,3 @@ h1 {
   }
 }
 </style>
-
-

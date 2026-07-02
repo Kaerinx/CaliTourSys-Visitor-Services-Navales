@@ -10,6 +10,13 @@ const CLUSTER_LAYER_ID = 'tourist-public-clusters'
 const CLUSTER_COUNT_LAYER_ID = 'tourist-public-cluster-count'
 const UNCLUSTERED_LAYER_ID = 'tourist-public-unclustered'
 const SELECTED_LAYER_ID = 'tourist-public-selected'
+const ROUTE_SOURCE_ID = 'tourist-route'
+const ROUTE_CASING_LAYER_ID = 'tourist-route-casing'
+const ROUTE_LINE_LAYER_ID = 'tourist-route-line'
+const ORIGIN_SOURCE_ID = 'tourist-route-origin'
+const ORIGIN_LAYER_ID = 'tourist-route-origin-dot'
+
+const emptyFeatureCollection = () => ({ type: 'FeatureCollection', features: [] })
 
 const props = defineProps({
   accessToken: {
@@ -23,6 +30,12 @@ const props = defineProps({
   selectedId: {
     type: String,
     default: '',
+  },
+  // Optional route to draw: { geometry: <GeoJSON LineString> } (or a LineString
+  // directly). Null clears any drawn route.
+  route: {
+    type: Object,
+    default: null,
   },
   loading: {
     type: Boolean,
@@ -60,7 +73,9 @@ const features = computed(() =>
 )
 
 const hasToken = computed(() => Boolean(props.accessToken))
-const hasValidTokenFormat = computed(() => !props.accessToken || props.accessToken.startsWith('pk.'))
+const hasValidTokenFormat = computed(
+  () => !props.accessToken || props.accessToken.startsWith('pk.'),
+)
 const hasUsableToken = computed(() => hasToken.value && hasValidTokenFormat.value)
 const canRenderMap = computed(() => hasUsableToken.value && !mapLoadError.value)
 
@@ -166,7 +181,11 @@ function selectFeature(feature, shouldEmit = true) {
     element.classList.toggle('tourist-map-marker--selected', markerId === id)
   })
   if (map?.getLayer(SELECTED_LAYER_ID)) {
-    map.setFilter(SELECTED_LAYER_ID, ['==', ['to-string', ['coalesce', ['get', 'slug'], ['get', 'id']]], id])
+    map.setFilter(SELECTED_LAYER_ID, [
+      '==',
+      ['to-string', ['coalesce', ['get', 'slug'], ['get', 'id']]],
+      id,
+    ])
   }
 
   flyToFeature(feature)
@@ -263,7 +282,11 @@ function ensureClusterLayers() {
     id: SELECTED_LAYER_ID,
     type: 'circle',
     source: CLUSTER_SOURCE_ID,
-    filter: ['==', ['to-string', ['coalesce', ['get', 'slug'], ['get', 'id']]], props.selectedId || ''],
+    filter: [
+      '==',
+      ['to-string', ['coalesce', ['get', 'slug'], ['get', 'id']]],
+      props.selectedId || '',
+    ],
     paint: {
       'circle-color': '#b5451b',
       'circle-radius': 13,
@@ -308,9 +331,11 @@ function ensureClusterLayers() {
 function setClusterVisibility(visible) {
   if (!map || !clusterLayersReady) return
   const visibility = visible ? 'visible' : 'none'
-  ;[CLUSTER_LAYER_ID, CLUSTER_COUNT_LAYER_ID, UNCLUSTERED_LAYER_ID, SELECTED_LAYER_ID].forEach((layerId) => {
-    if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visibility)
-  })
+  ;[CLUSTER_LAYER_ID, CLUSTER_COUNT_LAYER_ID, UNCLUSTERED_LAYER_ID, SELECTED_LAYER_ID].forEach(
+    (layerId) => {
+      if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visibility)
+    },
+  )
 }
 
 function syncClusterSource(mappedFeatures) {
@@ -331,7 +356,9 @@ function syncMarkers() {
     syncClusterSource(mappedFeatures)
     fitToFeatures()
 
-    const selectedFeature = mappedFeatures.find((feature) => featureId(feature) === props.selectedId)
+    const selectedFeature = mappedFeatures.find(
+      (feature) => featureId(feature) === props.selectedId,
+    )
     if (selectedFeature) selectFeature(selectedFeature, false)
     return
   }
@@ -357,7 +384,9 @@ function syncMarkers() {
       }
     })
 
-    const marker = new mapboxgl.Marker({ element, anchor: 'bottom' }).setLngLat(coordinates).addTo(map)
+    const marker = new mapboxgl.Marker({ element, anchor: 'bottom' })
+      .setLngLat(coordinates)
+      .addTo(map)
     markers.set(id, { marker, element, feature })
   })
 
@@ -365,6 +394,89 @@ function syncMarkers() {
 
   const selectedFeature = mappedFeatures.find((feature) => featureId(feature) === props.selectedId)
   if (selectedFeature) selectFeature(selectedFeature, false)
+}
+
+let routeLayersReady = false
+
+function ensureRouteLayers() {
+  if (!map || routeLayersReady) return
+
+  map.addSource(ROUTE_SOURCE_ID, { type: 'geojson', data: emptyFeatureCollection() })
+  map.addSource(ORIGIN_SOURCE_ID, { type: 'geojson', data: emptyFeatureCollection() })
+
+  // White casing beneath the coloured line for contrast over any basemap.
+  map.addLayer({
+    id: ROUTE_CASING_LAYER_ID,
+    type: 'line',
+    source: ROUTE_SOURCE_ID,
+    layout: { 'line-join': 'round', 'line-cap': 'round' },
+    paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.9 },
+  })
+
+  map.addLayer({
+    id: ROUTE_LINE_LAYER_ID,
+    type: 'line',
+    source: ROUTE_SOURCE_ID,
+    layout: { 'line-join': 'round', 'line-cap': 'round' },
+    paint: { 'line-color': '#1b4332', 'line-width': 5 },
+  })
+
+  // "You are here" origin dot at the start of the route.
+  map.addLayer({
+    id: ORIGIN_LAYER_ID,
+    type: 'circle',
+    source: ORIGIN_SOURCE_ID,
+    paint: {
+      'circle-color': '#b5451b',
+      'circle-radius': 7,
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 3,
+    },
+  })
+
+  routeLayersReady = true
+}
+
+function routeCoordinates() {
+  const geometry = props.route?.geometry || props.route
+  const coordinates = geometry?.coordinates
+  return Array.isArray(coordinates) && coordinates.length >= 2 ? coordinates : null
+}
+
+function syncRoute() {
+  if (!map || !mapReady.value) return
+  ensureRouteLayers()
+
+  const routeSource = map.getSource(ROUTE_SOURCE_ID)
+  const originSource = map.getSource(ORIGIN_SOURCE_ID)
+  if (!routeSource || !originSource) return
+
+  const coordinates = routeCoordinates()
+
+  if (!coordinates) {
+    routeSource.setData(emptyFeatureCollection())
+    originSource.setData(emptyFeatureCollection())
+    return
+  }
+
+  routeSource.setData({
+    type: 'Feature',
+    geometry: { type: 'LineString', coordinates },
+    properties: {},
+  })
+  originSource.setData({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: coordinates[0] },
+    properties: {},
+  })
+
+  const bounds = new mapboxgl.LngLatBounds()
+  coordinates.forEach((coordinate) => bounds.extend(coordinate))
+  map.fitBounds(bounds, {
+    padding: { top: 90, right: 60, bottom: 90, left: 60 },
+    maxZoom: 15,
+    duration: 600,
+  })
 }
 
 async function initializeMap() {
@@ -385,15 +497,19 @@ async function initializeMap() {
     map.on('load', () => {
       mapReady.value = true
       map.resize()
+      ensureRouteLayers()
       syncMarkers()
+      syncRoute()
     })
     map.on('error', (event) => {
       const status = event?.error?.status
       const message = String(event?.error?.message || '')
-      const tokenRelated = message.toLowerCase().includes('token') || status === 401 || status === 403
+      const tokenRelated =
+        message.toLowerCase().includes('token') || status === 401 || status === 403
 
       if (!mapReady.value && tokenRelated) {
-        mapLoadError.value = 'Mapbox rejected the public token. Please check VITE_MAPBOX_PUBLIC_TOKEN.'
+        mapLoadError.value =
+          'Mapbox rejected the public token. Please check VITE_MAPBOX_PUBLIC_TOKEN.'
         emit('map-error', mapLoadError.value)
         return
       }
@@ -435,6 +551,8 @@ watch(
   },
 )
 
+watch(() => props.route, syncRoute, { deep: true })
+
 onMounted(initializeMap)
 
 onBeforeUnmount(() => {
@@ -444,6 +562,7 @@ onBeforeUnmount(() => {
   map?.remove()
   map = null
   clusterLayersReady = false
+  routeLayersReady = false
 })
 </script>
 
@@ -453,7 +572,10 @@ onBeforeUnmount(() => {
 
     <div v-if="!hasToken" class="tourist-mapbox__state">
       <strong>Map unavailable</strong>
-      <span>Add VITE_MAPBOX_PUBLIC_TOKEN to the frontend environment to enable the interactive map.</span>
+      <span
+        >Add VITE_MAPBOX_PUBLIC_TOKEN to the frontend environment to enable the interactive
+        map.</span
+      >
     </div>
 
     <div v-else-if="!hasValidTokenFormat" class="tourist-mapbox__state">
@@ -540,7 +662,7 @@ onBeforeUnmount(() => {
 
 .tourist-mapbox__state strong {
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 16px;
 }
 
@@ -562,7 +684,9 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   background: var(--marker-color, #1b4332);
-  clip-path: path('M16 0C7.2 0 0 7.1 0 15.9 0 26.7 16 42 16 42s16-15.3 16-26.1C32 7.1 24.8 0 16 0Z');
+  clip-path: path(
+    'M16 0C7.2 0 0 7.1 0 15.9 0 26.7 16 42 16 42s16-15.3 16-26.1C32 7.1 24.8 0 16 0Z'
+  );
   content: '';
 }
 
@@ -617,7 +741,7 @@ onBeforeUnmount(() => {
 
 :global(.tourist-map-popup h3) {
   margin: 0;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.25;
 }

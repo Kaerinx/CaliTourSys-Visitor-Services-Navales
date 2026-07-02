@@ -3,7 +3,8 @@
     <p class="promotion-placeholder__caption">Design System · v1.0</p>
     <h1>TWBIS Design Language</h1>
     <p class="promotion-placeholder__note">
-      Design reference page skeleton. Final implementation must mirror the Figmake component notes if this route remains enabled.
+      Design reference page skeleton. Final implementation must mirror the Figmake component notes
+      if this route remains enabled.
     </p>
   </main>
 </template>
@@ -29,7 +30,7 @@
 h1 {
   margin: 0;
   color: #1b4332;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 44px;
   line-height: 1.2;
 }
