@@ -1,21 +1,10 @@
 import * as promotionApi from './promotionApi'
-import {
-  businessProfiles,
-  campaigns as mockCampaigns,
-  destinations as mockDestinations,
-  events as mockEvents,
-  itineraryItems,
-  mapLocations as mockMapLocations,
-  museumItems as mockMuseumItems,
-  otopProducts,
-  promotions as mockPromotions,
-} from '../data/promotionMockData'
 
-let itineraryState = [...itineraryItems]
+let itineraryState = []
 const ITINERARY_SESSION_KEY = 'calitoursys_itinerary_session'
 
-const DEVELOPMENT_FALLBACK_MESSAGE =
-  'Using development-only mock promotion data because the backend API is unavailable.'
+const API_UNAVAILABLE_MESSAGE =
+  'The public tourism API is unavailable, so no content could be loaded right now.'
 
 const accentPalette = ['#B5451B', '#7B341E', '#1B4332', '#D4711B', '#1565C0', '#D4AC0D']
 
@@ -30,13 +19,15 @@ const wait = (payload, delay = 80) =>
     window.setTimeout(() => resolve(clone(payload)), delay)
   })
 
-async function withMockFallback(apiCall, fallbackFactory) {
+// Returns live API data. If the API is unavailable we resolve to an empty value
+// (never fabricated demo content) so the UI renders its empty state.
+async function withApiData(apiCall, emptyValue = []) {
   try {
     const response = await apiCall()
     return response.data
   } catch (error) {
-    console.warn(DEVELOPMENT_FALLBACK_MESSAGE, error)
-    return clone(typeof fallbackFactory === 'function' ? fallbackFactory(error) : fallbackFactory)
+    console.warn(API_UNAVAILABLE_MESSAGE, error)
+    return clone(emptyValue)
   }
 }
 
@@ -103,7 +94,10 @@ function mapProduct(product, index = 0) {
     accent: colorFor(product.category, index),
     accredited: product.accreditationStatus === 'accredited',
     featured: Boolean(product.isFeatured),
-    description: product.shortDescription || product.description || 'Public product information is being prepared.',
+    description:
+      product.shortDescription ||
+      product.description ||
+      'Public product information is being prepared.',
     tags: product.tags || [],
     imageUrl: product.primaryImage?.url,
   }
@@ -150,10 +144,33 @@ function inferPackageCategory(tourismPackage) {
   return 'Nature'
 }
 
+function packageCategoryList(tourismPackage, fallback) {
+  // Categories are flexible combinations attached to the package. Prefer an
+  // explicit array from the API; otherwise split a combined string (e.g.
+  // "Sports, Outdoor & Endurance") so the UI can render the full cluster.
+  if (Array.isArray(tourismPackage.categories) && tourismPackage.categories.length) {
+    return tourismPackage.categories
+      .map((category) => ({
+        name: categoryName(category),
+        color: category?.color || category?.markerColor || '',
+      }))
+      .filter((category) => category.name)
+  }
+
+  const combined = categoryName(tourismPackage.category) || fallback
+  return String(combined)
+    .split(/\s*(?:,|\/|&|\+)\s*/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((name) => ({ name, color: '' }))
+}
+
 function mapReadyPackage(tourismPackage, index = 0) {
   const packageItems = Array.isArray(tourismPackage.items) ? tourismPackage.items : []
   const category = categoryName(tourismPackage.category) || inferPackageCategory(tourismPackage)
-  const packageId = tourismPackage.slug || `package-${slugify(tourismPackage.name)}-${tourismPackage.id}`
+  const categories = packageCategoryList(tourismPackage, category)
+  const packageId =
+    tourismPackage.slug || `package-${slugify(tourismPackage.name)}-${tourismPackage.id}`
 
   return {
     id: packageId,
@@ -164,6 +181,7 @@ function mapReadyPackage(tourismPackage, index = 0) {
     businessId: null,
     price: 'Price upon inquiry',
     category,
+    categories,
     accent: accentPalette[(index + 2) % accentPalette.length],
     accredited: true,
     featured: true,
@@ -172,15 +190,20 @@ function mapReadyPackage(tourismPackage, index = 0) {
       tourismPackage.remarks ||
       'This tourism package has been approved for promotion handoff.',
     tags: [tourismPackage.targetMarket, tourismPackage.estimatedDuration].filter(Boolean),
-    imageUrl: tourismPackage.primaryImage?.url || tourismPackage.imageUrl || packageImageForCategory(category),
+    imageUrl:
+      tourismPackage.primaryImage?.url ||
+      tourismPackage.imageUrl ||
+      packageImageForCategory(category),
     sourceModule: 'product-development',
     packageStatus: tourismPackage.packageStatus,
     targetMarket: tourismPackage.targetMarket || 'General visitors',
     estimatedDuration: tourismPackage.estimatedDuration || 'Duration to be confirmed',
     itemCount: tourismPackage.itemCount ?? packageItems.length,
-    assetCount: tourismPackage.assetCount ?? packageItems.filter((item) => item.itemType === 'Asset').length,
+    assetCount:
+      tourismPackage.assetCount ?? packageItems.filter((item) => item.itemType === 'Asset').length,
     activityCount:
-      tourismPackage.activityCount ?? packageItems.filter((item) => item.itemType === 'Activity').length,
+      tourismPackage.activityCount ??
+      packageItems.filter((item) => item.itemType === 'Activity').length,
     remarks: tourismPackage.remarks || '',
     items: packageItems,
   }
@@ -194,14 +217,13 @@ async function getReadyPackageById(id) {
     const response = await promotionApi.getPackageBySlug(id)
     data = response.data
   } catch {
-    const readyPackages = await withMockFallback(
-      () => promotionApi.getReadyForPromotionPackages(),
-      () => [],
-    )
-    mappedPackage = readyPackages.map(mapReadyPackage).find(
-      (packageCard) =>
-        packageCard.id === id || packageCard.slug === id || packageCard.apiId === id,
-    )
+    const readyPackages = await withApiData(() => promotionApi.getReadyForPromotionPackages(), [])
+    mappedPackage = readyPackages
+      .map(mapReadyPackage)
+      .find(
+        (packageCard) =>
+          packageCard.id === id || packageCard.slug === id || packageCard.apiId === id,
+      )
   }
 
   const tourismPackage = mappedPackage || (data ? mapReadyPackage(data) : null)
@@ -234,8 +256,7 @@ function packageImageForCategory(category) {
       'https://commons.wikimedia.org/wiki/Special:FilePath/Quipayo%20Church%20%28S.%20Ciencia%29%20-%20Flickr.jpg',
     Nature:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Sunset%20at%20San%20Miguel%20Bay%2C%20Calabanga.jpg',
-    Food:
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Sea%20Side%20Calabanga%20Camarines%20Sur.jpg',
+    Food: 'https://commons.wikimedia.org/wiki/Special:FilePath/Sea%20Side%20Calabanga%20Camarines%20Sur.jpg',
     Events:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
   }
@@ -283,7 +304,9 @@ function mapBusiness(business) {
     name: business.name,
     type: business.businessType,
     owner: business.ownerName,
-    location: [business.barangay, business.municipality, business.province].filter(Boolean).join(', '),
+    location: [business.barangay, business.municipality, business.province]
+      .filter(Boolean)
+      .join(', '),
     accreditationStatus: business.accreditation?.status || 'pending',
     accreditedSince: business.accreditation?.issuedAt
       ? new Date(business.accreditation.issuedAt).getFullYear()
@@ -306,7 +329,9 @@ function mapAccreditedBusiness(business) {
     business.barangay,
     business.municipality || business.cityMunicipality,
     business.province,
-  ].filter(Boolean).join(', ')
+  ]
+    .filter(Boolean)
+    .join(', ')
 
   return {
     id: business.id,
@@ -361,7 +386,9 @@ function mapDestination(destination, index = 0) {
     address: [destination.barangay, 'Calabanga', 'Camarines Sur'].filter(Boolean).join(', '),
     hours: destination.openingHoursText || 'Visiting information to be confirmed',
     description:
-      destination.shortDescription || destination.description || 'Destination details are being prepared.',
+      destination.shortDescription ||
+      destination.description ||
+      'Destination details are being prepared.',
     x: 24 + ((index * 17) % 58),
     y: 24 + ((index * 23) % 52),
     accredited: true,
@@ -401,7 +428,8 @@ function mapArtifact(artifact, index = 0) {
     era: artifact.eraLabel || artifact.category?.name || 'Heritage',
     accent: colorFor(artifact.category, index),
     category: categoryName(artifact.category),
-    desc: artifact.shortDescription || artifact.description || 'Artifact details are being prepared.',
+    desc:
+      artifact.shortDescription || artifact.description || 'Artifact details are being prepared.',
     details: artifact.historicalNotes || artifact.description,
     featured: Boolean(artifact.isFeatured),
     imageUrl: artifact.primaryImage?.url,
@@ -411,86 +439,62 @@ function mapArtifact(artifact, index = 0) {
 function userMessageForError(error) {
   if (error?.status === 429) return 'Too many requests. Please try again later.'
   if (error?.status === 404) return 'This item is no longer available.'
-  if (error?.code === 'NETWORK_ERROR') return 'Unable to connect to the tourism API. Please try again later.'
+  if (error?.code === 'NETWORK_ERROR')
+    return 'Unable to connect to the tourism API. Please try again later.'
   return error?.message || 'The request could not be completed. Please try again.'
 }
 
 export async function getHome() {
-  return withMockFallback(() => promotionApi.getHome(), () => ({
-    featuredProducts: otopProducts.slice(0, 4),
-    upcomingEvents: mockEvents.slice(0, 3),
-    featuredDestinations: mockDestinations.slice(0, 5),
-    featuredMuseumArtifacts: mockMuseumItems.slice(0, 4),
-    featuredPromotions: mockPromotions,
-  }))
+  return withApiData(() => promotionApi.getHome(), {
+    featuredProducts: [],
+    upcomingEvents: [],
+    featuredDestinations: [],
+    featuredMuseumArtifacts: [],
+    featuredPromotions: [],
+  })
 }
 
 export async function getPromotions(params) {
-  const data = await withMockFallback(
-    () => promotionApi.getPromotions(params),
-    () => mockPromotions,
-  )
+  const data = await withApiData(() => promotionApi.getPromotions(params), [])
   return Array.isArray(data) ? data : []
 }
 
-export function getCampaigns() {
-  return wait(mockCampaigns)
-}
-
 export async function getEvents(params) {
-  const data = await withMockFallback(
-    () => promotionApi.getEvents(params),
-    () => mockEvents,
-  )
+  const data = await withApiData(() => promotionApi.getEvents(params), [])
   return data.map((event, index) => (event.slug ? mapEvent(event, index) : event))
 }
 
 export async function getDestinations(params) {
-  const data = await withMockFallback(
-    () => promotionApi.getDestinations(params),
-    () => mockDestinations,
-  )
+  const data = await withApiData(() => promotionApi.getDestinations(params), [])
   return data.map((destination, index) =>
     destination.slug ? mapDestination(destination, index) : destination,
   )
 }
 
 export async function getPromotionalProducts(params) {
-  const data = await withMockFallback(
-    () => promotionApi.getProducts(params),
-    () => otopProducts,
-  )
+  const data = await withApiData(() => promotionApi.getProducts(params), [])
 
   return data.map((product, index) => (product.slug ? mapProduct(product, index) : product))
 }
 
 export async function getPromotionalPackages() {
-  const readyPackages = await withMockFallback(
+  const readyPackages = await withApiData(
     () => promotionApi.getReadyForPromotionPackages(),
-    () => [],
+    [],
   )
 
   return readyPackages.map(mapReadyPackage)
 }
 
 export async function getProductById(id) {
-  const data = await withMockFallback(
-    () => promotionApi.getProductBySlug(id),
-    () => {
-      const product = otopProducts.find((item) => item.id === id)
-      if (!product) throw new Error('Product not found')
-      return product
-    },
-  )
+  const response = await promotionApi.getProductBySlug(id).catch((error) => {
+    throw new Error(userMessageForError(error))
+  })
+  const data = response.data
 
   if (data.product) return mapProductDetail(data)
 
-  return {
-    ...data,
-    relatedProducts: otopProducts
-      .filter((item) => item.id !== data.id)
-      .slice(0, 4),
-  }
+  return { ...data, relatedProducts: [] }
 }
 
 export function getPackageById(id) {
@@ -498,22 +502,18 @@ export function getPackageById(id) {
 }
 
 export async function getBusinessById(id) {
-  const data = await withMockFallback(
-    () => promotionApi.getBusinessBySlug(id),
-    () => {
-      const business = businessProfiles.find((item) => item.id === id)
-      if (!business) throw new Error('Business profile not found')
-      return business
-    },
-  )
+  const response = await promotionApi.getBusinessBySlug(id).catch((error) => {
+    throw new Error(userMessageForError(error))
+  })
+  const data = response.data
 
   return data.slug ? mapBusiness(data) : data
 }
 
 export async function getAccreditedBusinesses(params = {}) {
-  const data = await withMockFallback(
+  const data = await withApiData(
     () => promotionApi.getBusinesses({ limit: 50, sort: '-issuedAt', ...params }),
-    () => businessProfiles.filter((business) => business.accreditationStatus === 'accredited'),
+    [],
   )
 
   return data.map((business) =>
@@ -522,10 +522,7 @@ export async function getAccreditedBusinesses(params = {}) {
 }
 
 export async function getMapLocations(params = { format: 'list' }) {
-  const data = await withMockFallback(
-    () => promotionApi.getMapLocations(params),
-    () => mockMapLocations,
-  )
+  const data = await withApiData(() => promotionApi.getMapLocations(params), [])
 
   if (data?.type === 'FeatureCollection') {
     return data.features.map((feature, index) =>
@@ -547,44 +544,20 @@ export async function getMapLocations(params = { format: 'list' }) {
     )
   }
 
-  return data.map((location, index) => (location.locationType ? mapMapLocation(location, index) : location))
+  return data.map((location, index) =>
+    location.locationType ? mapMapLocation(location, index) : location,
+  )
 }
 
 export async function getMapLocationGeoJson(params = {}) {
-  return withMockFallback(
-    () => promotionApi.getMapLocations({ ...params, format: 'geojson' }),
-    () => ({
-      type: 'FeatureCollection',
-      features: mockMapLocations.map((location, index) => ({
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [
-            123.24 + (Number(location.x || index * 8) - 50) / 1000,
-            13.7 + (Number(location.y || index * 8) - 50) / 1000,
-          ],
-        },
-        properties: {
-          id: location.id,
-          locationType: 'destination',
-          slug: location.id,
-          label: location.name,
-          category: location.category,
-          markerColor: location.color,
-          markerIcon: null,
-          primaryImage: location.imageUrl,
-          description: location.description,
-        },
-      })),
-    }),
-  )
+  return withApiData(() => promotionApi.getMapLocations({ ...params, format: 'geojson' }), {
+    type: 'FeatureCollection',
+    features: [],
+  })
 }
 
 export async function getMuseumItems(params) {
-  const data = await withMockFallback(
-    () => promotionApi.getMuseumArtifacts(params),
-    () => mockMuseumItems,
-  )
+  const data = await withApiData(() => promotionApi.getMuseumArtifacts(params), [])
   return data.map((artifact, index) => (artifact.slug ? mapArtifact(artifact, index) : artifact))
 }
 
@@ -704,13 +677,16 @@ export async function removeFromItinerary(item) {
   const savedItem = itineraryState.find(
     (saved) =>
       saved.itemType === itemType &&
-      (saved.itemId === itemId || saved.apiId === item.apiId || saved.backendItemId === item.backendItemId),
+      (saved.itemId === itemId ||
+        saved.apiId === item.apiId ||
+        saved.backendItemId === item.backendItemId),
   )
 
   if (savedItem?.backendItemId) {
     try {
       const sessionToken = getStoredSessionToken()
-      if (sessionToken) await promotionApi.deleteItineraryItem(sessionToken, savedItem.backendItemId)
+      if (sessionToken)
+        await promotionApi.deleteItineraryItem(sessionToken, savedItem.backendItemId)
     } catch (error) {
       if (error?.status !== 404) throw new Error(userMessageForError(error))
     }
@@ -720,7 +696,9 @@ export async function removeFromItinerary(item) {
     (saved) =>
       !(
         saved.itemType === itemType &&
-        (saved.itemId === itemId || saved.apiId === item.apiId || saved.backendItemId === item.backendItemId)
+        (saved.itemId === itemId ||
+          saved.apiId === item.apiId ||
+          saved.backendItemId === item.backendItemId)
       ),
   )
 

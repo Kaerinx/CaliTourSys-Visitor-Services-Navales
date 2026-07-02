@@ -3,7 +3,8 @@
     <p class="promotion-placeholder__caption">Map · Discovery</p>
     <h1>Discover</h1>
     <p class="promotion-placeholder__note">
-      Map discovery page skeleton. Final implementation must use the locked 360px sidebar and full-viewport map layout.
+      Map discovery page skeleton. Final implementation must use the locked 360px sidebar and
+      full-viewport map layout.
     </p>
   </main>
 </template>
@@ -29,7 +30,7 @@
 h1 {
   margin: 0;
   color: #1b4332;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 44px;
   line-height: 1.2;
 }

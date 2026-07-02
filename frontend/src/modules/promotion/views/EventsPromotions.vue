@@ -1,4 +1,6 @@
 ﻿<script setup>
+import PromotionNavbar from '../components/PromotionNavbar.vue'
+import PromotionFooter from '../components/PromotionFooter.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -8,57 +10,13 @@ import {
   saveToItinerary,
   sharePublicItem,
 } from '../services/promotionService'
-import { useNewsletterForm } from '../composables/useNewsletterForm'
 
 const VISITOR_SESSION_KEY = 'calitoursys_public_visitor'
 const PENDING_SAVE_KEY = 'calitoursys_pending_event_save'
 const route = useRoute()
 const router = useRouter()
 
-const events = ref([
-  {
-    id: 'pili-fest',
-    title: 'Pili Festival 2026',
-    day: '24',
-    month: 'MAY',
-    date: '24 MAY 2026',
-    location: 'Calabanga Town Plaza',
-    category: 'Festival',
-    accent: '#B5451B',
-    desc: 'A week-long celebration of the pili nut harvest with parades, cooking competitions, and live cultural performances along the plaza.',
-    featured: true,
-  },
-  {
-    id: 'regatta',
-    title: 'San Miguel Bay Regatta',
-    day: '08',
-    month: 'MAY',
-    location: 'Sabang Beach Front',
-    category: 'Sports',
-    accent: '#1565C0',
-    desc: 'Traditional outrigger boats race across the bay at sunrise - a centuries-old tradition of our fishing barangays.',
-  },
-  {
-    id: 'art-walk',
-    title: 'Quipayo Heritage Art Walk',
-    day: '15',
-    month: 'MAY',
-    location: 'Quipayo Old Stone Church',
-    category: 'Culture',
-    accent: '#7B341E',
-    desc: 'Walking tour of murals, weaving demos, and the 18th-century Quipayo church bell tower.',
-  },
-  {
-    id: 'harvest',
-    title: 'Rice Harvest Thanksgiving',
-    day: '02',
-    month: 'MAY',
-    location: 'Belen Barangay Rice Fields',
-    category: 'Culture',
-    accent: '#1B7A4A',
-    desc: 'Join farmers in the planting season ritual followed by a community feast in the rice paddies of Belen.',
-  },
-])
+const events = ref([])
 
 const featuredEvent = computed(() => events.value[0] || null)
 const eventCards = computed(() => events.value.slice(1))
@@ -70,7 +28,6 @@ const isSaving = ref(false)
 const isLoading = ref(true)
 const errorMessage = ref('')
 const isVisitorAuthenticated = ref(hasVisitorSession())
-const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const calendarEvents = computed(() =>
@@ -208,8 +165,7 @@ async function shareEvent(event) {
     path: `/events?event=${event.id}`,
   })
 
-  feedbackMessage.value =
-    result.method === 'clipboard' ? 'Event link copied' : 'Share action ready'
+  feedbackMessage.value = result.method === 'clipboard' ? 'Event link copied' : 'Share action ready'
 }
 
 onMounted(() => {
@@ -224,56 +180,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="events-page">
-    <header class="site-nav">
-      <div class="site-nav__inner">
-        <RouterLink to="/" class="brand" aria-label="TWBIS Home">
-          <span class="brand__mark">T</span>
-          <span class="brand__copy">
-            <span class="brand__name">TWBIS</span>
-            <span class="brand__tagline">Calabanga Tourism</span>
-          </span>
-        </RouterLink>
-
-        <nav class="site-nav__links" aria-label="Primary navigation">
-          <RouterLink to="/" class="site-nav__link">Home</RouterLink>
-          <RouterLink to="/destinations" class="site-nav__link">Destination</RouterLink>
-          <RouterLink to="/products" class="site-nav__link">Products</RouterLink>
-          <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
-          <RouterLink to="/events" class="site-nav__link site-nav__link--active">Events</RouterLink>
-          <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
-          <div class="site-nav__dropdown">
-            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
-              Accreditation
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <div class="site-nav__dropdown-menu">
-              <RouterLink to="/accreditation">Online Accreditation</RouterLink>
-              <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
-            </div>
-          </div>
-          <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
-        </nav>
-
-        <div class="site-nav__actions">
-          <button class="icon-button" type="button" aria-label="Search planned for later" disabled>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.2-3.2" />
-            </svg>
-          </button>
-          <RouterLink class="login-button" :to="{ path: $route.path, query: { ...$route.query, auth: 'login' } }" aria-label="Open visitor login">
-            Login
-          </RouterLink>
-          <button class="icon-button icon-button--menu" type="button" aria-label="Menu" disabled title="Mobile menu is planned for a later phase">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </header>
+    <PromotionNavbar />
 
     <main>
       <section class="events-header">
@@ -317,9 +224,15 @@ onBeforeUnmount(() => {
         <div class="page-shell">
           <div v-if="isLoading" class="event-state">Loading public events...</div>
           <div v-else-if="errorMessage" class="event-state">{{ errorMessage }}</div>
-          <div v-else-if="events.length === 0" class="event-state">No public events are available yet.</div>
+          <div v-else-if="events.length === 0" class="event-state">
+            No public events are available yet.
+          </div>
 
-          <article v-else class="featured-event" :style="{ '--event-accent': featuredEvent.accent }">
+          <article
+            v-else
+            class="featured-event"
+            :style="{ '--event-accent': featuredEvent.accent }"
+          >
             <div class="featured-event__copy">
               <span class="featured-badge"><i></i>Featured</span>
               <h2>{{ featuredEvent.title }}</h2>
@@ -336,10 +249,19 @@ onBeforeUnmount(() => {
               </p>
               <p class="featured-event__desc">{{ featuredEvent.desc }}</p>
               <div class="featured-event__actions">
-                <button class="button button--white" type="button" @click="selectedEvent = featuredEvent">
+                <button
+                  class="button button--white"
+                  type="button"
+                  @click="selectedEvent = featuredEvent"
+                >
                   View event details
                 </button>
-                <button class="button button--ghost-white" type="button" :disabled="isSaving" @click="toggleEventItinerary(featuredEvent)">
+                <button
+                  class="button button--ghost-white"
+                  type="button"
+                  :disabled="isSaving"
+                  @click="toggleEventItinerary(featuredEvent)"
+                >
                   {{ savedEventIds.has(featuredEvent.id) ? 'Saved' : 'Add to itinerary' }}
                 </button>
               </div>
@@ -352,7 +274,11 @@ onBeforeUnmount(() => {
             </div>
           </article>
 
-          <section v-if="viewMode === 'calendar'" class="calendar-panel" aria-label="May 2026 events calendar">
+          <section
+            v-if="viewMode === 'calendar'"
+            class="calendar-panel"
+            aria-label="May 2026 events calendar"
+          >
             <header class="calendar-panel__header">
               <h2>May 2026</h2>
               <div class="calendar-panel__nav" aria-label="Calendar navigation">
@@ -459,8 +385,15 @@ onBeforeUnmount(() => {
             hospitality of our community.
           </p>
           <div class="event-modal__actions">
-            <button class="event-modal__close-action" type="button" @click="selectedEvent = null">Close</button>
-            <button class="event-modal__calendar-action" type="button" :disabled="isSaving" @click="toggleEventItinerary(selectedEvent)">
+            <button class="event-modal__close-action" type="button" @click="selectedEvent = null">
+              Close
+            </button>
+            <button
+              class="event-modal__calendar-action"
+              type="button"
+              :disabled="isSaving"
+              @click="toggleEventItinerary(selectedEvent)"
+            >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M7 3v4M17 3v4M4 8h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2Z" />
                 <path d="M12 12v5M9.5 14.5h5" />
@@ -480,67 +413,7 @@ onBeforeUnmount(() => {
 
     <div v-if="feedbackMessage" class="feedback-toast">{{ feedbackMessage }}</div>
 
-    <footer class="site-footer">
-      <div class="site-footer__main page-shell">
-        <div>
-          <div class="footer-brand">
-            <span class="footer-brand__mark">T</span>
-            <span>
-              <strong>TWBIS</strong>
-              <small>Calabanga Tourism</small>
-            </span>
-          </div>
-          <p>
-            The official tourism platform of the Local Government of Calabanga, Camarines Sur -
-            celebrating our coast, culture, and craft.
-          </p>
-          <div class="social-row">
-            <a aria-label="Facebook page pending" aria-disabled="true">f</a>
-            <a aria-label="Instagram page pending" aria-disabled="true">â—Ž</a>
-            <a aria-label="Youtube page pending" aria-disabled="true">â–¶</a>
-          </div>
-        </div>
-
-        <div>
-          <h4>Explore</h4>
-          <RouterLink to="/destinations">Destinations &amp; Map</RouterLink>
-          <RouterLink to="/products">Products</RouterLink>
-          <RouterLink to="/packages">Packages</RouterLink>
-          <RouterLink to="/events">Events</RouterLink>
-          <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
-        </div>
-
-        <div>
-          <h4>Visit</h4>
-          <p>LGU Calabanga, Camarines Sur 4405</p>
-          <p>+63 54 871 1234</p>
-          <p>tourism@calabanga.gov.ph</p>
-        </div>
-
-        <div>
-          <h4>Stay updated</h4>
-          <p>Festival dates, new producers, and seasonal guides - once a month.</p>
-          <form class="subscribe-form" @submit.prevent="submitNewsletter">
-            <input v-model="newsletterEmail" aria-label="Email address" placeholder="you@email.com" />
-            <button type="submit" :disabled="isSubscribing">
-              {{ isSubscribing ? 'Joining...' : 'Join' }}
-            </button>
-          </form>
-          <p v-if="newsletterMessage" class="footer-message">{{ newsletterMessage }}</p>
-        </div>
-      </div>
-
-      <div class="site-footer__bottom">
-        <div class="page-shell">
-          <span>&copy; 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
-          <span>
-            <a aria-disabled="true">Privacy</a>
-            <a aria-disabled="true">Accessibility</a>
-            <RouterLink to="/promotion/inquiry">Contact</RouterLink>
-          </span>
-        </div>
-      </div>
-    </footer>
+    <PromotionFooter />
   </div>
 </template>
 
@@ -570,133 +443,6 @@ input {
   margin: 0 auto;
 }
 
-.site-nav {
-  position: fixed;
-  z-index: 50;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #e8e4dc;
-}
-
-.site-nav__inner {
-  width: min(100% - 48px, 1200px);
-  height: 100%;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 32px;
-}
-
-.brand,
-.footer-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.brand__mark,
-.footer-brand__mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: #1b4332;
-  color: #ffffff;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-weight: 700;
-}
-
-.brand__copy,
-.footer-brand span:last-child {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.05;
-}
-
-.brand__name,
-.footer-brand strong {
-  color: #1b4332;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.brand__tagline,
-.footer-brand small {
-  color: #5c5c5c;
-  font-size: 11px;
-}
-
-.site-nav__links {
-  display: flex;
-  align-self: stretch;
-  align-items: stretch;
-  justify-content: center;
-  gap: 14px;
-}
-
-.site-nav__link {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
-  color: #1a1a1a;
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.site-nav__link--active,
-.site-nav__link:hover {
-  color: #1b4332;
-}
-
-.site-nav__link--active::after {
-  position: absolute;
-  right: 6px;
-  bottom: 19px;
-  left: 6px;
-  height: 2px;
-  border-radius: 999px;
-  background: #1b4332;
-  content: '';
-}
-
-.site-nav__actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.icon-button,
-.login-button {
-  border: 0;
-  background: transparent;
-  color: #1a1a1a;
-  cursor: pointer;
-}
-
-.icon-button {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-}
-
-.icon-button:hover {
-  background: #f2f0eb;
-}
-
-.icon-button:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
 .icon-button svg,
 .view-toggle svg,
 .featured-event svg,
@@ -708,33 +454,6 @@ input {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
-}
-
-.icon-button--menu {
-  display: none;
-}
-
-.login-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 38px;
-  padding: 0 18px;
-  border: 1.5px solid #1b4332;
-  border-radius: 8px;
-  color: #1b4332;
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.login-button:hover {
-  background: #d8f3dc;
-}
-
-.login-button:disabled {
-  cursor: default;
-  opacity: 0.72;
 }
 
 .events-header {
@@ -765,7 +484,7 @@ h1,
 h2,
 h3 {
   margin: 0;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   line-height: 1.2;
 }
 
@@ -842,7 +561,12 @@ h1 {
   border-radius: 16px;
   background:
     radial-gradient(circle at 74% 47%, rgba(255, 255, 255, 0.14), transparent 44%),
-    linear-gradient(105deg, var(--event-accent) 0%, color-mix(in srgb, var(--event-accent) 85%, #1b4332) 52%, #1b4332 100%);
+    linear-gradient(
+      105deg,
+      var(--event-accent) 0%,
+      color-mix(in srgb, var(--event-accent) 85%, #1b4332) 52%,
+      #1b4332 100%
+    );
 }
 
 .featured-event__copy {
@@ -973,7 +697,7 @@ h1 {
 .featured-date strong {
   margin-top: 8px;
   color: #1b4332;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 36px;
   font-weight: 700;
 }
@@ -1142,7 +866,7 @@ h1 {
 }
 
 .date-badge strong {
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 28px;
   font-weight: 700;
 }
@@ -1387,135 +1111,6 @@ h1 {
   }
 }
 
-.site-footer {
-  background: #1b4332;
-  color: #ffffff;
-}
-
-.site-footer__main {
-  display: grid;
-  grid-template-columns: 1.35fr 1fr 1.25fr 1.25fr;
-  gap: 56px;
-  padding: 64px 0;
-}
-
-.site-footer p,
-.site-footer a,
-.site-footer small {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.site-footer p {
-  max-width: 290px;
-  margin: 14px 0 0;
-  font-size: 14px;
-}
-
-.footer-brand__mark {
-  background: #ffffff;
-  color: #1b4332;
-}
-
-.footer-brand strong {
-  color: #ffffff;
-}
-
-.social-row {
-  display: flex;
-  gap: 10px;
-  margin-top: 22px;
-}
-
-.social-row a {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 999px;
-  color: #ffffff;
-  font-size: 14px;
-}
-
-.site-footer h4 {
-  margin: 0 0 18px;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.site-footer__main > div:not(:first-child) a {
-  display: block;
-  margin-top: 11px;
-  font-size: 14px;
-}
-
-.subscribe-form {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.subscribe-form input {
-  min-width: 0;
-  flex: 1;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
-  outline: 0;
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  font-size: 14px;
-}
-
-.subscribe-form input::placeholder {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.subscribe-form button {
-  height: 40px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #1b4332;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.subscribe-form button:disabled {
-  cursor: wait;
-  opacity: 0.72;
-}
-
-.footer-message {
-  margin-top: 10px !important;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 12px !important;
-}
-
-.site-footer__bottom {
-  background: #14532d;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.site-footer__bottom .page-shell {
-  min-height: 58px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 13px;
-}
-
-.site-footer__bottom a {
-  margin-left: 24px;
-}
-
 @media (max-width: 1024px) {
   .site-nav__links {
     display: none;
@@ -1593,5 +1188,3 @@ h1 {
   }
 }
 </style>
-
-

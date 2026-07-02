@@ -1,21 +1,23 @@
 ﻿<script setup>
+import PromotionNavbar from '../components/PromotionNavbar.vue'
+import PromotionFooter from '../components/PromotionFooter.vue'
+import CategoryTags from '../components/CategoryTags.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { getPromotionalPackages } from '../services/promotionService'
-import { useNewsletterForm } from '../composables/useNewsletterForm'
 
 const packages = ref([])
 const searchQuery = ref('')
 const activeCategory = ref('All')
 const isLoading = ref(false)
 const errorMessage = ref('')
-const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
 
 const packageCategories = [
   {
     name: 'Nature',
     slug: 'nature',
     accent: '#2d6a4f',
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Sunset%20at%20San%20Miguel%20Bay%2C%20Calabanga.jpg',
+    image:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Sunset%20at%20San%20Miguel%20Bay%2C%20Calabanga.jpg',
     description: 'Eco routes, outdoor learning, bay views, and nature-focused trips.',
   },
   {
@@ -30,14 +32,16 @@ const packageCategories = [
     name: 'Food',
     slug: 'food',
     accent: '#b5451b',
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Sea%20Side%20Calabanga%20Camarines%20Sur.jpg',
+    image:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Sea%20Side%20Calabanga%20Camarines%20Sur.jpg',
     description: 'Food stops, local producers, and Calabanga-made flavors.',
   },
   {
     name: 'Events',
     slug: 'events',
     accent: '#1565c0',
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
+    image:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
     description: 'Festival routes, calendar-based trips, and event-ready packages.',
   },
 ]
@@ -50,7 +54,9 @@ const categoryFilters = computed(() => [
 const categoryCards = computed(() => {
   return packageCategories.map((category) => ({
     ...category,
-    count: packages.value.filter((tourismPackage) => packageMatchesCategory(tourismPackage, category.name)).length,
+    count: packages.value.filter((tourismPackage) =>
+      packageMatchesCategory(tourismPackage, category.name),
+    ).length,
   }))
 })
 
@@ -75,9 +81,19 @@ const filteredPackages = computed(() => {
 })
 
 function packageMatchesCategory(tourismPackage, categoryName) {
-  return String(tourismPackage.category || '')
-    .toLowerCase()
-    .includes(String(categoryName || '').toLowerCase())
+  const needle = String(categoryName || '').toLowerCase()
+  // Match against the full category cluster, not just the primary category.
+  const haystacks = [
+    tourismPackage.category,
+    ...(Array.isArray(tourismPackage.categories)
+      ? tourismPackage.categories.map((category) => category?.name ?? category)
+      : []),
+  ]
+  return haystacks.some((value) =>
+    String(value || '')
+      .toLowerCase()
+      .includes(needle),
+  )
 }
 
 function selectCategory(categoryName) {
@@ -120,45 +136,7 @@ onUnmounted(() => {
 
 <template>
   <div class="packages-page">
-    <header class="site-nav">
-      <div class="site-nav__inner">
-        <RouterLink to="/" class="brand" aria-label="TWBIS Home">
-          <span class="brand__mark">T</span>
-          <span class="brand__copy">
-            <span class="brand__name">TWBIS</span>
-            <span class="brand__tagline">Calabanga Tourism</span>
-          </span>
-        </RouterLink>
-
-        <nav class="site-nav__links" aria-label="Primary navigation">
-          <RouterLink to="/" class="site-nav__link">Home</RouterLink>
-          <RouterLink to="/destinations" class="site-nav__link">Destination</RouterLink>
-          <RouterLink to="/products" class="site-nav__link">Products</RouterLink>
-          <RouterLink to="/packages" class="site-nav__link site-nav__link--active">
-            Packages
-          </RouterLink>
-          <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
-          <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
-          <div class="site-nav__dropdown">
-            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
-              Accreditation
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <div class="site-nav__dropdown-menu">
-              <RouterLink to="/accreditation">Online Accreditation</RouterLink>
-              <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
-            </div>
-          </div>
-          <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
-        </nav>
-
-        <RouterLink class="login-button" :to="{ path: $route.path, query: { ...$route.query, auth: 'login' } }">
-          Login
-        </RouterLink>
-      </div>
-    </header>
+    <PromotionNavbar />
 
     <main>
       <section class="packages-hero">
@@ -167,8 +145,8 @@ onUnmounted(() => {
             <p class="eyebrow">Tourism Product Development</p>
             <h1>Explore Calabanga through curated packages</h1>
             <p>
-              Discover nature, culture, food, and events through visitor-ready
-              experiences prepared by the Tourism Product Development Module.
+              Discover nature, culture, food, and events through visitor-ready experiences prepared
+              by the Tourism Product Development Module.
             </p>
             <div class="hero-actions">
               <a href="#categories" class="primary-link">Browse categories</a>
@@ -202,10 +180,17 @@ onUnmounted(() => {
               type="button"
               class="category-card"
               :class="{ 'category-card--active': activeCategory === category.name }"
-              :style="{ '--category-accent': category.accent, '--category-image': `url(${category.image})` }"
+              :style="{
+                '--category-accent': category.accent,
+                '--category-image': `url(${category.image})`,
+              }"
               @click="selectCategory(category.name)"
             >
-              <img class="category-card__image" :src="category.image" :alt="`${category.name} package category`" />
+              <img
+                class="category-card__image"
+                :src="category.image"
+                :alt="`${category.name} package category`"
+              />
               <span class="category-card__body">
                 <strong>{{ category.name }}</strong>
                 <small>{{ category.description }}</small>
@@ -237,7 +222,11 @@ onUnmounted(() => {
                 </svg>
                 <input v-model="searchQuery" placeholder="Search packages..." />
               </label>
-              <button v-if="activeCategory !== 'All' || searchQuery" type="button" @click="clearFilters">
+              <button
+                v-if="activeCategory !== 'All' || searchQuery"
+                type="button"
+                @click="clearFilters"
+              >
                 Clear
               </button>
             </div>
@@ -290,7 +279,11 @@ onUnmounted(() => {
                 loading="lazy"
               />
               <span class="status-pill">{{ tourismPackage.packageStatus }}</span>
-              <span class="package-category">{{ tourismPackage.category }}</span>
+              <CategoryTags
+                class="package-card__categories"
+                :categories="tourismPackage.categories"
+                size="sm"
+              />
               <h2>{{ tourismPackage.name }}</h2>
               <p>{{ tourismPackage.description }}</p>
 
@@ -333,67 +326,7 @@ onUnmounted(() => {
       </section>
     </main>
 
-    <footer class="site-footer">
-      <div class="site-footer__main page-shell">
-        <div>
-          <div class="footer-brand">
-            <span class="footer-brand__mark">T</span>
-            <span>
-              <strong>TWBIS</strong>
-              <small>Calabanga Tourism</small>
-            </span>
-          </div>
-          <p>
-            The official tourism platform of the Local Government of Calabanga, Camarines Sur -
-            celebrating our coast, culture, and craft.
-          </p>
-          <div class="social-row">
-            <a aria-label="Facebook page pending" aria-disabled="true">f</a>
-            <a aria-label="Instagram page pending" aria-disabled="true">ig</a>
-            <a aria-label="Youtube page pending" aria-disabled="true">yt</a>
-          </div>
-        </div>
-
-        <div>
-          <h4>Explore</h4>
-          <RouterLink to="/destinations">Destinations &amp; Map</RouterLink>
-          <RouterLink to="/products">Products</RouterLink>
-          <RouterLink to="/packages">Packages</RouterLink>
-          <RouterLink to="/events">Events</RouterLink>
-          <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
-        </div>
-
-        <div>
-          <h4>Visit</h4>
-          <p>LGU Calabanga, Camarines Sur 4405</p>
-          <p>+63 54 871 1234</p>
-          <p>tourism@calabanga.gov.ph</p>
-        </div>
-
-        <div>
-          <h4>Stay updated</h4>
-          <p>Festival dates, new producers, and seasonal guides - once a month.</p>
-          <form class="subscribe-form" @submit.prevent="submitNewsletter">
-            <input v-model="newsletterEmail" aria-label="Email address" placeholder="you@email.com" />
-            <button type="submit" :disabled="isSubscribing">
-              {{ isSubscribing ? 'Joining...' : 'Join' }}
-            </button>
-          </form>
-          <p v-if="newsletterMessage" class="footer-message">{{ newsletterMessage }}</p>
-        </div>
-      </div>
-
-      <div class="site-footer__bottom">
-        <div class="page-shell">
-          <span>Copyright 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
-          <span>
-            <a aria-disabled="true">Privacy</a>
-            <a aria-disabled="true">Accessibility</a>
-            <RouterLink to="/promotion/inquiry">Contact</RouterLink>
-          </span>
-        </div>
-      </div>
-    </footer>
+    <PromotionFooter />
   </div>
 </template>
 
@@ -420,146 +353,6 @@ input {
 .page-shell {
   width: min(100% - 48px, 1200px);
   margin: 0 auto;
-}
-
-.site-nav {
-  position: fixed;
-  z-index: 50;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #e8e4dc;
-}
-
-.site-nav__inner {
-  width: min(100% - 48px, 1200px);
-  height: 100%;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.footer-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.brand__mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: #1b4332;
-  color: #ffffff;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-weight: 700;
-}
-
-.footer-brand__mark {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #1b4332;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-weight: 700;
-}
-
-.brand__copy {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.05;
-}
-
-.footer-brand span:last-child {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.05;
-}
-
-.brand__name {
-  color: #1b4332;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.footer-brand strong {
-  color: #ffffff;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.brand__tagline {
-  color: #5c5c5c;
-  font-size: 11px;
-}
-
-.footer-brand small {
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 11px;
-}
-
-.site-nav__links {
-  display: flex;
-  align-self: stretch;
-  align-items: stretch;
-  justify-content: center;
-  gap: 14px;
-}
-
-.site-nav__link {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
-  color: #1a1a1a;
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.site-nav__link--active,
-.site-nav__link:hover {
-  color: #1b4332;
-}
-
-.site-nav__link--active::after {
-  position: absolute;
-  right: 6px;
-  bottom: 19px;
-  left: 6px;
-  height: 2px;
-  border-radius: 999px;
-  background: #1b4332;
-  content: '';
-}
-
-.login-button {
-  height: 38px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 18px;
-  border: 1.5px solid #1b4332;
-  border-radius: 8px;
-  color: #1b4332;
-  font-size: 14px;
-  font-weight: 500;
 }
 
 .packages-hero {
@@ -589,7 +382,7 @@ input {
 h1 {
   margin: 14px 0 0;
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 44px;
   line-height: 1.15;
 }
@@ -694,9 +487,7 @@ h1 {
   padding: 0;
   border: 1px solid #e8e4dc;
   border-radius: 12px;
-  background:
-    radial-gradient(circle at 85% 10%, rgba(212, 172, 13, 0.2), transparent 32%),
-    #ffffff;
+  background: radial-gradient(circle at 85% 10%, rgba(212, 172, 13, 0.2), transparent 32%), #ffffff;
   transition:
     border-color 160ms ease,
     transform 160ms ease;
@@ -742,7 +533,7 @@ h1 {
 .package-card h2 {
   margin: 18px 0 0;
   color: #14261f;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 22px;
   line-height: 1.2;
 }
@@ -806,7 +597,7 @@ h1 {
 
 .empty-state h2 {
   margin: 0;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
 }
 
 .empty-state p {
@@ -987,7 +778,7 @@ h1 {
 .visit-panel h2 {
   margin: 8px 0 0;
   color: #14261f;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 34px;
   line-height: 1.2;
 }
@@ -1047,7 +838,7 @@ h1 {
 
 .category-card strong {
   color: #14261f;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 20px;
   line-height: 1.2;
 }
@@ -1111,18 +902,11 @@ h1 {
 
 .package-card {
   border-radius: 8px;
-  background:
-    linear-gradient(135deg, rgba(255, 249, 230, 0.9), rgba(255, 255, 255, 0.94)),
-    #ffffff;
+  background: linear-gradient(135deg, rgba(255, 249, 230, 0.9), rgba(255, 255, 255, 0.94)), #ffffff;
 }
 
-.package-category {
-  align-self: flex-start;
+.package-card__categories {
   margin-top: 10px;
-  color: #7a2d0e;
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
 }
 
 .visit-section {
@@ -1162,128 +946,6 @@ h1 {
   padding: 0 18px;
   border: 1px solid #e8e4dc;
   color: #1b4332;
-}
-
-.site-footer {
-  background: #1b4332;
-  color: #ffffff;
-}
-
-.site-footer__main {
-  display: grid;
-  grid-template-columns: 1.35fr 1fr 1.25fr 1.25fr;
-  gap: 56px;
-  padding: 64px 0;
-}
-
-.site-footer p,
-.site-footer a,
-.site-footer small {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.site-footer p {
-  max-width: 290px;
-  margin: 14px 0 0;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.social-row {
-  display: flex;
-  gap: 10px;
-  margin-top: 22px;
-}
-
-.social-row a {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 999px;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.site-footer h4 {
-  margin: 0 0 18px;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.site-footer__main > div:not(:first-child) a {
-  display: block;
-  margin-top: 11px;
-  font-size: 14px;
-}
-
-.subscribe-form {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.subscribe-form input {
-  min-width: 0;
-  flex: 1;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
-  outline: 0;
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  font-size: 14px;
-}
-
-.subscribe-form input::placeholder {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.subscribe-form button {
-  height: 40px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #1b4332;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.subscribe-form button:disabled {
-  cursor: wait;
-  opacity: 0.72;
-}
-
-.footer-message {
-  margin-top: 10px !important;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 12px !important;
-}
-
-.site-footer__bottom {
-  background: #14532d;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.site-footer__bottom .page-shell {
-  min-height: 58px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 13px;
-}
-
-.site-footer__bottom a {
-  margin-left: 24px;
 }
 
 @media (max-width: 1100px) {
@@ -1350,7 +1012,3 @@ h1 {
   }
 }
 </style>
-
-
-
-

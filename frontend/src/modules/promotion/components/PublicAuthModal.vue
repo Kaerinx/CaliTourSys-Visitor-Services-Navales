@@ -66,7 +66,9 @@ const confirmPasswordError = computed(() => {
 })
 
 function hasErrors() {
-  return Boolean(emailError.value || passwordError.value || nameError.value || confirmPasswordError.value)
+  return Boolean(
+    emailError.value || passwordError.value || nameError.value || confirmPasswordError.value,
+  )
 }
 
 function submitAuth() {
@@ -82,7 +84,9 @@ function submitAuth() {
   }
 
   window.localStorage.setItem('calitoursys_public_visitor', JSON.stringify(visitorSession))
-  window.dispatchEvent(new CustomEvent('calitoursys:visitor-authenticated', { detail: visitorSession }))
+  window.dispatchEvent(
+    new CustomEvent('calitoursys:visitor-authenticated', { detail: visitorSession }),
+  )
   emit('authenticated', visitorSession)
 }
 
@@ -123,7 +127,12 @@ onBeforeUnmount(() => {
       aria-modal="true"
       :aria-labelledby="isRegister ? 'public-register-title' : 'public-login-title'"
     >
-      <button class="public-auth__close" type="button" aria-label="Close auth dialog" @click="$emit('close')">
+      <button
+        class="public-auth__close"
+        type="button"
+        aria-label="Close auth dialog"
+        @click="$emit('close')"
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M6 6l12 12M18 6 6 18" />
         </svg>
@@ -190,7 +199,9 @@ onBeforeUnmount(() => {
             :aria-invalid="Boolean(confirmPasswordError)"
             :aria-describedby="confirmPasswordError ? 'public-auth-confirm-error' : undefined"
           />
-          <small v-if="confirmPasswordError" id="public-auth-confirm-error">{{ confirmPasswordError }}</small>
+          <small v-if="confirmPasswordError" id="public-auth-confirm-error">{{
+            confirmPasswordError
+          }}</small>
         </label>
 
         <p v-if="message" class="public-auth__message" role="status">{{ message }}</p>
@@ -297,7 +308,7 @@ onBeforeUnmount(() => {
 .public-auth__header h2 {
   margin: 0;
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 26px;
   font-weight: 700;
   line-height: 1.2;

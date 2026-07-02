@@ -1,30 +1,30 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import { loadItinerary, removeFromItinerary } from '../services/promotionService'
-
-const VISITOR_SESSION_KEY = 'calitoursys_public_visitor'
+import { useVisitorSession } from '../composables/useVisitorSession'
 
 const route = useRoute()
-const router = useRouter()
+const { isAuthenticated } = useVisitorSession()
 const isOpen = ref(false)
 const isLoading = ref(false)
 const message = ref('')
 const items = ref([])
-const isVisitorAuthenticated = ref(hasVisitorSession())
 
-const isPromotionRoute = computed(() =>
-  ['/', '/destinations', '/products', '/packages', '/events'].some((path) =>
-    route.path === path || route.path.startsWith(`${path}/`),
-  ) || route.path.startsWith('/promotion'),
+const isPromotionRoute = computed(
+  () =>
+    ['/', '/destinations', '/products', '/packages', '/events'].some(
+      (path) => route.path === path || route.path.startsWith(`${path}/`),
+    ) || route.path.startsWith('/promotion'),
 )
+
+// Phase 3.1: the itinerary is protected — it stays completely hidden for guests
+// and only renders for an authenticated visitor.
+const isVisible = computed(() => isPromotionRoute.value && isAuthenticated.value)
 const itemCount = computed(() => items.value.length)
 
 async function refreshItinerary() {
-  if (!isPromotionRoute.value) return
-  isVisitorAuthenticated.value = hasVisitorSession()
-
-  if (!isVisitorAuthenticated.value) {
+  if (!isVisible.value) {
     items.value = []
     message.value = ''
     isLoading.value = false
@@ -53,21 +53,6 @@ async function refreshItinerary() {
   }
 }
 
-function hasVisitorSession() {
-  try {
-    return Boolean(window.localStorage.getItem(VISITOR_SESSION_KEY))
-  } catch {
-    return false
-  }
-}
-
-function openAuthForItinerary() {
-  router.replace({
-    path: route.path,
-    query: { ...route.query, auth: 'login', authIntent: 'save' },
-  })
-}
-
 async function removeItem(item) {
   try {
     await removeFromItinerary(item)
@@ -94,24 +79,33 @@ function handleUpdated() {
 watch(
   () => route.path,
   () => {
-    if (isPromotionRoute.value) refreshItinerary()
+    if (isVisible.value) refreshItinerary()
   },
 )
+
+// useVisitorSession keeps isAuthenticated reactive across login/logout, so we
+// just react to it here: load on sign-in, clear and collapse on sign-out.
+watch(isAuthenticated, (authenticated) => {
+  if (authenticated) {
+    refreshItinerary()
+  } else {
+    items.value = []
+    isOpen.value = false
+  }
+})
 
 onMounted(() => {
   refreshItinerary()
   window.addEventListener('calitoursys:itinerary-updated', handleUpdated)
-  window.addEventListener('calitoursys:visitor-authenticated', handleUpdated)
 })
 
 onUnmounted(() => {
   window.removeEventListener('calitoursys:itinerary-updated', handleUpdated)
-  window.removeEventListener('calitoursys:visitor-authenticated', handleUpdated)
 })
 </script>
 
 <template>
-  <aside v-if="isPromotionRoute" class="itinerary-widget" :class="{ 'itinerary-widget--open': isOpen }">
+  <aside v-if="isVisible" class="itinerary-widget" :class="{ 'itinerary-widget--open': isOpen }">
     <button
       class="itinerary-widget__trigger"
       type="button"
@@ -125,7 +119,12 @@ onUnmounted(() => {
       Itinerary
     </button>
 
-    <section v-if="isOpen" id="public-itinerary-panel" class="itinerary-widget__panel" aria-label="Saved itinerary">
+    <section
+      v-if="isOpen"
+      id="public-itinerary-panel"
+      class="itinerary-widget__panel"
+      aria-label="Saved itinerary"
+    >
       <header>
         <div>
           <p>Saved trip items</p>
@@ -136,11 +135,7 @@ onUnmounted(() => {
 
       <p v-if="isLoading" class="itinerary-widget__state">Loading saved items...</p>
       <p v-else-if="message" class="itinerary-widget__state">{{ message }}</p>
-      <div v-else-if="!isVisitorAuthenticated" class="itinerary-widget__empty">
-        <p>Sign in to view and save your itinerary.</p>
-        <button type="button" @click="openAuthForItinerary">Login</button>
-      </div>
-      <p v-else-if="!isLoading && items.length === 0" class="itinerary-widget__empty">
+      <p v-else-if="items.length === 0" class="itinerary-widget__empty">
         Save products, events, or destinations to build a public trip list.
       </p>
 
@@ -230,7 +225,7 @@ onUnmounted(() => {
 .itinerary-widget__panel h2 {
   margin-top: 4px;
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 20px;
 }
 

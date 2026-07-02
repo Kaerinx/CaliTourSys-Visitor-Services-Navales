@@ -22,12 +22,14 @@ const fallbackNavigation = [
   { key: 'map', label: 'Map Locations', path: '/cms/map-locations', permission: 'map_locations.view', icon: 'map' },
   { key: 'museum', label: 'Museum', path: '/cms/museum', permission: 'museum.view', icon: 'museum' },
   { key: 'visitor-services', label: 'Visitor Services / Inquiries', path: '/cms/visitor', permissions: ['inquiries.view', 'dashboard.view'], icon: 'users' },
-  { key: 'media', label: 'Media', path: '/cms/media', permission: 'media.view', icon: 'image' },
   { key: 'inquiries', label: 'Inquiries', path: '/cms/visitor/inquiries', permission: 'inquiries.view', icon: 'message' },
-  { key: 'newsletter', label: 'Newsletter', path: '/cms/newsletter-subscribers', permission: 'newsletter.view', icon: 'mail' },
   { key: 'users', label: 'Users & Roles', path: '/cms/users', permissions: ['users.view', 'roles.view'], icon: 'users' },
   { key: 'audit', label: 'Audit Logs', path: '/cms/audit-logs', permission: 'audit_logs.view', icon: 'audit' },
 ]
+
+// Modules removed from the CMS sidebar (not built yet). Filtered out regardless
+// of whether navigation comes from the backend or the local fallback.
+const HIDDEN_NAV = new Set(['newsletter', 'media', 'reports'])
 
 const navigationItems = computed(() => {
   const baseItems = backendNavigation.value.length
@@ -64,7 +66,10 @@ const navigationItems = computed(() => {
     })
   }
 
-  return mapped
+  return mapped.filter(
+    (item) =>
+      !HIDDEN_NAV.has(item.key) && !HIDDEN_NAV.has(String(item.label).trim().toLowerCase()),
+  )
 })
 
 onMounted(async () => {

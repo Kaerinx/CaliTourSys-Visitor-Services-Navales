@@ -1,4 +1,7 @@
 ﻿<script setup>
+import PromotionNavbar from '../components/PromotionNavbar.vue'
+import PromotionFooter from '../components/PromotionFooter.vue'
+import CategoryTags from '../components/CategoryTags.vue'
 import { computed, onMounted, ref } from 'vue'
 import { getPackageById } from '../services/promotionService'
 
@@ -33,45 +36,7 @@ onMounted(loadPackage)
 
 <template>
   <div class="package-detail-page">
-    <header class="site-nav">
-      <div class="site-nav__inner">
-        <RouterLink to="/" class="brand" aria-label="TWBIS Home">
-          <span class="brand__mark">T</span>
-          <span class="brand__copy">
-            <span class="brand__name">TWBIS</span>
-            <span class="brand__tagline">Calabanga Tourism</span>
-          </span>
-        </RouterLink>
-
-        <nav class="site-nav__links" aria-label="Primary navigation">
-          <RouterLink to="/" class="site-nav__link">Home</RouterLink>
-          <RouterLink to="/destinations" class="site-nav__link">Destination</RouterLink>
-          <RouterLink to="/products" class="site-nav__link">Products</RouterLink>
-          <RouterLink to="/packages" class="site-nav__link site-nav__link--active">
-            Packages
-          </RouterLink>
-          <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
-          <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
-          <div class="site-nav__dropdown">
-            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
-              Accreditation
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <div class="site-nav__dropdown-menu">
-              <RouterLink to="/accreditation">Online Accreditation</RouterLink>
-              <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
-            </div>
-          </div>
-          <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
-        </nav>
-
-        <RouterLink class="login-button" :to="{ path: $route.path, query: { ...$route.query, auth: 'login' } }">
-          Login
-        </RouterLink>
-      </div>
-    </header>
+    <PromotionNavbar />
 
     <main class="page-shell">
       <div v-if="isLoading" class="state-card">
@@ -89,6 +54,11 @@ onMounted(loadPackage)
           <RouterLink to="/packages" class="back-link">Back to Packages</RouterLink>
           <span class="status-pill">{{ tourismPackage.packageStatus }}</span>
           <h1>{{ tourismPackage.name }}</h1>
+          <CategoryTags
+            class="detail-hero__categories"
+            :categories="tourismPackage.categories"
+            style="margin-bottom: 8px"
+          />
           <p>{{ tourismPackage.description }}</p>
           <div class="hero-actions">
             <RouterLink to="/promotion/inquiry" class="primary-button">Send inquiry</RouterLink>
@@ -130,7 +100,11 @@ onMounted(loadPackage)
             The Product Development module has not attached detailed package items yet.
           </p>
           <div v-else class="item-list">
-            <div v-for="item in packageItems" :key="`${item.itemType}-${item.id || item.referenceId}`" class="item-row">
+            <div
+              v-for="item in packageItems"
+              :key="`${item.itemType}-${item.id || item.referenceId}`"
+              class="item-row"
+            >
               <span>{{ item.itemType }}</span>
               <div>
                 <strong>{{ item.name }}</strong>
@@ -147,15 +121,7 @@ onMounted(loadPackage)
       </article>
     </main>
 
-    <footer class="site-footer">
-      <div class="site-footer__bottom page-shell">
-        <span>Copyright 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
-        <span>
-          <RouterLink to="/packages">Packages</RouterLink>
-          <RouterLink to="/promotion/inquiry">Contact</RouterLink>
-        </span>
-      </div>
-    </footer>
+    <PromotionFooter />
   </div>
 </template>
 
@@ -178,97 +144,6 @@ a {
   width: min(100% - 48px, 1200px);
   margin: 0 auto;
   padding: 112px 0 88px;
-}
-
-.site-nav {
-  position: fixed;
-  z-index: 50;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #e8e4dc;
-}
-
-.site-nav__inner {
-  width: min(100% - 48px, 1200px);
-  height: 100%;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.brand__mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: #1b4332;
-  color: #ffffff;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-weight: 700;
-}
-
-.brand__copy {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.05;
-}
-
-.brand__name {
-  color: #1b4332;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.brand__tagline {
-  color: #5c5c5c;
-  font-size: 11px;
-}
-
-.site-nav__links {
-  display: flex;
-  align-self: stretch;
-  align-items: stretch;
-  justify-content: center;
-  gap: 14px;
-}
-
-.site-nav__link {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
-  color: #1a1a1a;
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.site-nav__link--active,
-.site-nav__link:hover {
-  color: #1b4332;
-}
-
-.site-nav__link--active::after {
-  position: absolute;
-  right: 6px;
-  bottom: 19px;
-  left: 6px;
-  height: 2px;
-  border-radius: 999px;
-  background: #1b4332;
-  content: '';
 }
 
 .login-button,
@@ -311,9 +186,7 @@ a {
   display: flex;
   flex-direction: column;
   padding: 36px;
-  background:
-    radial-gradient(circle at 85% 10%, rgba(212, 172, 13, 0.2), transparent 30%),
-    #ffffff;
+  background: radial-gradient(circle at 85% 10%, rgba(212, 172, 13, 0.2), transparent 30%), #ffffff;
 }
 
 .detail-image {
@@ -347,7 +220,7 @@ a {
 h1,
 h2 {
   color: #14261f;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
 }
 
 h1 {
@@ -466,28 +339,6 @@ dd {
   font-weight: 700;
 }
 
-.site-footer {
-  background: #1b4332;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.site-footer__bottom {
-  min-height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding-top: 0;
-  padding-bottom: 0;
-  font-size: 13px;
-}
-
-.site-footer a {
-  margin-left: 22px;
-  color: rgba(255, 255, 255, 0.78);
-  font-weight: 700;
-}
-
 @media (max-width: 1024px) {
   .site-nav__links {
     display: none;
@@ -541,7 +392,3 @@ dd {
   }
 }
 </style>
-
-
-
-

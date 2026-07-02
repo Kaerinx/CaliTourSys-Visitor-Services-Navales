@@ -52,7 +52,9 @@ export function getProducts(params) {
 }
 
 export function getReadyForPromotionPackages() {
-  return http.get(publicPath('/packages')).catch(() => getLegacyProductApi('/packages/ready-for-promotion'))
+  return http
+    .get(publicPath('/packages'))
+    .catch(() => getLegacyProductApi('/packages/ready-for-promotion'))
 }
 
 export function getPackageBySlug(slug) {

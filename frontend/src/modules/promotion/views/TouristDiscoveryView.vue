@@ -1,4 +1,6 @@
 ﻿<script setup>
+import AccreditationBadge from '../components/AccreditationBadge.vue'
+import PromotionNavbar from '../components/PromotionNavbar.vue'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -9,8 +11,12 @@ import {
   saveToItinerary,
   sharePublicItem,
 } from '../services/promotionService'
+import { formatRouteDistance, formatRouteDuration, getRoute } from '../services/mapboxDirections'
+import { useGeolocationStore } from '@/stores/geolocation'
 
 const TouristMapBox = defineAsyncComponent(() => import('../components/TouristMapBox.vue'))
+const ReviewsSection = defineAsyncComponent(() => import('../components/ReviewsSection.vue'))
+const NearbySuggestions = defineAsyncComponent(() => import('../components/NearbySuggestions.vue'))
 
 const mapboxToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || ''
 const VISITOR_SESSION_KEY = 'calitoursys_public_visitor'
@@ -18,111 +24,39 @@ const PENDING_SAVE_KEY = 'calitoursys_pending_destination_save'
 
 const route = useRoute()
 const router = useRouter()
+const geo = useGeolocationStore()
 
-const categories = computed(() => {
-  const grouped = new Map()
+const routeGeoJson = ref(null)
+const isRouting = ref(false)
 
-  locations.value.forEach((location) => {
-    const current = grouped.get(location.category) || {
-      key: location.category,
-      color: location.color,
-      count: 0,
-    }
-    current.count += 1
-    grouped.set(location.category, current)
-  })
+// Fixed public discovery filter taxonomy. Counts are derived from live data,
+// but the set of categories (and their order/colors) is curated here.
+const FILTER_CATEGORIES = [
+  { key: 'Faith & Religious', color: '#7c3aed' },
+  { key: 'Food', color: '#d97706' },
+  { key: 'Nature', color: '#1b7a4a' },
+  { key: 'Beach', color: '#2563eb' },
+  { key: 'Cafe', color: '#92400e' },
+]
 
-  return [...grouped.values()]
-})
+const categories = computed(() =>
+  FILTER_CATEGORIES.map((category) => ({
+    ...category,
+    count: locations.value.filter((location) => location.category === category.key).length,
+  })),
+)
 
-const locations = ref([
-  {
-    id: 'sabang',
-    name: 'Sabang Beach',
-    category: 'Beach',
-    color: '#1565C0',
-    distance: '4.2 km',
-    address: 'Poblacion, Calabanga, Camarines Sur',
-    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
-    description:
-      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
-    x: 30,
-    y: 34,
-  },
-  {
-    id: 'quipayo',
-    name: 'Quipayo Old Church',
-    category: 'Cultural',
-    color: '#7B341E',
-    distance: '2.1 km',
-    address: 'Quipayo, Calabanga, Camarines Sur',
-    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
-    description:
-      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
-    x: 58,
-    y: 31,
-    selected: true,
-  },
-  {
-    id: 'belen',
-    name: 'Belen Pottery Village',
-    category: 'Cultural',
-    color: '#7B341E',
-    distance: '6.8 km',
-    address: 'Belen, Calabanga, Camarines Sur',
-    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
-    description:
-      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
-    x: 72,
-    y: 55,
-  },
-  {
-    id: 'isarog',
-    name: 'Mt. Isarog Foothills',
-    category: 'Nature',
-    color: '#1B7A4A',
-    distance: '9.4 km',
-    address: 'Mt. Isarog Foothills, Calabanga, Camarines Sur',
-    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
-    description:
-      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
-    x: 83,
-    y: 21,
-  },
-  {
-    id: 'market',
-    name: 'Calabanga Public Market',
-    category: 'Food',
-    color: '#B5451B',
-    distance: '0.6 km',
-    address: 'Calabanga Public Market, Camarines Sur',
-    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
-    description:
-      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
-    x: 43,
-    y: 72,
-  },
-  {
-    id: 'river',
-    name: 'Bicol River Boardwalk',
-    category: 'Nature',
-    color: '#1B7A4A',
-    distance: '1.3 km',
-    address: 'Bicol River Boardwalk, Calabanga, Camarines Sur',
-    hours: 'Open daily â€¢ 8:00 AM - 5:00 PM',
-    description:
-      'Experience the rich culture and history of Calabanga at this notable landmark. Perfect for your itinerary. Ensure you visit during operating hours.',
-    x: 24,
-    y: 59,
-  },
-])
+const locations = ref([])
 
 const searchQuery = ref('')
 const selectedId = ref('')
 const enabledCategories = ref({})
-const accreditedOnly = ref(false)
 const hasFilterInteraction = ref(false)
 const showDetail = ref(false)
+// Mobile bottom-sheet state: the detail sheet slides up over the Discover list
+// when a location is picked; the list can be collapsed to reveal the full map.
+const mobileDetailOpen = ref(false)
+const mobileListCollapsed = ref(false)
 const savedIds = ref(new Set())
 const isSaving = ref(false)
 const feedbackMessage = ref('')
@@ -137,25 +71,25 @@ const visibleLocations = computed(() => {
 
   return locations.value.filter((location) => {
     const matchesCategory = enabledCategories.value[location.category]
-    const matchesAccreditation = !accreditedOnly.value || location.accredited
     const matchesQuery =
       !query ||
-      [location.name, location.category, location.distance]
-        .join(' ')
-        .toLowerCase()
-        .includes(query)
+      [location.name, location.category, location.distance].join(' ').toLowerCase().includes(query)
 
-    return matchesCategory && matchesAccreditation && matchesQuery
+    return matchesCategory && matchesQuery
   })
 })
 
 const hasActiveFilters = computed(() => {
-  const allCategoriesChecked = categories.value.every((category) => enabledCategories.value[category.key])
-  return Boolean(searchQuery.value.trim()) || !allCategoriesChecked || accreditedOnly.value
+  const allCategoriesChecked = categories.value.every(
+    (category) => enabledCategories.value[category.key],
+  )
+  return Boolean(searchQuery.value.trim()) || !allCategoriesChecked
 })
 
 const selectedLocation = computed(
-  () => visibleLocations.value.find((location) => location.id === selectedId.value) || visibleLocations.value[0],
+  () =>
+    visibleLocations.value.find((location) => location.id === selectedId.value) ||
+    visibleLocations.value[0],
 )
 
 const selectedCanBeSaved = computed(() => Boolean(selectedLocation.value?.apiId))
@@ -201,7 +135,9 @@ function locationFromFeature(feature, index, destinationBySlug) {
         : 'Calabanga, Camarines Sur',
     hours: destination?.hours || 'Visiting information to be confirmed',
     description:
-      properties.description || destination?.description || 'Public map discovery details are being prepared.',
+      properties.description ||
+      destination?.description ||
+      'Public map discovery details are being prepared.',
     x: 24 + ((index * 17) % 58),
     y: 24 + ((index * 23) % 52),
     latitude,
@@ -213,8 +149,11 @@ function locationFromFeature(feature, index, destinationBySlug) {
 }
 
 function selectLocation(id) {
+  if (id !== selectedId.value) clearRoute()
   selectedId.value = id
   if (!id) return
+  // Tapping a marker or a result surfaces the detail sheet on mobile.
+  mobileDetailOpen.value = true
   router.replace({
     path: route.path,
     query: {
@@ -222,6 +161,14 @@ function selectLocation(id) {
       location: id,
     },
   })
+}
+
+function closeMobileDetail() {
+  mobileDetailOpen.value = false
+}
+
+function toggleMobileList() {
+  mobileListCollapsed.value = !mobileListCollapsed.value
 }
 
 function toggleCategory(category) {
@@ -235,18 +182,16 @@ function toggleCategory(category) {
 function resetFilters() {
   hasFilterInteraction.value = true
   searchQuery.value = ''
-  enabledCategories.value = Object.fromEntries(categories.value.map((category) => [category.key, true]))
-  accreditedOnly.value = false
+  enabledCategories.value = Object.fromEntries(
+    categories.value.map((category) => [category.key, true]),
+  )
 }
 
 function clearCategories() {
   hasFilterInteraction.value = true
-  enabledCategories.value = Object.fromEntries(categories.value.map((category) => [category.key, false]))
-}
-
-function toggleAccreditedOnly() {
-  hasFilterInteraction.value = true
-  accreditedOnly.value = !accreditedOnly.value
+  enabledCategories.value = Object.fromEntries(
+    categories.value.map((category) => [category.key, false]),
+  )
 }
 
 function hasVisitorSession() {
@@ -267,7 +212,9 @@ async function loadLocations() {
       getMapLocationGeoJson(),
       getDestinations({ limit: 50 }),
     ])
-    const destinationBySlug = new Map(destinationData.map((destination) => [destination.id, destination]))
+    const destinationBySlug = new Map(
+      destinationData.map((destination) => [destination.id, destination]),
+    )
     const locationData = (geoJsonData.features || []).map((feature, index) =>
       locationFromFeature(feature, index, destinationBySlug),
     )
@@ -275,7 +222,7 @@ async function loadLocations() {
     mapGeoJson.value = geoJsonData
     locations.value = locationData
     enabledCategories.value = Object.fromEntries(
-      [...new Set(locationData.map((location) => location.category))].map((category) => [category, true]),
+      FILTER_CATEGORIES.map((category) => [category.key, true]),
     )
     selectedId.value = String(route.query.location || locationData[0]?.id || '')
     await refreshSavedDestinations()
@@ -393,14 +340,50 @@ async function shareLocation(location) {
     path: `/destinations?location=${location.id}`,
   })
 
-  feedbackMessage.value =
-    result.method === 'clipboard' ? 'Share link copied' : 'Share action ready'
+  feedbackMessage.value = result.method === 'clipboard' ? 'Share link copied' : 'Share action ready'
 }
 
-function getDirections(location) {
+function clearRoute() {
+  routeGeoJson.value = null
+}
+
+async function getDirections(location) {
   if (!location) return
 
-  feedbackMessage.value = `Directions ready for ${location.name}`
+  if (!Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) {
+    feedbackMessage.value = 'This place has no map coordinates yet, so directions are unavailable.'
+    return
+  }
+
+  isRouting.value = true
+  feedbackMessage.value = 'Getting your location…'
+
+  // 1. Ask for the visitor's live location (Phase 1.1 geolocation store).
+  const origin = await geo.requestLocation()
+  if (!origin) {
+    isRouting.value = false
+    feedbackMessage.value =
+      geo.error || 'Enable location access to get directions from where you are.'
+    return
+  }
+
+  // 2. Fetch a real route from the visitor to the landmark.
+  feedbackMessage.value = 'Calculating the best route…'
+  const result = await getRoute(origin, location, { profile: 'driving' })
+
+  isRouting.value = false
+
+  if (!result) {
+    feedbackMessage.value = 'We could not calculate a route right now. Please try again.'
+    return
+  }
+
+  // 3. Draw it on the map and reveal it (close the mobile sheet so the map shows).
+  routeGeoJson.value = result
+  mobileDetailOpen.value = false
+  feedbackMessage.value =
+    `Route to ${location.name} · ${formatRouteDistance(result.distance)} · ` +
+    `${formatRouteDuration(result.duration)} drive`
 }
 
 watch(searchQuery, () => {
@@ -419,59 +402,22 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="discovery-page">
-    <header class="site-nav">
-      <div class="site-nav__inner">
-        <RouterLink to="/" class="brand" aria-label="TWBIS Home">
-          <span class="brand__mark">T</span>
-          <span class="brand__copy">
-            <span class="brand__name">TWBIS</span>
-            <span class="brand__tagline">Calabanga Tourism</span>
-          </span>
-        </RouterLink>
-
-        <nav class="site-nav__links" aria-label="Primary navigation">
-          <RouterLink to="/" class="site-nav__link">Home</RouterLink>
-          <RouterLink to="/destinations" class="site-nav__link site-nav__link--active">Destination</RouterLink>
-          <RouterLink to="/products" class="site-nav__link">Products</RouterLink>
-          <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
-          <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
-          <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
-          <div class="site-nav__dropdown">
-            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
-              Accreditation
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <div class="site-nav__dropdown-menu">
-              <RouterLink to="/accreditation">Online Accreditation</RouterLink>
-              <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
-            </div>
-          </div>
-          <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
-        </nav>
-
-        <div class="site-nav__actions">
-          <button class="icon-button" type="button" aria-label="Search planned for later" disabled>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.2-3.2" />
-            </svg>
-          </button>
-          <RouterLink class="login-button" :to="{ path: $route.path, query: { ...$route.query, auth: 'login' } }" aria-label="Open visitor login">
-            Login
-          </RouterLink>
-          <button class="icon-button icon-button--menu" type="button" aria-label="Menu" disabled title="Mobile menu is planned for a later phase">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </header>
+    <PromotionNavbar />
 
     <main class="discovery-shell">
-      <aside class="discovery-sidebar">
+      <aside
+        class="discovery-sidebar"
+        :class="{ 'discovery-sidebar--collapsed': mobileListCollapsed }"
+      >
+        <button
+          type="button"
+          class="sheet-handle"
+          :aria-label="mobileListCollapsed ? 'Expand list' : 'Collapse list'"
+          @click="toggleMobileList"
+        >
+          <span class="sheet-handle__bar"></span>
+        </button>
+
         <section class="sidebar-block sidebar-block--search">
           <h1>Discover</h1>
           <label class="search-field">
@@ -517,21 +463,6 @@ onBeforeUnmount(() => {
               <small>{{ category.count }}</small>
             </label>
           </div>
-
-          <div class="toggle-row">
-            <span>
-              <strong>LGU Accredited only</strong>
-              <small>{{ accreditedOnly ? 'Showing accredited records' : 'Showing all public records' }}</small>
-            </span>
-            <button
-              type="button"
-              :aria-label="accreditedOnly ? 'LGU Accredited only enabled' : 'LGU Accredited only disabled'"
-              :class="{ 'toggle-off': !accreditedOnly }"
-              @click="toggleAccreditedOnly"
-            >
-              <span></span>
-            </button>
-          </div>
         </section>
 
         <section class="results-block">
@@ -539,7 +470,14 @@ onBeforeUnmount(() => {
           <p v-else-if="errorMessage">{{ errorMessage }}</p>
           <p v-else>Showing {{ visibleLocations.length }} locations</p>
           <div class="result-list">
-            <div v-if="!isLoading && visibleLocations.length === 0 && (hasFilterInteraction || hasActiveFilters)" class="map-empty-state">
+            <div
+              v-if="
+                !isLoading &&
+                visibleLocations.length === 0 &&
+                (hasFilterInteraction || hasActiveFilters)
+              "
+              class="map-empty-state"
+            >
               <strong>No locations match your filters.</strong>
               <span>Try selecting more categories.</span>
             </div>
@@ -572,10 +510,19 @@ onBeforeUnmount(() => {
           :access-token="mapboxToken"
           :feature-collection="visibleMapGeoJson"
           :selected-id="selectedLocation?.id || ''"
+          :route="routeGeoJson"
           :loading="isLoading"
           :error="errorMessage"
-          :empty-title="hasFilterInteraction || hasActiveFilters ? 'No locations match your filters.' : 'No published map locations yet'"
-          :empty-text="hasFilterInteraction || hasActiveFilters ? 'Try selecting more categories.' : 'Published tourism places will appear here once available.'"
+          :empty-title="
+            hasFilterInteraction || hasActiveFilters
+              ? 'No locations match your filters.'
+              : 'No published map locations yet'
+          "
+          :empty-text="
+            hasFilterInteraction || hasActiveFilters
+              ? 'Try selecting more categories.'
+              : 'Published tourism places will appear here once available.'
+          "
           @select="selectLocation"
           @map-error="mapRuntimeError = $event"
         />
@@ -593,21 +540,50 @@ onBeforeUnmount(() => {
             Mapbox
           </button>
           <RouterLink to="/products">Browse Products</RouterLink>
+          <button v-if="routeGeoJson" type="button" class="map-actions__clear" @click="clearRoute">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+            Clear route
+          </button>
         </div>
 
         <article
           v-if="selectedLocation"
           class="map-selection-panel"
+          :class="{ 'map-selection-panel--open': mobileDetailOpen }"
           aria-live="polite"
         >
+          <div class="sheet-topbar">
+            <button
+              type="button"
+              class="sheet-handle"
+              aria-label="Dismiss details"
+              @click="closeMobileDetail"
+            >
+              <span class="sheet-handle__bar"></span>
+            </button>
+            <button
+              type="button"
+              class="sheet-close"
+              aria-label="Close details"
+              @click="closeMobileDetail"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </div>
           <div
             class="map-selection-panel__image"
             :style="{
               '--popup-color': selectedLocation.color,
-              backgroundImage: selectedLocation.imageUrl ? `url(${selectedLocation.imageUrl})` : undefined,
+              backgroundImage: selectedLocation.imageUrl
+                ? `url(${selectedLocation.imageUrl})`
+                : undefined,
             }"
           >
-            <span v-if="selectedLocation.accredited" class="accreditation-badge"><span></span>LGU Accredited</span>
+            <AccreditationBadge v-if="selectedLocation.accredited" floating />
           </div>
           <div class="map-selection-panel__body">
             <h2>{{ selectedLocation.name }}</h2>
@@ -635,7 +611,11 @@ onBeforeUnmount(() => {
                     : 'Save unavailable'
                 }}
               </button>
-              <button type="button" class="map-selection-panel__secondary" @click="shareLocation(selectedLocation)">
+              <button
+                type="button"
+                class="map-selection-panel__secondary"
+                @click="shareLocation(selectedLocation)"
+              >
                 Share
               </button>
             </div>
@@ -649,18 +629,26 @@ onBeforeUnmount(() => {
           </span>
         </div>
 
-        <div v-if="mapRuntimeError" class="feedback-toast feedback-toast--warning">{{ mapRuntimeError }}</div>
+        <div v-if="mapRuntimeError" class="feedback-toast feedback-toast--warning">
+          {{ mapRuntimeError }}
+        </div>
         <div v-if="feedbackMessage" class="feedback-toast">{{ feedbackMessage }}</div>
       </section>
 
-      <div v-if="showDetail && selectedLocation" class="detail-backdrop" @click="showDetail = false"></div>
+      <div
+        v-if="showDetail && selectedLocation"
+        class="detail-backdrop"
+        @click="showDetail = false"
+      ></div>
 
       <aside v-if="showDetail && selectedLocation" class="detail-drawer">
         <div
           class="detail-drawer__hero"
           :style="{
             '--drawer-color': selectedLocation.color,
-            backgroundImage: selectedLocation.imageUrl ? `url(${selectedLocation.imageUrl})` : undefined,
+            backgroundImage: selectedLocation.imageUrl
+              ? `url(${selectedLocation.imageUrl})`
+              : undefined,
           }"
         >
           <button type="button" aria-label="Close details" @click="showDetail = false">
@@ -668,7 +656,7 @@ onBeforeUnmount(() => {
               <path d="M6 6l12 12M18 6 6 18" />
             </svg>
           </button>
-          <span class="accreditation-badge"><span></span>LGU Accredited</span>
+          <AccreditationBadge floating />
         </div>
         <div class="detail-drawer__body">
           <div class="detail-drawer__meta">
@@ -694,14 +682,24 @@ onBeforeUnmount(() => {
             </p>
           </div>
           <div class="detail-drawer__actions">
-            <button class="detail-drawer__primary-action" type="button" @click="getDirections(selectedLocation)">
+            <button
+              class="detail-drawer__primary-action"
+              type="button"
+              :disabled="isRouting"
+              @click="getDirections(selectedLocation)"
+            >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M9 18 3 15V5l6 3 6-3 6 3v10l-6-3-6 3Z" />
                 <path d="M9 8v10M15 5v10" />
               </svg>
-              Get directions
+              {{ isRouting ? 'Finding route…' : 'Get directions' }}
             </button>
-            <button class="detail-drawer__secondary-action" type="button" :disabled="isSaving || !selectedCanBeSaved" @click="toggleItinerary(selectedLocation)">
+            <button
+              class="detail-drawer__secondary-action"
+              type="button"
+              :disabled="isSaving || !selectedCanBeSaved"
+              @click="toggleItinerary(selectedLocation)"
+            >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M6 4h12v17l-6-3-6 3V4Z" />
               </svg>
@@ -709,12 +707,29 @@ onBeforeUnmount(() => {
                 !selectedCanBeSaved
                   ? 'Save unavailable'
                   : isSaving
-                  ? 'Saving...'
-                  : savedIds.has(selectedLocation.id)
-                    ? 'Saved to itinerary'
-                    : 'Save to itinerary'
+                    ? 'Saving...'
+                    : savedIds.has(selectedLocation.id)
+                      ? 'Saved to itinerary'
+                      : 'Save to itinerary'
               }}
             </button>
+          </div>
+
+          <div class="detail-drawer__nearby">
+            <NearbySuggestions
+              :origin="selectedLocation"
+              title="Suggested Next Stops"
+              :subtitle="`Closest places to ${selectedLocation.name}, routed by walking distance.`"
+              :limit="4"
+            />
+          </div>
+
+          <div class="detail-drawer__reviews">
+            <ReviewsSection
+              target-type="destination"
+              :target-id="selectedLocation.id"
+              :target-name="selectedLocation.name"
+            />
           </div>
         </div>
       </aside>
@@ -744,128 +759,6 @@ input {
   font: inherit;
 }
 
-.site-nav {
-  position: fixed;
-  z-index: 50;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #e8e4dc;
-}
-
-.site-nav__inner {
-  width: min(100% - 48px, 1200px);
-  height: 100%;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 32px;
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.brand__mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: #1b4332;
-  color: #ffffff;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-weight: 700;
-}
-
-.brand__copy {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.05;
-}
-
-.brand__name {
-  color: #1b4332;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.brand__tagline {
-  color: #5c5c5c;
-  font-size: 11px;
-}
-
-.site-nav__links {
-  display: flex;
-  align-self: stretch;
-  align-items: stretch;
-  justify-content: center;
-  gap: 14px;
-}
-
-.site-nav__link {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
-  color: #1a1a1a;
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.site-nav__link--active,
-.site-nav__link:hover {
-  color: #1b4332;
-}
-
-.site-nav__link--active::after {
-  position: absolute;
-  right: 6px;
-  bottom: 19px;
-  left: 6px;
-  height: 2px;
-  border-radius: 999px;
-  background: #1b4332;
-  content: '';
-}
-
-.site-nav__actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.icon-button,
-.login-button {
-  border: 0;
-  background: transparent;
-  color: #1a1a1a;
-  cursor: pointer;
-}
-
-.icon-button {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-}
-
-.icon-button:hover {
-  background: #f2f0eb;
-}
-
-.icon-button:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
 .icon-button svg,
 .search-field svg,
 .map-actions svg {
@@ -876,28 +769,6 @@ input {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
-}
-
-.icon-button--menu {
-  display: none;
-}
-
-.login-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 38px;
-  padding: 0 18px;
-  border: 1.5px solid #1b4332;
-  border-radius: 8px;
-  color: #1b4332;
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.login-button:hover {
-  background: #d8f3dc;
 }
 
 .login-button:disabled,
@@ -930,12 +801,68 @@ input {
   padding-top: 18px;
 }
 
+/* Bottom-sheet drag handle + close button — only shown on mobile. */
+.sheet-handle,
+.sheet-topbar,
+.sheet-close {
+  display: none;
+}
+
+.sheet-handle {
+  width: 100%;
+  padding: 10px 0 6px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sheet-handle__bar {
+  display: block;
+  width: 40px;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: #cfd6cf;
+}
+
+.sheet-topbar {
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-right: 10px;
+}
+
+.sheet-topbar .sheet-handle {
+  flex: 1;
+}
+
+.sheet-close {
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: #f2f0eb;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.sheet-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
 h1,
 h2,
 h3 {
   margin: 0;
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   line-height: 1.2;
 }
 
@@ -1061,56 +988,6 @@ h1 {
 .filter-row small {
   color: #5c5c5c;
   font-size: 12px;
-}
-
-.toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  margin-top: 24px;
-}
-
-.toggle-row strong {
-  display: block;
-  color: #1a1a1a;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.toggle-row small {
-  display: block;
-  color: #5c5c5c;
-  font-size: 12px;
-}
-
-.toggle-row button {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  flex: 0 0 auto;
-  border: 0;
-  border-radius: 999px;
-  background: #1b4332;
-  cursor: pointer;
-}
-
-.toggle-row button.toggle-off {
-  background: #e8e4dc;
-}
-
-.toggle-row button span {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  background: #ffffff;
-}
-
-.toggle-row button.toggle-off span {
-  right: 22px;
 }
 
 .results-block {
@@ -1281,6 +1158,20 @@ h1 {
 
 .map-actions button {
   cursor: pointer;
+}
+
+.map-actions button.map-actions__clear {
+  border-color: #b5451b;
+  color: #b5451b;
+}
+
+.map-actions button.map-actions__clear svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
 .map-actions a {
@@ -1466,31 +1357,6 @@ h1 {
   stroke-width: 2;
 }
 
-.accreditation-badge {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 10px;
-  border: 1px solid #d4ac0d;
-  border-radius: 999px;
-  background: #fff9e6;
-  color: #7d5a00;
-  font-size: 11px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.accreditation-badge span {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: #d4ac0d;
-}
-
 .location-popup__body {
   padding: 14px 16px 16px;
 }
@@ -1649,7 +1515,7 @@ h1 {
 .detail-drawer__body h2 {
   margin-top: 14px;
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 32px;
   font-weight: 600;
 }
@@ -1698,6 +1564,11 @@ h1 {
   margin-top: auto;
   padding-top: 32px;
   border-top: 1px solid #e8e4dc;
+}
+
+.detail-drawer__nearby,
+.detail-drawer__reviews {
+  margin-top: 24px;
 }
 
 .detail-drawer__actions button {
@@ -1767,33 +1638,82 @@ h1 {
 }
 
 @media (max-width: 760px) {
-  .site-nav__inner {
-    width: min(100% - 32px, 1200px);
-  }
-
-  .brand__copy,
-  .login-button {
-    display: none;
-  }
-
+  /* The navbar is a fixed component (z-index 50, solid white). The shell holds a
+     full-height map with UI layered above it. z-order: map < list < detail. */
   .discovery-shell {
     position: relative;
     display: block;
+    /* Use dynamic viewport height so bottom-anchored sheets sit above the phone
+       browser's toolbar instead of behind it (fallback to vh for old browsers). */
+    height: calc(100vh - 64px);
+    height: calc(100dvh - 64px);
     min-height: calc(100vh - 64px);
+    min-height: calc(100dvh - 64px);
+    margin-top: 64px;
+    padding-top: 0;
+    overflow: hidden;
   }
 
+  .map-area {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    z-index: 1;
+  }
+
+  .map-badge {
+    top: 12px;
+    left: 12px;
+  }
+
+  .map-actions {
+    top: 12px;
+    right: 12px;
+    flex-direction: column;
+  }
+
+  .map-legend,
+  .location-popup {
+    display: none;
+  }
+
+  /* Reveal the sheet controls on mobile. */
+  .sheet-handle {
+    display: block;
+  }
+
+  .sheet-topbar {
+    display: flex;
+  }
+
+  .sheet-close {
+    display: inline-grid;
+  }
+
+  /* ---- Discover list: persistent bottom sheet, capped at 40vh ---- */
   .discovery-sidebar {
     position: absolute;
-    z-index: 10;
-    right: 12px;
-    bottom: 12px;
-    left: 12px;
+    z-index: 20;
+    right: 0;
+    bottom: 0;
+    left: 0;
     width: auto;
-    max-height: 44vh;
+    max-height: 40vh;
+    max-height: 40dvh;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
-    border: 1px solid #e8e4dc;
-    border-radius: 16px;
-    box-shadow: 0 18px 48px rgba(27, 67, 50, 0.16);
+    border: 0;
+    border-top: 1px solid #e8e4dc;
+    border-radius: 18px 18px 0 0;
+    background: #ffffff;
+    box-shadow: 0 -12px 32px rgba(27, 67, 50, 0.16);
+    transition: transform 0.28s ease;
+  }
+
+  /* Collapsed: slide down, leaving the handle + search peeking above the fold. */
+  .discovery-sidebar--collapsed {
+    transform: translateY(calc(100% - 118px));
   }
 
   .sidebar-block:not(.sidebar-block--search) {
@@ -1803,6 +1723,8 @@ h1 {
   .results-block {
     min-height: 0;
     display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   .results-block > p {
@@ -1810,7 +1732,11 @@ h1 {
   }
 
   .result-list {
-    max-height: 28vh;
+    max-height: none;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding-bottom: 8px;
   }
 
@@ -1827,30 +1753,33 @@ h1 {
     height: 44px;
   }
 
-  .map-area {
-    height: calc(100vh - 64px);
-  }
-
-  .map-actions {
-    top: 12px;
-    right: 12px;
-    flex-direction: column;
-  }
-
-  .map-badge {
-    left: 12px;
-  }
-
-  .location-popup {
-    display: none;
-  }
-
+  /* ---- Selected detail: bottom sheet that slides up over the list ---- */
   .map-selection-panel {
-    top: 72px;
-    right: 12px;
-    left: 12px;
+    position: absolute;
+    z-index: 30;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
     width: auto;
-    max-height: 202px;
+    max-height: 62vh;
+    max-height: 62dvh;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    border: 0;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -14px 36px rgba(27, 67, 50, 0.24);
+    padding-bottom: env(safe-area-inset-bottom);
+    animation: none;
+    transform: translateY(110%);
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+
+  .map-selection-panel--open {
+    transform: translateY(0);
+    pointer-events: auto;
   }
 
   .map-selection-panel__image {
@@ -1866,10 +1795,6 @@ h1 {
     padding: 0 8px;
   }
 
-  .map-legend {
-    display: none;
-  }
-
   .detail-drawer {
     width: 100%;
   }
@@ -1880,6 +1805,13 @@ h1 {
 
   .detail-drawer__actions {
     flex-direction: column;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .discovery-sidebar,
+    .map-selection-panel {
+      transition: none;
+    }
   }
 }
 
@@ -1895,7 +1827,3 @@ h1 {
   }
 }
 </style>
-
-
-
-

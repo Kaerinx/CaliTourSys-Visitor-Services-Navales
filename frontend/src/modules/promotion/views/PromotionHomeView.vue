@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   getDestinations,
   getEvents,
@@ -8,110 +8,69 @@ import {
   getPromotionalPackages,
   getPromotionalProducts,
 } from '../services/promotionService'
-import { useNewsletterForm } from '../composables/useNewsletterForm'
+import PromotionNavbar from '../components/PromotionNavbar.vue'
+import PromotionFooter from '../components/PromotionFooter.vue'
+import AccreditationBadge from '../components/AccreditationBadge.vue'
+import heroBanner from '@/assets/hero-banner.jpg'
 
-const products = ref([
-  {
-    id: 'pili-candy',
-    name: 'Pili Nut Brittle (Glazed)',
-    producer: "Aling Marta's Kitchen",
-    price: 'â‚± 250.00',
-    category: 'Sweets',
-    accent: '#B5451B',
-    accredited: true,
-  },
-  {
-    id: 'abaca-mat',
-    name: 'Hand-woven Abaca Place Mat',
-    producer: 'Quipayo Weavers Coop',
-    price: 'â‚± 480.00',
-    category: 'Crafts',
-    accent: '#7B341E',
-    accredited: true,
-  },
-  {
-    id: 'bagoong',
-    name: 'Calabanga Fermented Bagoong',
-    producer: 'San Miguel Bay Fishers',
-    price: 'â‚± 180.00',
-    category: 'Pantry',
-    accent: '#1B4332',
-    accredited: true,
-  },
-  {
-    id: 'coco-jam',
-    name: 'Slow-cooked Latik Coco Jam',
-    producer: 'Sabang Farm',
-    price: 'â‚± 220.00',
-    category: 'Sweets',
-    accent: '#D4711B',
-    accredited: true,
-  },
-])
+const heroBannerUrl = `url(${heroBanner})`
+
+const products = ref([])
 
 const destinations = ref([])
 const museumItems = ref([])
 const packages = ref([])
 
-const events = ref([
-  {
-    id: 'pili-fest',
-    title: 'Pili Festival 2026',
-    day: '24',
-    month: 'MAY',
-    location: 'Calabanga Town Plaza',
-    category: 'Festival',
-    accent: '#B5451B',
-    desc: 'A week-long celebration of the pili nut harvest with parades, cooking competitions, and live cultural performances along the plaza.',
-  },
-  {
-    id: 'regatta',
-    title: 'San Miguel Bay Regatta',
-    day: '08',
-    month: 'JUN',
-    location: 'Sabang Beach Front',
-    category: 'Sports',
-    accent: '#1565C0',
-    desc: 'Traditional outrigger boats race across the bay at sunrise - a centuries-old tradition of our fishing barangays.',
-  },
-  {
-    id: 'art-walk',
-    title: 'Quipayo Heritage Art Walk',
-    day: '15',
-    month: 'JUN',
-    location: 'Quipayo Old Stone Church',
-    category: 'Culture',
-    accent: '#7B341E',
-    desc: 'Walking tour of murals, weaving demos, and the 18th-century Quipayo church bell tower.',
-  },
-])
+const events = ref([])
 
-const locations = ref([
-  { id: 'sabang', name: 'Sabang Beach', color: '#1565C0', distance: '4.2 km', x: 42, y: 40 },
-  { id: 'quipayo', name: 'Quipayo Old Church', color: '#7B341E', distance: '2.1 km', x: 56, y: 30 },
-  { id: 'belen', name: 'Belen Pottery Village', color: '#7B341E', distance: '6.8 km', x: 70, y: 60 },
-  { id: 'isarog', name: 'Mt. Isarog Foothills', color: '#1B7A4A', distance: '9.4 km', x: 82, y: 20 },
-  { id: 'market', name: 'Calabanga Public Market', color: '#B5451B', distance: '0.6 km', x: 58, y: 72 },
-])
+const locations = ref([])
 
 const isLoading = ref(true)
 const errorMessage = ref('')
 const failedProductImages = ref(new Set())
-const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
 
-const quickCategories = [
-  { label: 'Nature', helper: 'Browse nature', icon: 'leaf' },
-  { label: 'Cultural', helper: 'Browse cultural', icon: 'landmark' },
-  { label: 'Food', helper: 'Browse food', icon: 'food' },
-  { label: 'Events', helper: 'Browse events', icon: 'calendar' },
+const exploreCategories = [
+  {
+    label: 'Nature',
+    description: 'Beaches, rivers, and the foothills of Mt. Isarog.',
+    image:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Sunset%20at%20San%20Miguel%20Bay%2C%20Calabanga.jpg',
+    to: '/destinations',
+  },
+  {
+    label: 'Cultural',
+    description: 'Centuries-old churches and living heritage sites.',
+    image:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Quipayo%20Church%20%28S.%20Ciencia%29%20-%20Flickr.jpg',
+    to: '/destinations',
+  },
+  {
+    label: 'Food',
+    description: 'OTOP pasalubong and local Bicol flavors.',
+    image:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Sea%20Side%20Calabanga%20Camarines%20Sur.jpg',
+    to: '/products',
+  },
+  {
+    label: 'Events',
+    description: 'Festivals, fiestas, and seasonal celebrations.',
+    image:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Kawit%20Island%2C%20Calabanga%2C%20Camarines%20Sur.jpg',
+    to: '/events',
+  },
 ]
 
-const filters = [
-  { label: 'Nature & Outdoors', count: 18, active: true, color: '#1B7A4A' },
-  { label: 'Beaches', count: 7, active: true, color: '#1565C0' },
-  { label: 'Cultural Sites', count: 12, active: false, color: '#7B341E' },
-  { label: 'Food & Markets', count: 9, active: true, color: '#B5451B' },
-]
+// Derived from the real map locations returned by the API — no fabricated counts.
+const filters = computed(() => {
+  const grouped = new Map()
+  locations.value.forEach((location) => {
+    const label = location.category || 'Other'
+    const current = grouped.get(label) || { label, count: 0, active: true, color: location.color }
+    current.count += 1
+    grouped.set(label, current)
+  })
+  return [...grouped.values()].slice(0, 5)
+})
 
 function productImageKey(product) {
   return product.apiId || product.id || product.slug || product.name
@@ -130,14 +89,15 @@ async function loadHomeData() {
   errorMessage.value = ''
 
   try {
-    const [productData, eventData, destinationData, locationData, museumData, packageData] = await Promise.all([
-      getPromotionalProducts({ featured: true, limit: 8 }),
-      getEvents({ featured: true, limit: 4 }),
-      getDestinations({ featured: true, limit: 3 }),
-      getMapLocations({ format: 'list' }),
-      getMuseumItems({ featured: true, limit: 3 }),
-      getPromotionalPackages(),
-    ])
+    const [productData, eventData, destinationData, locationData, museumData, packageData] =
+      await Promise.all([
+        getPromotionalProducts({ featured: true, limit: 8 }),
+        getEvents({ featured: true, limit: 4 }),
+        getDestinations({ featured: true, limit: 3 }),
+        getMapLocations({ format: 'list' }),
+        getMuseumItems({ featured: true, limit: 3 }),
+        getPromotionalPackages(),
+      ])
 
     products.value = productData
     events.value = eventData
@@ -157,56 +117,7 @@ onMounted(loadHomeData)
 
 <template>
   <div class="twbis-home">
-    <header class="site-nav">
-      <div class="site-nav__inner">
-        <RouterLink to="/" class="brand" aria-label="TWBIS Home">
-          <span class="brand__mark">T</span>
-          <span class="brand__copy">
-            <span class="brand__name">TWBIS</span>
-            <span class="brand__tagline">Calabanga Tourism</span>
-          </span>
-        </RouterLink>
-
-        <nav class="site-nav__links" aria-label="Primary navigation">
-          <RouterLink to="/" class="site-nav__link site-nav__link--active">Home</RouterLink>
-          <RouterLink to="/destinations" class="site-nav__link">Destination</RouterLink>
-          <RouterLink to="/products" class="site-nav__link">Products</RouterLink>
-          <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
-          <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
-          <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
-          <div class="site-nav__dropdown">
-            <button class="site-nav__link site-nav__dropdown-trigger" type="button" aria-haspopup="true">
-              Accreditation
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <div class="site-nav__dropdown-menu">
-              <RouterLink to="/accreditation">Online Accreditation</RouterLink>
-              <RouterLink to="/accredited-establishments">Accredited Establishments</RouterLink>
-            </div>
-          </div>
-          <RouterLink to="/promotion/inquiry" class="site-nav__link">Inquiries</RouterLink>
-        </nav>
-
-        <div class="site-nav__actions">
-          <button class="icon-button" type="button" aria-label="Search planned for later" disabled>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.2-3.2" />
-            </svg>
-          </button>
-          <RouterLink class="login-button" :to="{ path: $route.path, query: { ...$route.query, auth: 'login' } }" aria-label="Open visitor login">
-            Login
-          </RouterLink>
-          <button class="icon-button icon-button--menu" type="button" aria-label="Menu" disabled title="Mobile menu is planned for a later phase">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </header>
+    <PromotionNavbar />
 
     <main>
       <section class="hero-section">
@@ -226,8 +137,56 @@ onMounted(loadHomeData)
                 </svg>
                 Start exploring
               </RouterLink>
-              <RouterLink to="/products" class="button button--white-ghost">Shop local products</RouterLink>
+              <RouterLink to="/products" class="button button--white-ghost"
+                >Shop local products</RouterLink
+              >
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="category-explore" aria-labelledby="category-explore-title">
+        <div class="page-shell">
+          <div class="category-explore__head">
+            <p class="eyebrow">Discover Calabanga</p>
+            <h2 id="category-explore-title">Explore by Category</h2>
+            <p>
+              Find your way around Calabanga — from coastlines and heritage churches to local
+              flavors and festivals.
+            </p>
+          </div>
+
+          <div class="category-explore__grid">
+            <RouterLink
+              v-for="category in exploreCategories"
+              :key="category.label"
+              :to="category.to"
+              class="category-tile"
+              :aria-label="`Explore ${category.label}`"
+            >
+              <span
+                class="category-tile__media"
+                :style="{ backgroundImage: `url(${category.image})` }"
+              ></span>
+              <span class="category-tile__overlay"></span>
+              <span class="category-tile__content">
+                <strong class="category-tile__title">{{ category.label }}</strong>
+                <span class="category-tile__desc">{{ category.description }}</span>
+                <span class="category-tile__cta">
+                  Explore
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M5 12h14M13 6l6 6-6 6"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+              </span>
+            </RouterLink>
           </div>
         </div>
       </section>
@@ -237,51 +196,23 @@ onMounted(loadHomeData)
         <p v-else>{{ errorMessage }}</p>
       </section>
 
-      <section class="quick-strip" aria-label="Quick discovery categories">
-        <div class="quick-strip__inner">
-          <RouterLink
-            v-for="category in quickCategories"
-            :key="category.label"
-            :to="category.label === 'Events' ? '/events' : '/destinations'"
-            class="quick-card"
-          >
-            <span class="quick-card__icon">
-              <svg v-if="category.icon === 'leaf'" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M20 4c-7.2.4-12 3.6-14.2 9.6C4.6 17 6.9 20 10.3 20c5.9 0 8.9-6.8 9.7-16Z" />
-                <path d="M5 19c3.6-4.7 7.4-7.6 11.5-8.8" />
-              </svg>
-              <svg v-else-if="category.icon === 'landmark'" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 10h16L12 5 4 10Z" />
-                <path d="M6 10v7M10 10v7M14 10v7M18 10v7M4 19h16" />
-              </svg>
-              <svg v-else-if="category.icon === 'food'" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M7 3v8M4 3v8M10 3v8M4 11h6M7 11v10" />
-                <path d="M16 3v18M16 3c2.4 1.5 3.7 3.8 3.7 6.8H16" />
-              </svg>
-              <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M7 3v4M17 3v4M4 8h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2Z" />
-              </svg>
-            </span>
-            <span>
-              <strong>{{ category.label }}</strong>
-              <small>{{ category.helper }}</small>
-            </span>
-          </RouterLink>
-        </div>
-      </section>
-
       <section class="content-section content-section--white">
         <div class="page-shell">
           <div class="section-heading">
             <div>
               <h2>Featured Destinations</h2>
-              <p>Start with visitor-ready places across Calabanga's coast, heritage sites, food stops, and nature routes.</p>
+              <p>
+                Start with visitor-ready places across Calabanga's coast, heritage sites, food
+                stops, and nature routes.
+              </p>
             </div>
             <RouterLink to="/destinations">Explore destinations -></RouterLink>
           </div>
 
           <div class="feature-grid feature-grid--three">
-            <p v-if="!isLoading && destinations.length === 0" class="empty-copy">No featured destinations are available yet.</p>
+            <p v-if="!isLoading && destinations.length === 0" class="empty-copy">
+              No featured destinations are available yet.
+            </p>
             <RouterLink
               v-for="destination in destinations"
               :key="destination.id"
@@ -292,14 +223,16 @@ onMounted(loadHomeData)
                 class="destination-card__media"
                 :style="{
                   '--card-accent': destination.accent || destination.color || '#1b4332',
-                  backgroundImage: destination.imageUrl ? `url(${destination.imageUrl})` : undefined,
+                  backgroundImage: destination.imageUrl
+                    ? `url(${destination.imageUrl})`
+                    : undefined,
                 }"
-              >
-                <span class="category-badge">{{ destination.category }}</span>
-              </span>
+              ></span>
               <span class="destination-card__body">
                 <strong>{{ destination.name }}</strong>
-                <span>{{ destination.location || destination.distance || 'Calabanga, Camarines Sur' }}</span>
+                <span>{{
+                  destination.location || destination.distance || 'Calabanga, Camarines Sur'
+                }}</span>
                 <p>{{ destination.description || destination.desc }}</p>
                 <span class="card-link">View destination -></span>
               </span>
@@ -319,7 +252,9 @@ onMounted(loadHomeData)
           </div>
 
           <div class="product-grid product-grid--three">
-            <p v-if="!isLoading && products.length === 0" class="empty-copy">No featured products are available yet.</p>
+            <p v-if="!isLoading && products.length === 0" class="empty-copy">
+              No featured products are available yet.
+            </p>
             <RouterLink
               v-for="product in products.slice(0, 3)"
               :key="product.id"
@@ -344,10 +279,7 @@ onMounted(loadHomeData)
                     <path d="M18 28h12" />
                   </svg>
                 </span>
-                <span v-if="product.accredited" class="accreditation-badge">
-                  <span></span>
-                  LGU Accredited
-                </span>
+                <AccreditationBadge v-if="product.accredited" floating />
               </span>
               <span class="product-card__body">
                 <span class="category-badge">{{ product.category }}</span>
@@ -371,13 +303,18 @@ onMounted(loadHomeData)
           <div class="section-heading">
             <div>
               <h2>Featured Tourism Packages</h2>
-              <p>Visitor-ready packages from the Product Development module, prepared for public promotion.</p>
+              <p>
+                Visitor-ready packages from the Product Development module, prepared for public
+                promotion.
+              </p>
             </div>
             <RouterLink to="/packages">Browse packages -></RouterLink>
           </div>
 
           <div class="feature-grid feature-grid--three">
-            <p v-if="!isLoading && packages.length === 0" class="empty-copy">No tourism packages are available yet.</p>
+            <p v-if="!isLoading && packages.length === 0" class="empty-copy">
+              No tourism packages are available yet.
+            </p>
             <RouterLink
               v-for="tourismPackage in packages"
               :key="tourismPackage.id"
@@ -388,11 +325,11 @@ onMounted(loadHomeData)
                 class="destination-card__media"
                 :style="{
                   '--card-accent': tourismPackage.accent || '#1b4332',
-                  backgroundImage: tourismPackage.imageUrl ? `url(${tourismPackage.imageUrl})` : undefined,
+                  backgroundImage: tourismPackage.imageUrl
+                    ? `url(${tourismPackage.imageUrl})`
+                    : undefined,
                 }"
-              >
-                <span class="category-badge">{{ tourismPackage.category }}</span>
-              </span>
+              ></span>
               <span class="destination-card__body">
                 <strong>{{ tourismPackage.name }}</strong>
                 <span>{{ tourismPackage.estimatedDuration || 'Duration to be confirmed' }}</span>
@@ -430,8 +367,14 @@ onMounted(loadHomeData)
               </div>
 
               <div class="map-preview__results">
-                <p>Showing 5 highlights</p>
-                <div v-for="location in locations.slice(0, 3)" :key="location.id" class="result-row">
+                <p>
+                  Showing {{ locations.length }} highlight{{ locations.length === 1 ? '' : 's' }}
+                </p>
+                <div
+                  v-for="location in locations.slice(0, 3)"
+                  :key="location.id"
+                  class="result-row"
+                >
                   <span :style="{ backgroundColor: location.color }"></span>
                   <strong>{{ location.name }}</strong>
                   <small>{{ location.distance }}</small>
@@ -445,10 +388,16 @@ onMounted(loadHomeData)
                 :key="location.id"
                 class="map-pin"
                 :class="{ 'map-pin--selected': index === 1 }"
-                :style="{ left: `${location.x}%`, top: `${location.y}%`, '--pin-color': location.color }"
+                :style="{
+                  left: `${location.x}%`,
+                  top: `${location.y}%`,
+                  '--pin-color': location.color,
+                }"
               >
                 <svg viewBox="0 0 28 36" aria-hidden="true">
-                  <path d="M14 0C6.27 0 0 6.27 0 14c0 9.5 14 22 14 22s14-12.5 14-22C28 6.27 21.73 0 14 0z" />
+                  <path
+                    d="M14 0C6.27 0 0 6.27 0 14c0 9.5 14 22 14 22s14-12.5 14-22C28 6.27 21.73 0 14 0z"
+                  />
                   <circle cx="14" cy="14" r="5" />
                 </svg>
               </span>
@@ -461,19 +410,22 @@ onMounted(loadHomeData)
         </div>
       </section>
 
-
       <section class="content-section content-section--warm">
         <div class="page-shell">
           <div class="section-heading">
             <div>
               <h2>Upcoming Festivals &amp; Events</h2>
-              <p>From the Pili Festival to the San Miguel Bay Regatta - plan your trip around our calendar.</p>
+              <p>
+                Plan your trip around Calabanga's festivals, fiestas, and seasonal celebrations.
+              </p>
             </div>
             <RouterLink to="/events">View all events -></RouterLink>
           </div>
 
           <div class="event-grid">
-            <p v-if="!isLoading && events.length === 0" class="empty-copy">No upcoming events are available yet.</p>
+            <p v-if="!isLoading && events.length === 0" class="empty-copy">
+              No upcoming events are available yet.
+            </p>
             <RouterLink v-for="event in events" :key="event.id" to="/events" class="event-card">
               <span
                 class="event-card__image"
@@ -516,14 +468,19 @@ onMounted(loadHomeData)
           </div>
 
           <div class="culture-grid">
-            <p v-if="!isLoading && museumItems.length === 0" class="empty-copy">No museum highlights are available yet.</p>
+            <p v-if="!isLoading && museumItems.length === 0" class="empty-copy">
+              No museum highlights are available yet.
+            </p>
             <RouterLink
               v-for="artifact in museumItems"
               :key="artifact.id"
               to="/promotion/museum"
               class="culture-card"
             >
-              <span class="culture-card__media" :style="{ '--card-accent': artifact.accent || '#7b341e' }">
+              <span
+                class="culture-card__media"
+                :style="{ '--card-accent': artifact.accent || '#7b341e' }"
+              >
                 <span class="category-badge">{{ artifact.category }}</span>
               </span>
               <span class="culture-card__body">
@@ -540,78 +497,18 @@ onMounted(loadHomeData)
       <section class="trust-strip">
         <div class="page-shell trust-strip__inner">
           <div>
-            <span class="accreditation-badge accreditation-badge--static">
-              <span></span>
+            <span class="trust-strip__badge">
+              <AccreditationBadge />
               LGU Accredited
             </span>
-            <p>Every producer on TWBIS is vetted and accredited by LGU Calabanga.</p>
+            <p>Every producer on Love Calabanga is vetted and accredited by LGU Calabanga.</p>
           </div>
           <RouterLink to="/products">View accredited products -></RouterLink>
         </div>
       </section>
     </main>
 
-    <footer class="site-footer">
-      <div class="site-footer__main page-shell">
-        <div>
-          <div class="footer-brand">
-            <span class="footer-brand__mark">T</span>
-            <span>
-              <strong>TWBIS</strong>
-              <small>Calabanga Tourism</small>
-            </span>
-          </div>
-          <p>
-            The official tourism platform of the Local Government of Calabanga, Camarines Sur -
-            celebrating our coast, culture, and craft.
-          </p>
-          <div class="social-row">
-            <a aria-label="Facebook page pending" aria-disabled="true">f</a>
-            <a aria-label="Instagram page pending" aria-disabled="true">â—Ž</a>
-            <a aria-label="Youtube page pending" aria-disabled="true">â–¶</a>
-          </div>
-        </div>
-
-        <div>
-          <h4>Explore</h4>
-          <RouterLink to="/destinations">Destinations &amp; Map</RouterLink>
-          <RouterLink to="/products">Products</RouterLink>
-          <RouterLink to="/packages">Packages</RouterLink>
-          <RouterLink to="/events">Events</RouterLink>
-          <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
-        </div>
-
-        <div>
-          <h4>Visit</h4>
-          <p>LGU Calabanga, Camarines Sur 4405</p>
-          <p>+63 54 871 1234</p>
-          <p>tourism@calabanga.gov.ph</p>
-        </div>
-
-        <div>
-          <h4>Stay updated</h4>
-          <p>Festival dates, new producers, and seasonal guides - once a month.</p>
-          <form class="subscribe-form" @submit.prevent="submitNewsletter">
-            <input v-model="newsletterEmail" aria-label="Email address" placeholder="you@email.com" />
-            <button type="submit" :disabled="isSubscribing">
-              {{ isSubscribing ? 'Joining...' : 'Join' }}
-            </button>
-          </form>
-          <p v-if="newsletterMessage" class="footer-message">{{ newsletterMessage }}</p>
-        </div>
-      </div>
-
-      <div class="site-footer__bottom">
-        <div class="page-shell">
-          <span>Â© 2026 LGU Calabanga, Camarines Sur. All rights reserved.</span>
-          <span>
-            <a aria-disabled="true">Privacy</a>
-            <a aria-disabled="true">Accessibility</a>
-            <RouterLink to="/promotion/inquiry">Contact</RouterLink>
-          </span>
-        </div>
-      </div>
-    </footer>
+    <PromotionFooter />
   </div>
 </template>
 
@@ -641,180 +538,25 @@ input {
   margin: 0 auto;
 }
 
-.site-nav {
-  position: fixed;
-  z-index: 50;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #e8e4dc;
-}
-
-.site-nav__inner {
-  width: min(100% - 48px, 1200px);
-  height: 100%;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 32px;
-}
-
-.brand,
-.footer-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.brand__mark,
-.footer-brand__mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: #1b4332;
-  color: #ffffff;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-weight: 700;
-}
-
-.brand__copy,
-.footer-brand span:last-child {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.05;
-}
-
-.brand__name,
-.footer-brand strong {
-  color: #1b4332;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.brand__tagline,
-.footer-brand small {
-  color: #5c5c5c;
-  font-size: 11px;
-}
-
-.site-nav__links {
-  display: flex;
-  align-self: stretch;
-  align-items: stretch;
-  justify-content: center;
-  gap: 14px;
-}
-
-.site-nav__link {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
-  color: #1a1a1a;
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.site-nav__link--active,
-.site-nav__link:hover {
-  color: #1b4332;
-}
-
-.site-nav__link--active::after {
-  position: absolute;
-  right: 6px;
-  bottom: 19px;
-  left: 6px;
-  height: 2px;
-  border-radius: 999px;
-  background: #1b4332;
-  content: '';
-}
-
-.site-nav__actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.icon-button,
-.login-button {
-  border: 0;
-  background: transparent;
-  color: #1a1a1a;
-  cursor: pointer;
-}
-
-.icon-button {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-}
-
-.icon-button:hover {
-  background: #f2f0eb;
-}
-
-.icon-button:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
-.icon-button svg {
-  width: 22px;
-  height: 22px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2;
-}
-
-.icon-button--menu {
-  display: none;
-}
-
-.login-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 38px;
-  padding: 0 18px;
-  border: 1.5px solid #1b4332;
-  border-radius: 8px;
-  color: #1b4332;
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.login-button:hover {
-  background: #d8f3dc;
-}
-
-.login-button:disabled {
-  cursor: default;
-  opacity: 0.72;
-}
-
 .hero-section {
   width: 100%;
   max-width: none;
   min-height: 88vh;
   margin: 0;
   text-align: left;
-  background:
-    radial-gradient(ellipse at 30% 70%, rgba(0, 0, 0, 0.35), transparent 60%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.6)),
-    linear-gradient(135deg, #1b4332 0%, #2d6a4f 50%, #40916c 100%);
+  /* Calabanga banner photo, darkened with a brand-green wash (heavier on the
+     left) so the white hero copy stays legible. */
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(16, 40, 29, 0.88) 0%,
+      rgba(20, 47, 35, 0.62) 45%,
+      rgba(20, 47, 35, 0.35) 100%
+    ),
+    linear-gradient(180deg, rgba(16, 40, 29, 0.15), rgba(16, 40, 29, 0.55)), v-bind(heroBannerUrl);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .hero-section__inner {
@@ -858,7 +600,7 @@ h2,
 h3 {
   margin: 0;
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   line-height: 1.2;
 }
 
@@ -932,75 +674,201 @@ h1 {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.quick-strip {
-  position: relative;
-  z-index: 5;
-  display: flex;
-  justify-content: center;
-  padding: 0 24px;
-  margin-top: -44px;
-}
-
-.quick-strip__inner {
-  width: min(100%, 1100px);
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  overflow: hidden;
+/* Explore by Category — dedicated section below the hero */
+.category-explore {
+  padding: 80px 0;
   background: #ffffff;
-  border: 1px solid #e8e4dc;
-  border-radius: 16px;
-  box-shadow: 0 2px 24px rgba(0, 0, 0, 0.06);
 }
 
-.quick-card {
-  min-height: 84px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 18px 24px;
-  border-right: 1px solid #e8e4dc;
+.category-explore__head {
+  max-width: 640px;
+  margin-bottom: 40px;
 }
 
-.quick-card:last-child {
-  border-right: 0;
+.category-explore__head .eyebrow {
+  color: #b5451b;
 }
 
-.quick-card:hover {
-  background: #f2f0eb;
-}
-
-.quick-card__icon {
-  width: 44px;
-  height: 44px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: #1b4332;
-  color: #ffffff;
-}
-
-.quick-card__icon svg {
-  width: 22px;
-  height: 22px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
-}
-
-.quick-card strong {
-  display: block;
-  color: #1a1a1a;
-  font-size: 15px;
+.category-explore__head h2 {
+  margin: 8px 0;
+  font-size: 32px;
   font-weight: 600;
 }
 
-.quick-card small {
-  display: block;
+.category-explore__head p {
+  margin: 0;
   color: #5c5c5c;
-  font-size: 12px;
+  font-size: 16px;
+}
+
+.category-explore__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+.category-tile {
+  position: relative;
+  display: flex;
+  min-height: 340px;
+  border-radius: 12px;
+  overflow: hidden;
+  isolation: isolate;
+  text-decoration: none;
+  border: 1px solid #e8e4dc;
+}
+
+.category-tile__media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  transform: scale(1);
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.category-tile__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    rgba(16, 40, 29, 0.1) 0%,
+    rgba(16, 40, 29, 0.35) 45%,
+    rgba(16, 40, 29, 0.82) 100%
+  );
+  transition: opacity 0.35s ease;
+}
+
+.category-tile__content {
+  position: relative;
+  z-index: 2;
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 24px;
+  color: #ffffff;
+}
+
+.category-tile__title {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.category-tile__desc {
+  max-width: 34ch;
+  font-size: 14px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+  /* Hidden by default; slides up + fades in on hover/focus. */
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+
+.category-tile__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  align-self: flex-start;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1b4332;
+  font-size: 14px;
+  font-weight: 600;
+  /* Hidden by default; reveals with the description. */
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 0.35s ease 0.04s,
+    transform 0.35s ease 0.04s;
+}
+
+.category-tile__cta svg {
+  width: 18px;
+  height: 18px;
+}
+
+.category-tile:hover .category-tile__media,
+.category-tile:focus-visible .category-tile__media {
+  transform: scale(1.08);
+}
+
+.category-tile:hover .category-tile__overlay,
+.category-tile:focus-visible .category-tile__overlay {
+  opacity: 1;
+  background: linear-gradient(
+    180deg,
+    rgba(16, 40, 29, 0.25) 0%,
+    rgba(16, 40, 29, 0.55) 45%,
+    rgba(16, 40, 29, 0.92) 100%
+  );
+}
+
+.category-tile:hover .category-tile__desc,
+.category-tile:hover .category-tile__cta,
+.category-tile:focus-visible .category-tile__desc,
+.category-tile:focus-visible .category-tile__cta {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.category-tile:focus-visible {
+  outline: 3px solid #1b4332;
+  outline-offset: 2px;
+}
+
+/* Tablet: 2 columns */
+@media (min-width: 640px) {
+  .category-explore__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Desktop: 4 columns */
+@media (min-width: 1024px) {
+  .category-explore__grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Touch / no-hover: reveal description + CTA since there is no hover state */
+@media (hover: none) {
+  .category-tile__desc,
+  .category-tile__cta {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .category-tile__media,
+  .category-tile__overlay,
+  .category-tile__desc,
+  .category-tile__cta {
+    transition: none;
+  }
+
+  .category-tile:hover .category-tile__media {
+    transform: none;
+  }
+
+  .category-tile__desc,
+  .category-tile__cta {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .content-section {
@@ -1032,10 +900,24 @@ h1 {
 
 .section-heading {
   display: flex;
-  align-items: end;
+  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 24px;
+  gap: 12px 40px;
   margin-bottom: 34px;
+}
+
+/* Title + subtitle stay grouped on the left with a comfortable measure so the
+   paragraph never crowds the right-aligned link. */
+.section-heading > div {
+  max-width: 640px;
+}
+
+/* justify-content pushes the "Explore ->" link to the right edge on desktop;
+   keep it from shrinking or wrapping. */
+.section-heading > a {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .section-heading h2 {
@@ -1147,7 +1029,11 @@ h1 {
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.26), transparent 40%),
     radial-gradient(circle at 70% 70%, rgba(0, 0, 0, 0.18), transparent 50%),
-    linear-gradient(135deg, var(--card-accent, #1b4332), color-mix(in srgb, var(--card-accent, #1b4332) 60%, white));
+    linear-gradient(
+      135deg,
+      var(--card-accent, #1b4332),
+      color-mix(in srgb, var(--card-accent, #1b4332) 60%, white)
+    );
 }
 
 .twbis-home .product-card--home .product-card__image {
@@ -1161,7 +1047,11 @@ h1 {
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.26), transparent 40%),
     radial-gradient(circle at 70% 70%, rgba(0, 0, 0, 0.18), transparent 50%),
-    linear-gradient(135deg, var(--card-accent, #1b4332), color-mix(in srgb, var(--card-accent, #1b4332) 60%, white));
+    linear-gradient(
+      135deg,
+      var(--card-accent, #1b4332),
+      color-mix(in srgb, var(--card-accent, #1b4332) 60%, white)
+    );
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
@@ -1195,33 +1085,6 @@ h1 {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
-}
-
-.twbis-home .product-card--home .accreditation-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 10px;
-  border: 1px solid #d4ac0d;
-  border-radius: 999px;
-  background: #fff9e6;
-  color: #7d5a00;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.twbis-home .product-card--home .accreditation-badge span {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  background: #d4ac0d;
 }
 
 .product-card__body,
@@ -1263,7 +1126,7 @@ h1 {
 .product-card__body > strong {
   margin-top: 10px;
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 16px;
   font-weight: 600;
   line-height: 1.25;
@@ -1337,13 +1200,16 @@ h1 {
   background:
     radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.28), transparent 42%),
     radial-gradient(circle at 74% 72%, rgba(0, 0, 0, 0.14), transparent 54%),
-    linear-gradient(135deg, var(--card-accent, #1b4332), color-mix(in srgb, var(--card-accent, #1b4332) 62%, white));
+    linear-gradient(
+      135deg,
+      var(--card-accent, #1b4332),
+      color-mix(in srgb, var(--card-accent, #1b4332) 62%, white)
+    );
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
 }
 
-.destination-card__media .category-badge,
 .promotion-card__media .category-badge,
 .culture-card__media .category-badge {
   position: absolute;
@@ -1366,7 +1232,7 @@ h1 {
 .promotion-card__body > strong,
 .culture-card__body > strong {
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 18px;
   font-weight: 700;
   line-height: 1.25;
@@ -1604,7 +1470,7 @@ h1 {
 }
 
 .date-badge strong {
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 28px;
   font-weight: 700;
 }
@@ -1622,7 +1488,7 @@ h1 {
 
 .event-card__body > strong {
   color: #1a1a1a;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 20px;
   font-weight: 600;
   line-height: 1.25;
@@ -1687,140 +1553,6 @@ h1 {
   font-weight: 500;
 }
 
-.accreditation-badge--static {
-  position: static;
-  flex: 0 0 auto;
-}
-
-.site-footer {
-  background: #1b4332;
-  color: #ffffff;
-}
-
-.site-footer__main {
-  display: grid;
-  grid-template-columns: 1.35fr 1fr 1.25fr 1.25fr;
-  gap: 56px;
-  padding: 64px 0;
-}
-
-.site-footer p,
-.site-footer a,
-.site-footer small {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.site-footer p {
-  max-width: 290px;
-  margin: 14px 0 0;
-  font-size: 14px;
-}
-
-.footer-brand__mark {
-  background: #ffffff;
-  color: #1b4332;
-}
-
-.footer-brand strong {
-  color: #ffffff;
-}
-
-.social-row {
-  display: flex;
-  gap: 10px;
-  margin-top: 22px;
-}
-
-.social-row a {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 999px;
-  color: #ffffff;
-  font-size: 14px;
-}
-
-.site-footer h4 {
-  margin: 0 0 18px;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.site-footer__main > div:not(:first-child) a {
-  display: block;
-  margin-top: 11px;
-  font-size: 14px;
-}
-
-.subscribe-form {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.subscribe-form input {
-  min-width: 0;
-  flex: 1;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
-  outline: 0;
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  font-size: 14px;
-}
-
-.subscribe-form input::placeholder {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.subscribe-form button {
-  height: 40px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #1b4332;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.subscribe-form button:disabled {
-  cursor: wait;
-  opacity: 0.72;
-}
-
-.footer-message {
-  margin-top: 10px !important;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 12px !important;
-}
-
-.site-footer__bottom {
-  background: #14532d;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.site-footer__bottom .page-shell {
-  min-height: 58px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 13px;
-}
-
-.site-footer__bottom a {
-  margin-left: 24px;
-}
-
 @media (max-width: 1024px) {
   .site-nav__links {
     display: none;
@@ -1870,18 +1602,6 @@ h1 {
 
   h1 {
     font-size: 42px;
-  }
-
-  .quick-strip__inner {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .quick-card:nth-child(2n) {
-    border-right: 0;
-  }
-
-  .quick-card:nth-child(-n + 2) {
-    border-bottom: 1px solid #e8e4dc;
   }
 
   .section-heading,
