@@ -116,9 +116,7 @@ export async function reviewApplication(id, payload) {
 }
 
 export async function uploadApplicationDocument(id, formData) {
-  const { data } = await http.post(`/accreditation/applications/${id}/documents`, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  const { data } = await http.post(`/accreditation/applications/${id}/documents`, formData);
   return data;
 }
 

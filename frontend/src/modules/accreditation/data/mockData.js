@@ -16,6 +16,7 @@ export const businessTypes = [
   "MICE Facility/ Venue",
   "Adventure/ Sports and Ecotourism Facility",
   "Restaurant",
+  "Food / Local Cuisine",
   "Tourism Training Center",
   "Target Shooting Range",
   "Department Store/ Shopping Mall/ Tourist Shop/ Specialty Shop",
@@ -72,6 +73,7 @@ export const businessTypeGroups = [
     label: "Tourism-related Enterprises",
     options: [
       "Restaurant",
+      "Food / Local Cuisine",
       "Tourism Training Center",
       "Target Shooting Range",
       "Department Store/ Shopping Mall/ Tourist Shop/ Specialty Shop",
@@ -153,6 +155,10 @@ export const permitDocumentsByBusinessType = {
   ],
   Restaurant: [
     "Food Establishment Permit",
+  ],
+  "Food / Local Cuisine": [
+    "Food Establishment Permit",
+    "Sanitary Permit",
   ],
   "Tourism Training Center": [
     "Training Program / Instructor Credentials",

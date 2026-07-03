@@ -57,6 +57,10 @@ export function getReadyForPromotionPackages() {
     .catch(() => getLegacyProductApi('/packages/ready-for-promotion'))
 }
 
+export function getTourismAssets(params) {
+  return http.get(publicPath('/tourism-assets'), params)
+}
+
 export function getPackageBySlug(slug) {
   return http.get(publicPath(`/packages/${slug}`))
 }

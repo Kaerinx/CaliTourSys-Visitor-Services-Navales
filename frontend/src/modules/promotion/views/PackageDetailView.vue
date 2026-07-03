@@ -17,6 +17,16 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 
 const packageItems = computed(() => tourismPackage.value?.items || [])
+const packageGallery = computed(() => {
+  if (!tourismPackage.value) return []
+  const primary = tourismPackage.value.imageUrl
+    ? [{ id: 'package-cover', url: tourismPackage.value.imageUrl, altText: `${tourismPackage.value.name} image` }]
+    : []
+  const gallery = Array.isArray(tourismPackage.value.gallery) ? tourismPackage.value.gallery : []
+  return [...primary, ...gallery].filter(
+    (image, index, images) => image.url && images.findIndex((item) => item.url === image.url) === index,
+  )
+})
 
 async function loadPackage() {
   isLoading.value = true
@@ -88,11 +98,21 @@ onMounted(loadPackage)
           </dl>
         </aside>
 
-        <img
-          class="detail-image"
-          :src="tourismPackage.imageUrl"
-          :alt="`${tourismPackage.name} image`"
-        />
+        <section v-if="packageGallery.length" class="gallery-panel" aria-labelledby="package-gallery-title">
+          <div class="gallery-panel__heading">
+            <h2 id="package-gallery-title">Package Photos</h2>
+            <span>{{ packageGallery.length }} photo{{ packageGallery.length === 1 ? '' : 's' }}</span>
+          </div>
+          <div class="package-gallery">
+            <img
+              v-for="image in packageGallery"
+              :key="image.id || image.url"
+              class="detail-image"
+              :src="image.url"
+              :alt="image.altText || `${tourismPackage.name} image`"
+            />
+          </div>
+        </section>
 
         <section class="items-panel">
           <h2>Included Assets</h2>
@@ -172,7 +192,7 @@ a {
 }
 
 .detail-hero,
-.detail-image,
+.gallery-panel,
 .summary-panel,
 .items-panel,
 .state-card {
@@ -189,10 +209,40 @@ a {
   background: radial-gradient(circle at 85% 10%, rgba(212, 172, 13, 0.2), transparent 30%), #ffffff;
 }
 
+.gallery-panel {
+  grid-column: 1 / -1;
+  padding: 24px;
+}
+
+.gallery-panel__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.gallery-panel__heading h2 {
+  margin: 0;
+}
+
+.gallery-panel__heading span {
+  color: #5c5c5c;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.package-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 14px;
+}
+
 .detail-image {
   width: 100%;
-  grid-column: 1 / -1;
-  min-height: 420px;
+  min-height: 280px;
+  max-height: 520px;
+  border-radius: 10px;
   background-color: #dfe9e4;
   object-fit: cover;
 }

@@ -82,6 +82,9 @@ export const cmsContentApi = {
   getProducts(params) {
     return http.getAuth('/cms/products', params)
   },
+  getProductAccreditedEstablishments(params) {
+    return http.getAuth('/accredited-establishments', params)
+  },
   getProductById(id) {
     return http.getAuth(`/cms/products/${id}`)
   },

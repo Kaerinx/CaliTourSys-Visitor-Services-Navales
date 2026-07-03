@@ -1,6 +1,7 @@
 const express = require('express')
 const controller = require('./content.controller')
 const { authorize } = require('../../../middleware/authorize')
+const { assetImageUpload } = require('../../productDevelopment/uploads')
 
 const router = express.Router()
 
@@ -19,9 +20,10 @@ router.patch('/events/:id/publish', authorize('events.publish'), controller.publ
 router.patch('/events/:id/archive', authorize('events.archive'), controller.archiveEvent)
 
 router.get('/products', authorize('products.view'), controller.listProducts)
-router.post('/products', authorize('products.create'), controller.createProduct)
+router.post('/products', authorize('products.create'), assetImageUpload.single('image'), controller.createProduct)
+router.get('/products/accredited-establishments', authorize('products.view'), controller.listAccreditedEstablishments)
 router.get('/products/:id', authorize('products.view'), controller.getProduct)
-router.patch('/products/:id', authorize('products.update'), controller.updateProduct)
+router.patch('/products/:id', authorize('products.update'), assetImageUpload.single('image'), controller.updateProduct)
 router.patch('/products/:id/publish', authorize('products.publish'), controller.publishProduct)
 router.patch('/products/:id/archive', authorize('products.archive'), controller.archiveProduct)
 

@@ -286,6 +286,46 @@ async function updateBusinessProfile(ownerId, profile) {
   return result.rows[0];
 }
 
+async function updateBusinessProfileById(id, ownerId, profile) {
+  const result = await db.query(
+    `UPDATE business_profiles
+     SET business_name = $3,
+       business_type = $4,
+       business_permit_number = $5,
+       dti_sec_registration_number = $6,
+       region = $7,
+       province = $8,
+       city_municipality = $9,
+       barangay = $10,
+       street_address = $11,
+       zip_code = $12,
+       latitude = $13,
+       longitude = $14,
+       updated_at = NOW()
+     WHERE id = $1
+       AND owner_id = $2
+     RETURNING *`,
+    [
+      id,
+      ownerId,
+      profile.businessName,
+      profile.businessType || null,
+      profile.businessPermitNumber || null,
+      profile.dtiSecRegistrationNumber || null,
+      profile.region,
+      profile.province,
+      profile.cityMunicipality,
+      profile.barangay,
+      profile.streetAddress,
+      profile.zipCode || null,
+      coordinate(profile.latitude),
+      coordinate(profile.longitude),
+    ]
+  );
+
+  return result.rows[0];
+}
+
 async function createApplication(ownerId, application) {
   const result = await db.query(
     `INSERT INTO accreditation_applications (
@@ -456,7 +496,11 @@ async function getApplicationById(id) {
         a.review_remarks,
         CASE WHEN a.status IN ('under_review', 'for_revision', 'approved', 'rejected') THEN a.remarks END
       ) AS review_remarks,
-      b.*, a.id AS id, b.id AS business_profile_id,
+      b.*,
+      a.id AS id,
+      a.business_type AS business_type,
+      b.business_type AS profile_business_type,
+      b.id AS business_profile_id,
       u.first_name, u.last_name, u.email, u.phone
      FROM accreditation_applications a
      JOIN business_profiles b ON b.id = a.business_profile_id
@@ -874,6 +918,7 @@ module.exports = {
   updateApplicationReview,
   updateApplicationDraft,
   updateBusinessProfile,
+  updateBusinessProfileById,
   updateLastLogin,
   updatePasswordHash,
   updateUserStatus,

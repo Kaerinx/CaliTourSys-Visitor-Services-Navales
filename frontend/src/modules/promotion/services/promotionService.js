@@ -167,6 +167,14 @@ function packageCategoryList(tourismPackage, fallback) {
 
 function mapReadyPackage(tourismPackage, index = 0) {
   const packageItems = Array.isArray(tourismPackage.items) ? tourismPackage.items : []
+  const gallery = Array.isArray(tourismPackage.gallery)
+    ? tourismPackage.gallery
+        .map((image) => ({
+          ...image,
+          url: image.url || image.imageUrl,
+        }))
+        .filter((image) => image.url)
+    : []
   const category = categoryName(tourismPackage.category) || inferPackageCategory(tourismPackage)
   const categories = packageCategoryList(tourismPackage, category)
   const packageId =
@@ -206,6 +214,7 @@ function mapReadyPackage(tourismPackage, index = 0) {
       packageItems.filter((item) => item.itemType === 'Activity').length,
     remarks: tourismPackage.remarks || '',
     items: packageItems,
+    gallery,
   }
 }
 
@@ -245,7 +254,7 @@ async function getReadyPackageById(id) {
       description: 'Prepared by the Product Development module and approved for public promotion.',
       contacts: [],
     },
-    gallery: [],
+    gallery: tourismPackage.gallery || [],
     relatedProducts: [],
   }
 }
@@ -296,6 +305,12 @@ function mapBusiness(business) {
   if (!business) return null
 
   const primaryContact = business.contacts?.[0]
+  const locationParts = [
+    business.addressLine,
+    business.barangay,
+    business.municipality,
+    business.province,
+  ].filter(Boolean)
 
   return {
     id: business.slug,
@@ -304,13 +319,17 @@ function mapBusiness(business) {
     name: business.name,
     type: business.businessType,
     owner: business.ownerName,
-    location: [business.barangay, business.municipality, business.province]
-      .filter(Boolean)
-      .join(', '),
+    addressLine: business.addressLine,
+    barangay: business.barangay,
+    municipality: business.municipality,
+    province: business.province,
+    location: locationParts.join(', '),
     accreditationStatus: business.accreditation?.status || 'pending',
+    accreditationNumber: business.accreditation?.accreditationNumber || '',
     accreditedSince: business.accreditation?.issuedAt
       ? new Date(business.accreditation.issuedAt).getFullYear()
       : 'verification pending',
+    expiresAt: business.accreditation?.expiresAt,
     contactEmail: primaryContact?.contactType === 'email' ? primaryContact.contactValue : '',
     phone: primaryContact?.contactType === 'phone' ? primaryContact.contactValue : '',
     description: business.description || 'Public business profile information is being prepared.',
@@ -397,6 +416,33 @@ function mapDestination(destination, index = 0) {
   }
 }
 
+function mapTourismAsset(asset, index = 0) {
+  return {
+    id: asset.slug || `asset-${slugify(asset.name)}-${asset.id}`,
+    apiId: asset.id,
+    slug: asset.slug,
+    name: asset.name,
+    category: categoryName(asset.category),
+    color: colorFor(asset.category, index),
+    distance: asset.barangay || asset.location || 'Calabanga',
+    address: [asset.barangay || asset.location, 'Calabanga', 'Camarines Sur'].filter(Boolean).join(', '),
+    hours: 'Visiting information to be confirmed',
+    description: asset.shortDescription || asset.description || 'Tourism asset details are being prepared.',
+    x: 24 + ((index * 17) % 58),
+    y: 24 + ((index * 23) % 52),
+    latitude: asset.latitude,
+    longitude: asset.longitude,
+    accredited: true,
+    featured: true,
+    imageUrl: asset.primaryImage?.url || asset.imageUrl,
+    targetMarket: asset.targetMarket,
+    sourceBusinessName: asset.sourceBusinessName,
+    sourceBusinessType: asset.sourceBusinessType,
+    sourceAccreditationRecordNumber: asset.sourceAccreditationRecordNumber,
+    sourceModule: asset.sourceModule || 'product-development',
+  }
+}
+
 function mapMapLocation(location, index = 0) {
   return {
     id: location.slug || location.id,
@@ -459,6 +505,10 @@ export async function getPromotions(params) {
   return Array.isArray(data) ? data : []
 }
 
+export function getCampaigns() {
+  return wait([])
+}
+
 export async function getEvents(params) {
   const data = await withApiData(() => promotionApi.getEvents(params), [])
   return data.map((event, index) => (event.slug ? mapEvent(event, index) : event))
@@ -468,6 +518,13 @@ export async function getDestinations(params) {
   const data = await withApiData(() => promotionApi.getDestinations(params), [])
   return data.map((destination, index) =>
     destination.slug ? mapDestination(destination, index) : destination,
+  )
+}
+
+export async function getTourismAssets(params) {
+  const data = await withApiData(() => promotionApi.getTourismAssets(params), [])
+  return data.map((asset, index) =>
+    asset.sourceModule === 'product-development' ? mapTourismAsset(asset, index) : asset,
   )
 }
 

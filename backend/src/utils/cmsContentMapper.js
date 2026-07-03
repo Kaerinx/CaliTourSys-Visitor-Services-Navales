@@ -99,6 +99,14 @@ function mapProduct(row) {
           name: row.business_name,
         }
       : undefined,
+    primaryImage: row.primary_image_url
+      ? {
+          id: row.primary_image_id,
+          url: row.primary_image_url,
+          altText: row.primary_image_alt_text,
+          displayOrder: row.primary_image_display_order,
+        }
+      : null,
     slug: row.slug,
     name: row.name,
     shortDescription: row.short_description,
@@ -184,6 +192,15 @@ function mapBusiness(row) {
     province: row.province,
     status: row.status,
     isFeatured: row.is_featured,
+    accreditation: row.accreditation_status
+      ? {
+          status: row.accreditation_status,
+          number: row.accreditation_number,
+          issuedAt: row.accreditation_issued_at,
+          expiresAt: row.accreditation_expires_at,
+          verifiedAt: row.accreditation_verified_at,
+        }
+      : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     createdBy: row.created_by,

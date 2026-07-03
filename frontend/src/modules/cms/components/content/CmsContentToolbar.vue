@@ -99,7 +99,7 @@ defineEmits([
       <select :value="businessId" @change="$emit('update:businessId', $event.target.value)">
         <option value="">All businesses</option>
         <option v-for="business in businesses" :key="business.id" :value="business.id">
-          {{ business.name }}
+          {{ business.label || business.name }}
         </option>
       </select>
     </label>

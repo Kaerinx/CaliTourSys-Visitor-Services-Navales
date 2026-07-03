@@ -1,11 +1,8 @@
 export const ASSET_CATEGORIES = Object.freeze([
-  'Natural',
+  'Nature',
   'Cultural',
-  'Historical',
-  'Recreational',
-  'Agricultural',
-  'Religious',
-  'Other',
+  'Food',
+  'Events',
 ])
 
 export const ASSET_STATUSES = Object.freeze([
@@ -41,11 +38,15 @@ export const PACKAGE_STATUSES = Object.freeze([
   'Archived',
 ])
 
-export const PACKAGE_CATEGORIES = Object.freeze([
+export const PACKAGE_BASE_CATEGORIES = Object.freeze([
   'Nature',
   'Cultural',
   'Food',
   'Events',
+])
+
+export const PACKAGE_CATEGORIES = Object.freeze([
+  ...PACKAGE_BASE_CATEGORIES,
   'Nature and Cultural',
   'Nature and Food',
   'Nature and Events',
@@ -56,17 +57,17 @@ export const PACKAGE_CATEGORIES = Object.freeze([
 
 export const PACKAGE_ITEM_TYPES = Object.freeze(['Plan', 'Asset'])
 
-export const PACKAGE_TARGET_MARKETS = Object.freeze([
-  'Families',
+export const TOURISM_TARGET_MARKETS = Object.freeze([
+  'Local tourist',
+  'Domestic tourist',
+  'International tourist',
   'Students',
-  'Eco-tourists',
-  'Cultural tourists',
-  'Food tourists',
-  'Event visitors',
-  'Local visitors',
-  'Balikbayan visitors',
-  'General tourists',
+  'Families',
+  'Adventure travelers',
+  'Cultural tourist',
 ])
+
+export const PACKAGE_TARGET_MARKETS = Object.freeze([...TOURISM_TARGET_MARKETS])
 
 export const PACKAGE_DURATIONS = Object.freeze([
   '2 hours',

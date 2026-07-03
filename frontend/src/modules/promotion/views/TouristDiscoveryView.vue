@@ -4,8 +4,7 @@ import PromotionNavbar from '../components/PromotionNavbar.vue'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  getDestinations,
-  getMapLocationGeoJson,
+  getTourismAssets,
   loadItinerary,
   removeFromItinerary,
   saveToItinerary,
@@ -148,6 +147,54 @@ function locationFromFeature(feature, index, destinationBySlug) {
   }
 }
 
+function locationFromTourismAsset(asset, index) {
+  const latitude = Number(asset.latitude)
+  const longitude = Number(asset.longitude)
+
+  return {
+    id: asset.id,
+    apiId: null,
+    slug: asset.slug || asset.id,
+    name: asset.name,
+    category: asset.category || 'Tourism',
+    color: asset.color || '#1b4332',
+    distance: asset.distance || 'Product Development asset',
+    address: asset.address || 'Calabanga, Camarines Sur',
+    hours: asset.hours || 'Visiting information to be confirmed',
+    description: asset.description || 'Tourism asset details are being prepared.',
+    x: 24 + ((index * 17) % 58),
+    y: 24 + ((index * 23) % 52),
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null,
+    locationType: 'tourism asset',
+    imageUrl: asset.imageUrl,
+    accredited: asset.accredited ?? true,
+  }
+}
+
+function featureFromAssetLocation(location) {
+  if (!Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) return null
+
+  return {
+    type: 'Feature',
+    geometry: {
+      type: 'Point',
+      coordinates: [location.longitude, location.latitude],
+    },
+    properties: {
+      id: location.id,
+      slug: location.id,
+      label: location.name,
+      category: location.category,
+      markerColor: location.color,
+      primaryImage: location.imageUrl,
+      locationType: location.locationType,
+      accredited: location.accredited,
+      description: location.description,
+    },
+  }
+}
+
 function selectLocation(id) {
   if (id !== selectedId.value) clearRoute()
   selectedId.value = id
@@ -208,18 +255,13 @@ async function loadLocations() {
   mapRuntimeError.value = ''
 
   try {
-    const [geoJsonData, destinationData] = await Promise.all([
-      getMapLocationGeoJson(),
-      getDestinations({ limit: 50 }),
-    ])
-    const destinationBySlug = new Map(
-      destinationData.map((destination) => [destination.id, destination]),
-    )
-    const locationData = (geoJsonData.features || []).map((feature, index) =>
-      locationFromFeature(feature, index, destinationBySlug),
-    )
+    const tourismAssetData = await getTourismAssets({ limit: 50, sort: '-updatedAt' })
+    const locationData = tourismAssetData.map((asset, index) => locationFromTourismAsset(asset, index))
 
-    mapGeoJson.value = geoJsonData
+    mapGeoJson.value = {
+      type: 'FeatureCollection',
+      features: locationData.map(featureFromAssetLocation).filter(Boolean),
+    }
     locations.value = locationData
     enabledCategories.value = Object.fromEntries(
       FILTER_CATEGORIES.map((category) => [category.key, true]),
@@ -513,16 +555,8 @@ onBeforeUnmount(() => {
           :route="routeGeoJson"
           :loading="isLoading"
           :error="errorMessage"
-          :empty-title="
-            hasFilterInteraction || hasActiveFilters
-              ? 'No locations match your filters.'
-              : 'No published map locations yet'
-          "
-          :empty-text="
-            hasFilterInteraction || hasActiveFilters
-              ? 'Try selecting more categories.'
-              : 'Published tourism places will appear here once available.'
-          "
+          :empty-title="hasFilterInteraction || hasActiveFilters ? 'No locations match your filters.' : 'Asset coordinates not set yet'"
+          :empty-text="hasFilterInteraction || hasActiveFilters ? 'Try selecting more categories.' : 'Product Development assets are listed here. Add map coordinates later to place them on the map.'"
           @select="selectLocation"
           @map-error="mapRuntimeError = $event"
         />

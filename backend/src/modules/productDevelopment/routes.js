@@ -2,6 +2,7 @@ const express = require('express')
 const controller = require('./controller')
 const { authenticate } = require('../../middleware/authenticate')
 const { authorize } = require('../../middleware/authorize')
+const { assetImageUpload } = require('./uploads')
 
 const router = express.Router()
 
@@ -9,17 +10,27 @@ router.get('/public/packages', controller.listPublicPackages)
 router.get('/public/packages/:slug', controller.getPublicPackage)
 
 router.use(
-  ['/product/status', '/reports', '/assets', '/development-plans', '/improvements', '/activities', '/packages'],
+  [
+    '/product/status',
+    '/reports',
+    '/accredited-establishments',
+    '/assets',
+    '/development-plans',
+    '/improvements',
+    '/activities',
+    '/packages',
+  ],
   authenticate,
 )
 
 router.get('/product/status', authorize('products.view'), controller.getStatus)
 router.get('/reports', authorize('products.view'), controller.getReports)
+router.get('/accredited-establishments', authorize('products.view'), controller.listAccreditedEstablishments)
 
 router.get('/assets', authorize('products.view'), controller.listAssets)
-router.post('/assets', authorize('products.create'), controller.createAsset)
+router.post('/assets', authorize('products.create'), assetImageUpload.array('images', 5), controller.createAsset)
 router.get('/assets/:id', authorize('products.view'), controller.getAsset)
-router.put('/assets/:id', authorize('products.update'), controller.updateAsset)
+router.put('/assets/:id', authorize('products.update'), assetImageUpload.array('images', 5), controller.updateAsset)
 router.patch('/assets/:id/archive', authorize('products.archive'), controller.archiveAsset)
 
 router.get('/development-plans', authorize('products.view'), controller.listPlans)

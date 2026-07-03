@@ -42,6 +42,16 @@ const timeSchema = z
 const optionalDate = dateSchema.optional().nullable()
 const optionalTime = timeSchema.optional().nullable()
 
+const assetImageSchema = z
+  .object({
+    id: z.uuid().optional().nullable(),
+    imageUrl: requiredText('Image URL', 2000),
+    originalName: optionalText(255),
+    mimeType: optionalText(120),
+    fileSize: z.coerce.number().int().nonnegative().optional().nullable(),
+  })
+  .strict()
+
 function internalImprovementNeeds(value) {
   const trimmed = String(value || '').trim()
   return trimmed || 'Not specified'
@@ -56,7 +66,9 @@ const assetBodySchema = z
     targetMarket: requiredText('Target market', 255),
     developmentStatus: z.enum(ASSET_STATUSES).default('Draft'),
     imageUrl: optionalText(2000),
+    assetImages: z.array(assetImageSchema).max(5, 'Upload up to 5 images only.').default([]),
     remarks: optionalText(),
+    sourceAccreditationRecordId: z.uuid().optional().nullable(),
   })
   .strict()
 

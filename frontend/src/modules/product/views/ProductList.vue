@@ -11,6 +11,7 @@ import { ASSET_CATEGORIES } from '@/modules/product/constants/productOptions'
 import {
   archiveTourismAsset,
   createTourismAsset,
+  getAccreditedEstablishments,
   getTourismAssets,
   updateTourismAsset,
 } from '@/modules/product/services/productApi'
@@ -23,6 +24,7 @@ const props = defineProps({
 const auth = useProductAccess()
 
 const assets = ref([])
+const accreditedEstablishments = ref([])
 const loading = ref(false)
 const error = ref('')
 const notice = ref('')
@@ -58,7 +60,9 @@ const canArchiveAssets = computed(() =>
   [USER_ROLES.TOURISM_OFFICER, USER_ROLES.SYSTEM_ADMINISTRATOR].includes(auth.user?.role),
 )
 
-onMounted(loadAssets)
+onMounted(async () => {
+  await Promise.all([loadAssets(), loadAccreditedEstablishments()])
+})
 
 function openCreate() {
   selectedAsset.value = null
@@ -91,6 +95,16 @@ async function loadAssets() {
     error.value = err.message || 'Unable to load tourism assets.'
   } finally {
     loading.value = false
+  }
+}
+
+async function loadAccreditedEstablishments() {
+  try {
+    const response = await getAccreditedEstablishments()
+    accreditedEstablishments.value = response.data || []
+  } catch (err) {
+    if (import.meta.env.DEV) console.warn('Unable to load accredited establishments.', err)
+    accreditedEstablishments.value = []
   }
 }
 
@@ -212,8 +226,6 @@ async function archiveAsset() {
           <td>
             <span class="cms-table-title">
               <strong>{{ asset.name }}</strong>
-              <span>{{ asset.description }}</span>
-              <span v-if="asset.remarks">{{ asset.remarks }}</span>
             </span>
           </td>
           <td>{{ asset.category }}</td>
@@ -246,7 +258,6 @@ async function archiveAsset() {
         <article v-for="asset in cardItems" :key="asset.id" class="cms-mobile-card">
           <span class="cms-table-title">
             <strong>{{ asset.name }}</strong>
-            <span>{{ asset.description }}</span>
           </span>
           <div class="cms-mobile-meta">
             <span>{{ asset.category }}</span>
@@ -284,6 +295,7 @@ async function archiveAsset() {
     <ProductAssetForm
       :open="formOpen"
       :value="selectedAsset"
+      :accredited-establishments="accreditedEstablishments"
       :busy="saving"
       :server-error="formError"
       @close="formOpen = false"

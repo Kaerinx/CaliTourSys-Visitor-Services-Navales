@@ -1,6 +1,7 @@
 const repository = require('./content.repository')
 const { buildPaginationMeta, getPagination } = require('../../../utils/pagination')
 const { logCmsContentAudit } = require('../../../utils/cmsAudit')
+const { uploadedAssetImages } = require('../../productDevelopment/uploads')
 
 function createNotFoundError(label) {
   const error = new Error(`${label} not found.`)
@@ -193,8 +194,14 @@ async function listProducts(filters) {
   return withPagination(filters, await repository.listProducts(filters, pagination))
 }
 
+async function listAccreditedEstablishments(filters) {
+  const pagination = getPagination(filters)
+  return withPagination(filters, await repository.listAccreditedEstablishments(filters, pagination))
+}
+
 async function createProduct(data, req) {
-  const product = await repository.createProduct(data, req.user.id)
+  const [image] = uploadedAssetImages(req)
+  const product = await repository.createProduct(data, req.user.id, image)
   await logCmsContentAudit({
     req,
     action: 'create',
@@ -213,7 +220,8 @@ async function getProduct(id) {
 }
 
 async function updateProduct(id, data, req) {
-  const result = await repository.updateProduct(id, data, req.user.id)
+  const [image] = uploadedAssetImages(req)
+  const result = await repository.updateProduct(id, data, req.user.id, image)
   await logCmsContentAudit({
     req,
     action: 'update',
@@ -497,6 +505,7 @@ module.exports = {
   getMuseumArtifact,
   getProduct,
   getPromotion,
+  listAccreditedEstablishments,
   listBusinesses,
   listCategories,
   listDestinations,

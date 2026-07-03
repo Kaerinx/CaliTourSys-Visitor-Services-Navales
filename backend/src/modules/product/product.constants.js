@@ -1,11 +1,8 @@
 export const ASSET_CATEGORIES = Object.freeze([
-  'Natural',
+  'Nature',
   'Cultural',
-  'Historical',
-  'Recreational',
-  'Agricultural',
-  'Religious',
-  'Other',
+  'Food',
+  'Events',
 ])
 
 export const ASSET_STATUSES = Object.freeze([

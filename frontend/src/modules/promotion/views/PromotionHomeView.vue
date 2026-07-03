@@ -1,12 +1,12 @@
 ﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import {
-  getDestinations,
   getEvents,
   getMapLocations,
   getMuseumItems,
   getPromotionalPackages,
   getPromotionalProducts,
+  getTourismAssets,
 } from '../services/promotionService'
 import PromotionNavbar from '../components/PromotionNavbar.vue'
 import PromotionFooter from '../components/PromotionFooter.vue'
@@ -89,11 +89,11 @@ async function loadHomeData() {
   errorMessage.value = ''
 
   try {
-    const [productData, eventData, destinationData, locationData, museumData, packageData] =
+    const [productData, eventData, assetData, locationData, museumData, packageData] =
       await Promise.all([
-        getPromotionalProducts({ featured: true, limit: 8 }),
+        getPromotionalProducts({ limit: 8, sort: 'featured' }),
         getEvents({ featured: true, limit: 4 }),
-        getDestinations({ featured: true, limit: 3 }),
+        getTourismAssets({ limit: 3, sort: '-updatedAt' }),
         getMapLocations({ format: 'list' }),
         getMuseumItems({ featured: true, limit: 3 }),
         getPromotionalPackages(),
@@ -101,7 +101,7 @@ async function loadHomeData() {
 
     products.value = productData
     events.value = eventData
-    destinations.value = destinationData.slice(0, 3)
+    destinations.value = assetData.slice(0, 3)
     locations.value = locationData.slice(0, 5)
     museumItems.value = museumData.slice(0, 3)
     packages.value = packageData.slice(0, 3)
@@ -253,7 +253,7 @@ onMounted(loadHomeData)
 
           <div class="product-grid product-grid--three">
             <p v-if="!isLoading && products.length === 0" class="empty-copy">
-              No featured products are available yet.
+              No published products are available yet.
             </p>
             <RouterLink
               v-for="product in products.slice(0, 3)"
@@ -333,7 +333,7 @@ onMounted(loadHomeData)
               <span class="destination-card__body">
                 <strong>{{ tourismPackage.name }}</strong>
                 <span>{{ tourismPackage.estimatedDuration || 'Duration to be confirmed' }}</span>
-                <p>{{ tourismPackage.description }}</p>
+                <p v-if="tourismPackage.remarks">{{ tourismPackage.remarks }}</p>
                 <span class="card-link">View package -></span>
               </span>
             </RouterLink>
@@ -346,7 +346,7 @@ onMounted(loadHomeData)
           <div class="section-heading">
             <div>
               <h2>Explore Calabanga</h2>
-              <p>Hundreds of curated locations across the coast, mountains, and town center.</p>
+              <p>Curated locations from the public tourism records and map database.</p>
             </div>
             <RouterLink to="/destinations">Explore map -></RouterLink>
           </div>

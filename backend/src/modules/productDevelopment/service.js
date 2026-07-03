@@ -126,6 +126,35 @@ async function createPlan(data, req) {
   return repository.createPlan(data, req.user?.id)
 }
 
+async function prepareAssetSource(data) {
+  if (!data.sourceAccreditationRecordId) {
+    return {
+      ...data,
+      sourceAccreditationRecordId: null,
+      sourceBusinessProfileId: null,
+      latitude: null,
+      longitude: null,
+    }
+  }
+
+  const establishment = await repository.getAccreditedEstablishmentByRecordId(data.sourceAccreditationRecordId)
+  if (!establishment) {
+    throw invalid('Select an active accredited establishment.')
+  }
+
+  return {
+    ...data,
+    sourceAccreditationRecordId: establishment.id,
+    sourceBusinessProfileId: establishment.businessProfileId,
+    latitude: establishment.latitude,
+    longitude: establishment.longitude,
+  }
+}
+
+async function createAsset(data, req) {
+  return repository.createAsset(await prepareAssetSource(data), req.user?.id)
+}
+
 async function updatePlan(id, data) {
   await requirePlan(id)
   await ensureAssetSelectable(data.assetId)
@@ -227,7 +256,7 @@ module.exports = {
     return repository.archivePlan(id)
   },
   createActivity,
-  createAsset: (data, req) => repository.createAsset(data, req.user?.id),
+  createAsset,
   createImprovement,
   createPackage,
   createPlan,
@@ -240,6 +269,7 @@ module.exports = {
   getPublicPackage,
   getReportSummary: repository.getReportSummary,
   listActivities: repository.listActivities,
+  listAccreditedEstablishments: repository.listAccreditedEstablishments,
   listAssets: repository.listAssets,
   listImprovements: repository.listImprovements,
   listPackages: repository.listPackages,
@@ -250,7 +280,7 @@ module.exports = {
   updateActivity,
   updateAsset: async (id, data) => {
     await requireAsset(id)
-    const updated = await repository.updateAsset(id, data)
+    const updated = await repository.updateAsset(id, await prepareAssetSource(data))
     if (!updated) throw notFound('Tourism asset')
     return updated
   },

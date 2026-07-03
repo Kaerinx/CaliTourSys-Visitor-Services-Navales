@@ -361,7 +361,6 @@ function getReadinessIssues(packageDetail) {
           <td>
             <span class="cms-table-title">
               <strong>{{ tourismPackage.name }}</strong>
-              <span>{{ tourismPackage.description }}</span>
               <span v-if="tourismPackage.remarks">{{ tourismPackage.remarks }}</span>
             </span>
           </td>
@@ -410,7 +409,6 @@ function getReadinessIssues(packageDetail) {
         <article v-for="tourismPackage in cardItems" :key="tourismPackage.id" class="cms-mobile-card">
           <span class="cms-table-title">
             <strong>{{ tourismPackage.name }}</strong>
-            <span>{{ tourismPackage.description }}</span>
           </span>
           <div class="cms-mobile-meta">
             <span class="package-readiness" :data-ready="tourismPackage.packageStatus === 'Ready for Promotion'">

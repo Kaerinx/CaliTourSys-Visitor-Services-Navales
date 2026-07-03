@@ -287,8 +287,6 @@ function formatDateTime(dateValue, timeValue) {
           <td>
             <span class="cms-table-title">
               <strong>{{ planTitle(plan) }}</strong>
-              <span>{{ plan.objectives }}</span>
-              <span v-if="plan.remarks">{{ plan.remarks }}</span>
             </span>
           </td>
           <td>
@@ -320,7 +318,6 @@ function formatDateTime(dateValue, timeValue) {
         <article v-for="plan in cardItems" :key="plan.id" class="cms-mobile-card">
           <span class="cms-table-title">
             <strong>{{ planTitle(plan) }}</strong>
-            <span>{{ plan.objectives }}</span>
           </span>
           <div class="cms-mobile-meta">
             <span>{{ plan.assetName }}</span>

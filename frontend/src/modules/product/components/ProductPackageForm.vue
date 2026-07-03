@@ -2,7 +2,7 @@
 import { computed, reactive, watch } from 'vue'
 
 import {
-  PACKAGE_CATEGORIES,
+  PACKAGE_BASE_CATEGORIES,
   PACKAGE_DURATIONS,
   PACKAGE_TARGET_MARKETS,
 } from '@/modules/product/constants/productOptions'
@@ -22,7 +22,6 @@ const form = reactive(defaultForm())
 const isEditing = computed(() => Boolean(props.value?.id))
 const title = computed(() => (isEditing.value ? 'Edit package' : 'Create package'))
 const selectedItemCount = computed(() => form.planIds.length)
-const categoryOptions = computed(() => withCurrentOption(PACKAGE_CATEGORIES, form.category))
 const targetMarketOptions = computed(() => withCurrentOption(PACKAGE_TARGET_MARKETS, form.targetMarket))
 const durationOptions = computed(() => withCurrentOption(PACKAGE_DURATIONS, form.estimatedDuration))
 const submitLabel = computed(() => {
@@ -35,7 +34,8 @@ const errors = computed(() => {
   if (!submitted.value) return output
   if (!form.name.trim()) output.name = 'Package name is required.'
   if (!form.description.trim()) output.description = 'Description is required.'
-  if (!form.category) output.category = 'Package category is required.'
+  if (!form.categorySelections.length) output.category = 'Select at least one package category.'
+  if (form.categorySelections.length > 2) output.category = 'Select up to two package categories only.'
   if (!form.targetMarket.trim()) output.targetMarket = 'Target market is required.'
   if (!form.estimatedDuration.trim()) output.estimatedDuration = 'Estimated duration is required.'
   if (!selectedItemCount.value) output.items = 'Select at least one development plan.'
@@ -58,7 +58,7 @@ function defaultForm(value = null) {
   return {
     name: value?.name || '',
     description: value?.description || '',
-    category: value?.category || 'Nature',
+    categorySelections: parsePackageCategory(value?.category || 'Nature'),
     targetMarket: value?.targetMarket || PACKAGE_TARGET_MARKETS[0],
     estimatedDuration: value?.estimatedDuration || PACKAGE_DURATIONS[1],
     packageStatus: isArchived ? 'Archived' : 'Draft',
@@ -82,6 +82,23 @@ function withCurrentOption(options, value) {
   return [value, ...options]
 }
 
+function parsePackageCategory(category) {
+  const selections = String(category || '')
+    .split(/\s+and\s+/i)
+    .map((item) => item.trim())
+    .filter((item) => PACKAGE_BASE_CATEGORIES.includes(item))
+
+  return selections.length ? selections.slice(0, 2) : ['Nature']
+}
+
+function formatPackageCategory(selections) {
+  return selections.slice(0, 2).join(' and ')
+}
+
+function isCategoryDisabled(category) {
+  return form.categorySelections.length >= 2 && !form.categorySelections.includes(category)
+}
+
 function submitForm() {
   submitted.value = true
   if (Object.keys(errors.value).length) return
@@ -89,7 +106,7 @@ function submitForm() {
   emit('submit', {
     name: form.name.trim(),
     description: form.description.trim(),
-    category: form.category,
+    category: formatPackageCategory(form.categorySelections),
     targetMarket: form.targetMarket.trim(),
     estimatedDuration: form.estimatedDuration.trim(),
     packageStatus: form.packageStatus,
@@ -120,15 +137,26 @@ function submitForm() {
               <h3 id="package-basic-title">Basic Information</h3>
 
               <div class="package-grid">
-                <label>
-                  <span>Category</span>
-                  <select v-model="form.category" :aria-invalid="Boolean(errors.category)">
-                    <option v-for="category in categoryOptions" :key="category" :value="category">
-                      {{ category }}
-                    </option>
-                  </select>
+                <fieldset class="package-category-group" :aria-invalid="Boolean(errors.category)">
+                  <legend>Category</legend>
+                  <div class="package-category-group__options">
+                    <label
+                      v-for="category in PACKAGE_BASE_CATEGORIES"
+                      :key="category"
+                      class="package-category-option"
+                      :class="{ 'is-selected': form.categorySelections.includes(category) }"
+                    >
+                      <input
+                        v-model="form.categorySelections"
+                        type="checkbox"
+                        :value="category"
+                        :disabled="isCategoryDisabled(category)"
+                      />
+                      <span>{{ category }}</span>
+                    </label>
+                  </div>
                   <small v-if="errors.category">{{ errors.category }}</small>
-                </label>
+                </fieldset>
               </div>
 
               <label>
@@ -364,10 +392,65 @@ form {
   gap: 6px;
 }
 
-label > span {
+label > span,
+.package-category-group legend {
   color: #334155;
   font-size: 0.84rem;
   font-weight: 800;
+}
+
+.package-category-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.package-category-group legend {
+  padding: 0;
+}
+
+.package-category-group__options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.package-category-option {
+  display: flex !important;
+  gap: 9px !important;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.package-category-option.is-selected {
+  border-color: #14b8a6;
+  background: #f0fdfa;
+}
+
+.package-category-option input {
+  width: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 0;
+  accent-color: #0f766e;
+}
+
+.package-category-option span {
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.package-category-option:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.56;
 }
 
 input,
@@ -399,7 +482,8 @@ button:focus-visible {
 
 input[aria-invalid='true'],
 select[aria-invalid='true'],
-textarea[aria-invalid='true'] {
+textarea[aria-invalid='true'],
+.package-category-group[aria-invalid='true'] .package-category-option {
   border-color: #dc2626;
 }
 
@@ -507,6 +591,10 @@ button:disabled {
 
   .package-modal__body {
     padding: 14px;
+  }
+
+  .package-category-group__options {
+    grid-template-columns: 1fr;
   }
 }
 

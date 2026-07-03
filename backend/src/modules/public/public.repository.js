@@ -159,6 +159,7 @@ function mapPackage(row) {
       altText: `${row.name} package image`,
     },
     itemCount: Number(row.item_count || 0),
+    planCount: Number(row.plan_count || 0),
     assetCount: Number(row.asset_count || 0),
     activityCount: Number(row.activity_count || 0),
     isFeatured: row.package_status === 'Ready for Promotion',
@@ -209,6 +210,41 @@ function mapDestination(row) {
   }
 }
 
+function tourismAssetSlug(row) {
+  return row?.id ? `asset-${slugify(row.name)}-${row.id}` : null
+}
+
+function mapTourismAsset(row) {
+  return {
+    id: row.id,
+    slug: tourismAssetSlug(row),
+    name: row.name,
+    shortDescription: row.remarks || row.description,
+    description: row.description,
+    category: {
+      slug: slugify(row.category),
+      name: row.category,
+      color: undefined,
+    },
+    barangay: row.location,
+    latitude: row.latitude == null ? null : Number(row.latitude),
+    longitude: row.longitude == null ? null : Number(row.longitude),
+    sourceBusinessName: row.source_business_name || '',
+    sourceBusinessType: row.source_business_type || '',
+    sourceAccreditationRecordNumber: row.source_accreditation_record_number || '',
+    targetMarket: row.target_market,
+    remarks: row.remarks || '',
+    developmentStatus: row.development_status,
+    primaryImage: {
+      url: row.image_url,
+      altText: `${row.name} tourism asset photo`,
+    },
+    isFeatured: true,
+    sourceModule: 'product-development',
+    updatedAt: row.updated_at,
+  }
+}
+
 function mapMuseumArtifact(row) {
   return {
     id: row.id,
@@ -256,6 +292,8 @@ function productSelect() {
       b.name AS business_name,
       b.business_type,
       b.description AS business_description,
+      b.owner_name AS business_owner_name,
+      b.address_line AS business_address_line,
       b.barangay AS business_barangay,
       b.municipality AS business_municipality,
       b.province AS business_province,
@@ -396,6 +434,8 @@ async function getProductBySlug(slug) {
     business: {
       ...mapBusinessSummary(row),
       description: row.business_description,
+      ownerName: row.business_owner_name,
+      addressLine: row.business_address_line,
       barangay: row.business_barangay,
       municipality: row.business_municipality,
       province: row.business_province,
@@ -414,18 +454,25 @@ function packageSelect() {
       tp.*,
       COALESCE(first_asset.image_url, category_asset.image_url) AS image_url,
       COUNT(pi.id)::integer AS item_count,
+      COUNT(pi.id) FILTER (WHERE pi.item_type = 'Plan')::integer AS plan_count,
       COUNT(pi.id) FILTER (WHERE pi.item_type = 'Asset')::integer AS asset_count,
       COUNT(pi.id) FILTER (WHERE pi.item_type = 'Activity')::integer AS activity_count
     FROM tourism_packages tp
     LEFT JOIN package_items pi ON pi.package_id = tp.id
     LEFT JOIN LATERAL (
-      SELECT ta.image_url
-      FROM package_items asset_item
-      JOIN tourism_assets ta ON ta.id = asset_item.item_reference_id
-      WHERE asset_item.package_id = tp.id
-        AND asset_item.item_type = 'Asset'
-        AND ta.image_url IS NOT NULL
-      ORDER BY asset_item.sort_order ASC
+      SELECT COALESCE(direct_asset.image_url, plan_asset.image_url) AS image_url
+      FROM package_items item
+      LEFT JOIN tourism_assets direct_asset
+        ON item.item_type = 'Asset'
+       AND direct_asset.id = item.item_reference_id
+      LEFT JOIN development_plans dp
+        ON item.item_type = 'Plan'
+       AND dp.id = item.item_reference_id
+      LEFT JOIN tourism_assets plan_asset
+        ON plan_asset.id = dp.asset_id
+      WHERE item.package_id = tp.id
+        AND COALESCE(direct_asset.image_url, plan_asset.image_url) IS NOT NULL
+      ORDER BY item.sort_order ASC
       LIMIT 1
     ) first_asset ON true
     LEFT JOIN LATERAL (
@@ -433,9 +480,9 @@ function packageSelect() {
       FROM tourism_assets ta
       WHERE ta.category = CASE
         WHEN tp.category ILIKE '%Cultural%' THEN 'Cultural'
-        WHEN tp.category ILIKE '%Food%' THEN 'Agricultural'
-        WHEN tp.category ILIKE '%Events%' THEN 'Recreational'
-        WHEN tp.category ILIKE '%Nature%' THEN 'Natural'
+        WHEN tp.category ILIKE '%Food%' THEN 'Food'
+        WHEN tp.category ILIKE '%Events%' THEN 'Events'
+        WHEN tp.category ILIKE '%Nature%' THEN 'Nature'
         ELSE ta.category
       END
         AND ta.image_url IS NOT NULL
@@ -513,14 +560,40 @@ async function getPackageBySlug(slug) {
     `
       SELECT
         pi.*,
-        CASE WHEN pi.item_type = 'Asset' THEN ta.name ELSE act.name END AS item_name,
-        CASE WHEN pi.item_type = 'Asset' THEN ta.description ELSE act.description END AS item_description,
-        CASE WHEN pi.item_type = 'Asset' THEN ta.location ELSE act_asset.location END AS item_location,
-        CASE WHEN pi.item_type = 'Asset' THEN ta.development_status ELSE act.activity_status END AS item_status,
-        CASE WHEN pi.item_type = 'Asset' THEN ta.development_status ELSE act_asset.development_status END AS asset_status,
-        CASE WHEN pi.item_type = 'Asset' THEN ta.image_url ELSE act_asset.image_url END AS item_image_url
+        CASE
+          WHEN pi.item_type = 'Asset' THEN ta.name
+          WHEN pi.item_type = 'Plan' THEN dp.title
+          ELSE act.name
+        END AS item_name,
+        CASE
+          WHEN pi.item_type = 'Asset' THEN ta.description
+          WHEN pi.item_type = 'Plan' THEN dp.objectives
+          ELSE act.description
+        END AS item_description,
+        CASE
+          WHEN pi.item_type = 'Asset' THEN ta.location
+          WHEN pi.item_type = 'Plan' THEN plan_asset.location
+          ELSE act_asset.location
+        END AS item_location,
+        CASE
+          WHEN pi.item_type = 'Asset' THEN ta.development_status
+          WHEN pi.item_type = 'Plan' THEN dp.plan_status
+          ELSE act.activity_status
+        END AS item_status,
+        CASE
+          WHEN pi.item_type = 'Asset' THEN ta.development_status
+          WHEN pi.item_type = 'Plan' THEN plan_asset.development_status
+          ELSE act_asset.development_status
+        END AS asset_status,
+        CASE
+          WHEN pi.item_type = 'Asset' THEN ta.image_url
+          WHEN pi.item_type = 'Plan' THEN plan_asset.image_url
+          ELSE act_asset.image_url
+        END AS item_image_url
       FROM package_items pi
       LEFT JOIN tourism_assets ta ON pi.item_type = 'Asset' AND ta.id = pi.item_reference_id
+      LEFT JOIN development_plans dp ON pi.item_type = 'Plan' AND dp.id = pi.item_reference_id
+      LEFT JOIN tourism_assets plan_asset ON pi.item_type = 'Plan' AND plan_asset.id = dp.asset_id
       LEFT JOIN tourism_activities act ON pi.item_type = 'Activity' AND act.id = pi.item_reference_id
       LEFT JOIN tourism_assets act_asset ON pi.item_type = 'Activity' AND act_asset.id = act.asset_id
       WHERE pi.package_id = $1
@@ -528,10 +601,41 @@ async function getPackageBySlug(slug) {
     `,
     [summary.id],
   )
+  const galleryResult = await query(
+    `
+      SELECT DISTINCT ON (tai.id)
+        tai.id,
+        tai.image_url AS url,
+        COALESCE(tai.original_name, asset.name || ' image') AS "altText",
+        pi.sort_order AS item_order,
+        tai.display_order AS image_order,
+        asset.name AS "sourceName"
+      FROM package_items pi
+      LEFT JOIN tourism_assets direct_asset
+        ON pi.item_type = 'Asset'
+       AND direct_asset.id = pi.item_reference_id
+      LEFT JOIN development_plans dp
+        ON pi.item_type = 'Plan'
+       AND dp.id = pi.item_reference_id
+      LEFT JOIN tourism_assets plan_asset
+        ON pi.item_type = 'Plan'
+       AND plan_asset.id = dp.asset_id
+      JOIN tourism_assets asset
+        ON asset.id = COALESCE(direct_asset.id, plan_asset.id)
+      JOIN tourism_asset_images tai
+        ON tai.asset_id = asset.id
+      WHERE pi.package_id = $1
+      ORDER BY tai.id, pi.sort_order ASC, tai.display_order ASC
+    `,
+    [summary.id],
+  )
 
   return {
     ...mapPackage(row),
     items: itemsResult.rows.map(mapPackageItem),
+    gallery: galleryResult.rows
+      .sort((left, right) => left.item_order - right.item_order || left.image_order - right.image_order)
+      .map(({ item_order, image_order, ...image }) => image),
   }
 }
 
@@ -732,6 +836,68 @@ async function listDestinations(filters, pagination) {
   const offsetRef = addParam(params, pagination.offset)
   const rowsResult = await query(`${destinationSelect()} WHERE ${whereSql} ORDER BY ${orderBy} LIMIT ${limitRef} OFFSET ${offsetRef}`, params)
   return { items: rowsResult.rows.map(mapDestination), totalItems: countResult.rows[0].total }
+}
+
+async function listTourismAssets(filters, pagination) {
+  const params = []
+  const where = ["ta.development_status != 'Archived'"]
+
+  if (filters.search) {
+    const ref = addParam(params, `%${filters.search}%`)
+    where.push(`(ta.name ILIKE ${ref} OR ta.description ILIKE ${ref} OR ta.location ILIKE ${ref} OR ta.remarks ILIKE ${ref})`)
+  }
+  if (filters.category) where.push(`ta.category ILIKE ${addParam(params, filters.category)}`)
+  if (filters.targetMarket) where.push(`ta.target_market ILIKE ${addParam(params, `%${filters.targetMarket}%`)}`)
+
+  const orderBy =
+    {
+      name: 'ta.name ASC',
+      '-name': 'ta.name DESC',
+      updatedAt: 'ta.updated_at ASC',
+      '-updatedAt': 'ta.updated_at DESC',
+      featured: 'ta.updated_at DESC',
+    }[filters.sort] || 'ta.updated_at DESC'
+
+  const whereSql = where.join(' AND ')
+  const countResult = await query(`SELECT COUNT(*)::int AS total FROM tourism_assets ta WHERE ${whereSql}`, params)
+  const limitRef = addParam(params, pagination.limit)
+  const offsetRef = addParam(params, pagination.offset)
+  const rowsResult = await query(
+    `
+      SELECT
+        ta.id,
+        ta.name,
+        ta.description,
+        ta.location,
+        ta.category,
+        ta.target_market,
+        ta.development_status,
+        COALESCE(ta.latitude, bp.latitude) AS latitude,
+        COALESCE(ta.longitude, bp.longitude) AS longitude,
+        bp.business_name AS source_business_name,
+        bp.business_type AS source_business_type,
+        ar.record_number AS source_accreditation_record_number,
+        COALESCE(primary_photo.image_url, ta.image_url) AS image_url,
+        ta.remarks,
+        ta.updated_at
+      FROM tourism_assets ta
+      LEFT JOIN business_profiles bp ON bp.id = ta.source_business_profile_id
+      LEFT JOIN accreditation_records ar ON ar.id = ta.source_accreditation_record_id
+      LEFT JOIN LATERAL (
+        SELECT tai.image_url
+        FROM tourism_asset_images tai
+        WHERE tai.asset_id = ta.id
+        ORDER BY tai.is_primary DESC, tai.display_order ASC, tai.created_at ASC
+        LIMIT 1
+      ) primary_photo ON true
+      WHERE ${whereSql}
+      ORDER BY ${orderBy}, ta.name ASC
+      LIMIT ${limitRef} OFFSET ${offsetRef}
+    `,
+    params,
+  )
+
+  return { items: rowsResult.rows.map(mapTourismAsset), totalItems: countResult.rows[0].total }
 }
 
 async function getDestinationBySlug(slug) {
@@ -1663,6 +1829,7 @@ module.exports = {
   getProductBySlug,
   listPackages,
   getPackageBySlug,
+  listTourismAssets,
   listEvents,
   getEventBySlug,
   listDestinations,

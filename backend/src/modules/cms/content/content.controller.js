@@ -110,6 +110,7 @@ module.exports = {
   getMuseumArtifact: detailHandler(service.getMuseumArtifact),
   getProduct: detailHandler(service.getProduct),
   getPromotion: detailHandler(service.getPromotion),
+  listAccreditedEstablishments: paginatedHandler(validators.accreditedEstablishmentListQuerySchema, service.listAccreditedEstablishments),
   listBusinesses: paginatedHandler(validators.businessListQuerySchema, service.listBusinesses),
   listDestinations: paginatedHandler(validators.destinationListQuerySchema, service.listDestinations),
   listEvents: paginatedHandler(validators.eventListQuerySchema, service.listEvents),
