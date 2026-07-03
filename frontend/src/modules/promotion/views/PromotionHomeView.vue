@@ -91,7 +91,7 @@ async function loadHomeData() {
   try {
     const [productData, eventData, assetData, locationData, museumData, packageData] =
       await Promise.all([
-        getPromotionalProducts({ featured: true, limit: 8 }),
+        getPromotionalProducts({ limit: 8, sort: 'featured' }),
         getEvents({ featured: true, limit: 4 }),
         getTourismAssets({ limit: 3, sort: '-updatedAt' }),
         getMapLocations({ format: 'list' }),
@@ -253,7 +253,7 @@ onMounted(loadHomeData)
 
           <div class="product-grid product-grid--three">
             <p v-if="!isLoading && products.length === 0" class="empty-copy">
-              No featured products are available yet.
+              No published products are available yet.
             </p>
             <RouterLink
               v-for="product in products.slice(0, 3)"

@@ -30,6 +30,21 @@ function normalizeError(error) {
     }
   }
 
+  if (error?.name === 'MulterError') {
+    const messages = {
+      LIMIT_FILE_SIZE: 'Uploaded file is too large. Product images must be 10MB or smaller.',
+      LIMIT_FILE_COUNT: 'Too many files were uploaded.',
+      LIMIT_UNEXPECTED_FILE: 'Unexpected upload field.',
+    }
+
+    return {
+      statusCode: 400,
+      code: 'VALIDATION_ERROR',
+      message: messages[error.code] || error.message || 'Invalid uploaded file.',
+      details: [],
+    }
+  }
+
   const statusCode = Number(error?.statusCode || error?.status || 500)
 
   return {

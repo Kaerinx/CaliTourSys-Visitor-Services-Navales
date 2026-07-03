@@ -69,6 +69,10 @@ const PERMIT_DOCUMENTS_BY_BUSINESS_TYPE = {
   Restaurant: [
     "Food Establishment Permit",
   ],
+  "Food / Local Cuisine": [
+    "Food Establishment Permit",
+    "Sanitary Permit",
+  ],
   "Tourism Training Center": [
     "Training Program / Instructor Credentials",
   ],
@@ -367,21 +371,87 @@ async function createApplication(ownerId, payload) {
   return saveApplicationDraft(ownerId, payload);
 }
 
+function businessProfileFromPayload(payload, fallback = {}) {
+  return {
+    businessName: payload.businessName || fallback.business_name,
+    businessType: payload.businessType || fallback.business_type,
+    businessPermitNumber: payload.businessPermitNumber || fallback.business_permit_number,
+    dtiSecRegistrationNumber:
+      payload.dtiSecRegistrationNumber || fallback.dti_sec_registration_number,
+    region: payload.region || fallback.region,
+    province: payload.province || fallback.province,
+    cityMunicipality: payload.cityMunicipality || fallback.city_municipality,
+    barangay: payload.barangay || fallback.barangay,
+    streetAddress: payload.streetAddress || fallback.street_address,
+    zipCode: payload.zipCode || fallback.zip_code,
+    latitude: payload.latitude ?? fallback.latitude,
+    longitude: payload.longitude ?? fallback.longitude,
+  };
+}
+
+function validateApplicationBusinessProfile(profile) {
+  const required = [
+    ["businessName", "Business name"],
+    ["businessType", "Business type"],
+    ["region", "Region"],
+    ["province", "Province"],
+    ["cityMunicipality", "City / Municipality"],
+    ["barangay", "Barangay"],
+    ["streetAddress", "Business address"],
+  ];
+  const missing = required.filter(([key]) => !profile[key]).map(([, label]) => label);
+
+  if (missing.length) {
+    const error = new Error(`Please complete business details: ${missing.join(", ")}.`);
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
 async function saveApplicationDraft(ownerId, payload) {
-  const profile = await model.getBusinessProfile(ownerId);
-  if (!profile) {
+  const existingApplication = payload.applicationId
+    ? await model.getApplicationById(payload.applicationId)
+    : null;
+
+  if (payload.applicationId && !existingApplication) {
+    const error = new Error("Draft application not found or already submitted.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (existingApplication && existingApplication.owner_id !== ownerId) {
+    const error = new Error("Draft application not found or already submitted.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (existingApplication && !["draft", "for_revision"].includes(existingApplication.status)) {
+    const error = new Error("Draft application not found or already submitted.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const defaultProfile = await model.getBusinessProfile(ownerId);
+  const profile = businessProfileFromPayload(payload, existingApplication || defaultProfile || {});
+  validateApplicationBusinessProfile(profile);
+
+  const businessProfile = existingApplication
+    ? await model.updateBusinessProfileById(existingApplication.business_profile_id, ownerId, profile)
+    : await model.createBusinessProfile(ownerId, profile);
+
+  if (!businessProfile) {
     const error = new Error("Business profile is required before applying for accreditation.");
     error.statusCode = 400;
     throw error;
   }
 
   const draft = {
-    businessProfileId: profile.id,
+    businessProfileId: businessProfile.id,
     accreditationType: payload.accreditationType || "New Accreditation",
-    businessType: payload.businessType || profile.business_type,
-    businessPermitNumber: payload.businessPermitNumber || profile.business_permit_number,
+    businessType: profile.businessType,
+    businessPermitNumber: profile.businessPermitNumber,
     dtiSecRegistrationNumber:
-      payload.dtiSecRegistrationNumber || profile.dti_sec_registration_number,
+      profile.dtiSecRegistrationNumber,
     remarks: payload.remarks,
     status: "draft",
   };

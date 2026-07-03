@@ -305,6 +305,12 @@ function mapBusiness(business) {
   if (!business) return null
 
   const primaryContact = business.contacts?.[0]
+  const locationParts = [
+    business.addressLine,
+    business.barangay,
+    business.municipality,
+    business.province,
+  ].filter(Boolean)
 
   return {
     id: business.slug,
@@ -313,13 +319,17 @@ function mapBusiness(business) {
     name: business.name,
     type: business.businessType,
     owner: business.ownerName,
-    location: [business.barangay, business.municipality, business.province]
-      .filter(Boolean)
-      .join(', '),
+    addressLine: business.addressLine,
+    barangay: business.barangay,
+    municipality: business.municipality,
+    province: business.province,
+    location: locationParts.join(', '),
     accreditationStatus: business.accreditation?.status || 'pending',
+    accreditationNumber: business.accreditation?.accreditationNumber || '',
     accreditedSince: business.accreditation?.issuedAt
       ? new Date(business.accreditation.issuedAt).getFullYear()
       : 'verification pending',
+    expiresAt: business.accreditation?.expiresAt,
     contactEmail: primaryContact?.contactType === 'email' ? primaryContact.contactValue : '',
     phone: primaryContact?.contactType === 'phone' ? primaryContact.contactValue : '',
     description: business.description || 'Public business profile information is being prepared.',

@@ -52,6 +52,25 @@ const initials = computed(() => {
 })
 
 const contactMessageIsSuccess = computed(() => contactMessage.value.startsWith('Inquiry sent'))
+const isBusinessAccredited = computed(() => business.value?.accreditationStatus === 'accredited')
+const businessLocation = computed(() => business.value?.location || 'Calabanga, Camarines Sur')
+const businessAccreditationLabel = computed(() => {
+  if (!business.value) return ''
+  if (!isBusinessAccredited.value) return 'No linked accreditation yet'
+  return business.value.accreditationNumber
+    ? `Accredited business ${business.value.accreditationNumber}`
+    : 'LGU accredited business'
+})
+const businessExpiryLabel = computed(() => {
+  if (!business.value?.expiresAt) return ''
+  const date = new Date(business.value.expiresAt)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
+})
 
 const galleryItems = computed(() => {
   if (!product.value) return []
@@ -361,13 +380,74 @@ onBeforeUnmount(() => {
           <span class="producer-avatar">{{ initials }}</span>
           <span>
             <strong>By {{ business.name }}</strong>
-            <small
-              >Accredited since {{ business.accreditedSince }} Â· {{ business.location }}</small
-            >
+            <small v-if="isBusinessAccredited">
+              Accredited since {{ business.accreditedSince }} · {{ businessLocation }}
+            </small>
+            <small v-else>{{ businessAccreditationLabel }} · {{ businessLocation }}</small>
             <small>{{ business.description }}</small>
           </span>
         </div>
       </aside>
+    </section>
+
+    <section
+      v-if="!isLoading && !errorMessage && business"
+      class="page-shell business-info-section"
+      aria-labelledby="business-info-title"
+    >
+      <div class="business-info-section__header">
+        <span>{{ isBusinessAccredited ? 'Verified Producer' : 'Producer Information' }}</span>
+        <h2 id="business-info-title">
+          {{ isBusinessAccredited ? 'Accredited Business & Location' : 'Business & Location' }}
+        </h2>
+      </div>
+
+      <div class="business-info-grid">
+        <article class="business-info-card business-info-card--main">
+          <div class="business-info-card__title">
+            <span class="producer-avatar">{{ initials }}</span>
+            <div>
+              <h3>{{ business.name }}</h3>
+              <p>{{ business.type || 'Local Producer' }}</p>
+            </div>
+          </div>
+
+          <p>{{ business.description }}</p>
+          <dl>
+            <div>
+              <dt>Accreditation</dt>
+              <dd>{{ businessAccreditationLabel }}</dd>
+            </div>
+            <div v-if="isBusinessAccredited && businessExpiryLabel">
+              <dt>Valid Until</dt>
+              <dd>{{ businessExpiryLabel }}</dd>
+            </div>
+            <div v-if="business.owner">
+              <dt>Owner / Contact Person</dt>
+              <dd>{{ business.owner }}</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="business-info-card">
+          <h3>Location</h3>
+          <p>{{ businessLocation }}</p>
+          <dl>
+            <div v-if="business.addressLine">
+              <dt>Address</dt>
+              <dd>{{ business.addressLine }}</dd>
+            </div>
+            <div v-if="business.barangay">
+              <dt>Barangay</dt>
+              <dd>{{ business.barangay }}</dd>
+            </div>
+            <div>
+              <dt>Municipality</dt>
+              <dd>{{ business.municipality || 'Calabanga' }}</dd>
+            </div>
+          </dl>
+        </article>
+      </div>
     </section>
 
     <section
@@ -745,6 +825,98 @@ h2 {
   font-size: 12px;
 }
 
+.business-info-section {
+  margin-bottom: 64px;
+  padding: 32px;
+  border: 1px solid #e8e4dc;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.business-info-section__header {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 24px;
+}
+
+.business-info-section__header span {
+  color: #1b7a4a;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.business-info-section__header h2 {
+  font-size: 24px;
+}
+
+.business-info-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.8fr);
+  gap: 20px;
+}
+
+.business-info-card {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid #e8e4dc;
+  border-radius: 12px;
+  background: #fbfaf7;
+}
+
+.business-info-card--main {
+  background: #f7fbf8;
+  border-color: #cfe9d5;
+}
+
+.business-info-card__title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.business-info-card h3 {
+  margin: 0;
+  color: #1a1a1a;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 18px;
+}
+
+.business-info-card p {
+  margin: 0;
+  color: #5c5c5c;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.business-info-card dl {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.business-info-card dl div {
+  display: grid;
+  gap: 3px;
+}
+
+.business-info-card dt {
+  color: #7a746b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.business-info-card dd {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .suggested-products {
   margin-bottom: 96px;
   padding: 32px;
@@ -1119,10 +1291,15 @@ h2 {
   .suggested-products__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .business-info-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
-  .suggested-products {
+  .suggested-products,
+  .business-info-section {
     width: min(100% - 32px, 1200px);
     padding: 20px;
   }

@@ -292,6 +292,8 @@ function productSelect() {
       b.name AS business_name,
       b.business_type,
       b.description AS business_description,
+      b.owner_name AS business_owner_name,
+      b.address_line AS business_address_line,
       b.barangay AS business_barangay,
       b.municipality AS business_municipality,
       b.province AS business_province,
@@ -432,6 +434,8 @@ async function getProductBySlug(slug) {
     business: {
       ...mapBusinessSummary(row),
       description: row.business_description,
+      ownerName: row.business_owner_name,
+      addressLine: row.business_address_line,
       barangay: row.business_barangay,
       municipality: row.business_municipality,
       province: row.business_province,

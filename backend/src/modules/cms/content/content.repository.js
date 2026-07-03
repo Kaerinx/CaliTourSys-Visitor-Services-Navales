@@ -102,6 +102,124 @@ async function assertRecordExists(table, id, label) {
   }
 }
 
+function mapAccreditedEstablishment(row) {
+  if (!row) return null
+  const location = [
+    row.street_address,
+    row.barangay,
+    row.city_municipality,
+    row.province,
+  ].filter(Boolean).join(', ')
+
+  return {
+    id: row.id,
+    recordNumber: row.record_number,
+    status: row.status,
+    issuedAt: row.issued_at,
+    expiresAt: row.expires_at,
+    applicationNumber: row.application_number,
+    accreditationType: row.accreditation_type,
+    businessProfileId: row.business_profile_id,
+    businessName: row.business_name,
+    businessType: row.business_type,
+    businessPermitNumber: row.business_permit_number,
+    dtiSecRegistrationNumber: row.dti_sec_registration_number,
+    region: row.region,
+    province: row.province,
+    cityMunicipality: row.city_municipality,
+    barangay: row.barangay,
+    streetAddress: row.street_address,
+    location,
+    latitude: row.latitude == null ? null : Number(row.latitude),
+    longitude: row.longitude == null ? null : Number(row.longitude),
+    ownerName: [row.first_name, row.last_name].filter(Boolean).join(' '),
+    ownerEmail: row.email || '',
+    ownerPhone: row.phone || '',
+  }
+}
+
+async function listAccreditedEstablishments(filters, pagination) {
+  const params = [pagination.limit, pagination.offset, filters.search || null]
+  const countParams = [filters.search || null]
+  const where = `
+    WHERE r.status = 'active'
+      AND (r.expires_at IS NULL OR r.expires_at >= now())
+      AND ($3::text IS NULL OR (
+        bp.business_name ILIKE '%' || $3 || '%'
+        OR bp.business_type ILIKE '%' || $3 || '%'
+        OR bp.street_address ILIKE '%' || $3 || '%'
+        OR bp.barangay ILIKE '%' || $3 || '%'
+        OR bp.city_municipality ILIKE '%' || $3 || '%'
+        OR r.record_number ILIKE '%' || $3 || '%'
+      ))
+  `
+  const countWhere = `
+    WHERE r.status = 'active'
+      AND (r.expires_at IS NULL OR r.expires_at >= now())
+      AND ($1::text IS NULL OR (
+        bp.business_name ILIKE '%' || $1 || '%'
+        OR bp.business_type ILIKE '%' || $1 || '%'
+        OR bp.street_address ILIKE '%' || $1 || '%'
+        OR bp.barangay ILIKE '%' || $1 || '%'
+        OR bp.city_municipality ILIKE '%' || $1 || '%'
+        OR r.record_number ILIKE '%' || $1 || '%'
+      ))
+  `
+
+  const [itemsResult, countResult] = await Promise.all([
+    query(
+      `
+        SELECT
+          r.id,
+          r.record_number,
+          r.status,
+          r.issued_at,
+          r.expires_at,
+          a.application_number,
+          a.accreditation_type,
+          bp.id AS business_profile_id,
+          bp.business_name,
+          bp.business_type,
+          bp.business_permit_number,
+          bp.dti_sec_registration_number,
+          bp.region,
+          bp.province,
+          bp.city_municipality,
+          bp.barangay,
+          bp.street_address,
+          bp.latitude,
+          bp.longitude,
+          owner.first_name,
+          owner.last_name,
+          owner.email,
+          owner.phone
+        FROM accreditation_records r
+        JOIN accreditation_applications a ON a.id = r.application_id
+        JOIN business_profiles bp ON bp.id = r.business_profile_id
+        LEFT JOIN users owner ON owner.id = bp.owner_id
+        ${where}
+        ORDER BY r.issued_at DESC, bp.business_name ASC
+        LIMIT $1 OFFSET $2
+      `,
+      params,
+    ),
+    query(
+      `
+        SELECT COUNT(*)::integer AS total_items
+        FROM accreditation_records r
+        JOIN business_profiles bp ON bp.id = r.business_profile_id
+        ${countWhere}
+      `,
+      countParams,
+    ),
+  ])
+
+  return {
+    items: itemsResult.rows.map(mapAccreditedEstablishment),
+    totalItems: countResult.rows[0]?.total_items || 0,
+  }
+}
+
 async function listPromotions(filters, pagination) {
   const listParams = [pagination.limit, pagination.offset, filters.search || null, filters.status || null, filters.featured ?? null]
   const countParams = [filters.search || null, filters.status || null, filters.featured ?? null]
@@ -743,10 +861,21 @@ async function listProducts(filters, pagination) {
           pc.slug AS category_slug,
           pc.name AS category_name,
           b.slug AS business_slug,
-          b.name AS business_name
+          b.name AS business_name,
+          pi.id AS primary_image_id,
+          pi.image_url AS primary_image_url,
+          pi.alt_text AS primary_image_alt_text,
+          pi.display_order AS primary_image_display_order
         FROM products p
         JOIN product_categories pc ON pc.id = p.category_id
         JOIN businesses b ON b.id = p.business_id
+        LEFT JOIN LATERAL (
+          SELECT id, image_url, alt_text, display_order
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC, created_at ASC
+          LIMIT 1
+        ) pi ON true
         ${where}
         ORDER BY ${orderBy}, p.id ASC
         LIMIT $1 OFFSET $2
@@ -770,10 +899,21 @@ async function getProductById(id) {
         pc.slug AS category_slug,
         pc.name AS category_name,
         b.slug AS business_slug,
-        b.name AS business_name
+        b.name AS business_name,
+        pi.id AS primary_image_id,
+        pi.image_url AS primary_image_url,
+        pi.alt_text AS primary_image_alt_text,
+        pi.display_order AS primary_image_display_order
       FROM products p
       JOIN product_categories pc ON pc.id = p.category_id
       JOIN businesses b ON b.id = p.business_id
+      LEFT JOIN LATERAL (
+        SELECT id, image_url, alt_text, display_order
+        FROM product_images
+        WHERE product_id = p.id
+        ORDER BY is_primary DESC, display_order ASC, created_at ASC
+        LIMIT 1
+      ) pi ON true
       WHERE p.id = $1
       LIMIT 1
     `,
@@ -782,8 +922,23 @@ async function getProductById(id) {
   return mapProduct(result.rows[0])
 }
 
-async function createProduct(data, userId) {
-  await assertRecordExists('businesses', data.businessId, 'Business')
+async function replaceProductPrimaryImage(productId, image) {
+  if (!image?.imageUrl) return
+
+  await query('DELETE FROM product_images WHERE product_id = $1 AND is_primary = true', [productId])
+  await query(
+    `
+      INSERT INTO product_images (
+        product_id, image_url, alt_text, display_order, is_primary
+      )
+      VALUES ($1, $2, $3, 0, true)
+    `,
+    [productId, image.imageUrl, image.originalName || 'Product photo'],
+  )
+}
+
+async function createProduct(data, userId, image = null) {
+  const businessId = await resolveProductBusinessId(data, userId)
   await assertRecordExists('product_categories', data.categoryId, 'Product category')
 
   try {
@@ -822,7 +977,7 @@ async function createProduct(data, userId) {
         RETURNING id
       `,
       [
-        data.businessId,
+        businessId,
         data.categoryId,
         data.slug,
         data.name,
@@ -839,16 +994,17 @@ async function createProduct(data, userId) {
       ],
     )
 
+    await replaceProductPrimaryImage(result.rows[0].id, image)
     return getProductById(result.rows[0].id)
   } catch (error) {
     throw createDatabaseWriteError(error)
   }
 }
 
-async function updateProduct(id, data, userId) {
+async function updateProduct(id, data, userId, image = null) {
   const existing = await getProductById(id)
   if (!existing) throw createNotFoundError('Product')
-  if (data.businessId) await assertRecordExists('businesses', data.businessId, 'Business')
+  const businessId = await resolveProductBusinessId(data, userId, existing.businessId)
   if (data.categoryId) await assertRecordExists('product_categories', data.categoryId, 'Product category')
 
   try {
@@ -875,7 +1031,7 @@ async function updateProduct(id, data, userId) {
       `,
       [
         id,
-        data.businessId ?? null,
+        businessId === existing.businessId ? null : businessId,
         data.categoryId ?? null,
         data.slug ?? null,
         data.name ?? null,
@@ -891,6 +1047,8 @@ async function updateProduct(id, data, userId) {
         userId,
       ],
     )
+
+    await replaceProductPrimaryImage(result.rows[0].id, image)
 
     return {
       before: existing,
@@ -1146,24 +1304,84 @@ async function archiveDestination(id, userId) {
 }
 
 async function listBusinesses(filters, pagination) {
-  const listParams = [pagination.limit, pagination.offset, filters.search || null, filters.status || null, filters.businessType || null, filters.featured ?? null]
-  const countParams = [filters.search || null, filters.status || null, filters.businessType || null, filters.featured ?? null]
+  const listParams = [pagination.limit, pagination.offset, filters.search || null, filters.status || null, filters.businessType || null, filters.featured ?? null, filters.accredited ?? null]
+  const countParams = [filters.search || null, filters.status || null, filters.businessType || null, filters.featured ?? null, filters.accredited ?? null]
   const where = `
     WHERE ($3::text IS NULL OR b.name ILIKE '%' || $3 || '%' OR b.slug ILIKE '%' || $3 || '%')
       AND ($4::business_status IS NULL OR b.status = $4)
       AND ($5::text IS NULL OR b.business_type ILIKE '%' || $5 || '%')
       AND ($6::boolean IS NULL OR b.is_featured = $6)
+      AND ($7::boolean IS NULL OR (
+        CASE
+          WHEN $7::boolean = true THEN EXISTS (
+            SELECT 1
+            FROM business_accreditations ba
+            WHERE ba.business_id = b.id
+              AND ba.status = 'accredited'
+              AND (ba.expires_at IS NULL OR ba.expires_at >= CURRENT_DATE)
+          )
+          ELSE NOT EXISTS (
+            SELECT 1
+            FROM business_accreditations ba
+            WHERE ba.business_id = b.id
+              AND ba.status = 'accredited'
+              AND (ba.expires_at IS NULL OR ba.expires_at >= CURRENT_DATE)
+          )
+        END
+      ))
   `
   const countWhere = `
     WHERE ($1::text IS NULL OR b.name ILIKE '%' || $1 || '%' OR b.slug ILIKE '%' || $1 || '%')
       AND ($2::business_status IS NULL OR b.status = $2)
       AND ($3::text IS NULL OR b.business_type ILIKE '%' || $3 || '%')
       AND ($4::boolean IS NULL OR b.is_featured = $4)
+      AND ($5::boolean IS NULL OR (
+        CASE
+          WHEN $5::boolean = true THEN EXISTS (
+            SELECT 1
+            FROM business_accreditations ba
+            WHERE ba.business_id = b.id
+              AND ba.status = 'accredited'
+              AND (ba.expires_at IS NULL OR ba.expires_at >= CURRENT_DATE)
+          )
+          ELSE NOT EXISTS (
+            SELECT 1
+            FROM business_accreditations ba
+            WHERE ba.business_id = b.id
+              AND ba.status = 'accredited'
+              AND (ba.expires_at IS NULL OR ba.expires_at >= CURRENT_DATE)
+          )
+        END
+      ))
   `
   const orderBy = sortClause(filters.sort, '-createdAt', 'b')
 
   const [itemsResult, countResult] = await Promise.all([
-    query(`SELECT b.* FROM businesses b ${where} ORDER BY ${orderBy}, b.id ASC LIMIT $1 OFFSET $2`, listParams),
+    query(
+      `
+        SELECT
+          b.*,
+          acc.status::text AS accreditation_status,
+          acc.accreditation_number,
+          acc.issued_at AS accreditation_issued_at,
+          acc.expires_at AS accreditation_expires_at,
+          acc.verified_at AS accreditation_verified_at
+        FROM businesses b
+        LEFT JOIN LATERAL (
+          SELECT ba.status, ba.accreditation_number, ba.issued_at, ba.expires_at, ba.verified_at
+          FROM business_accreditations ba
+          WHERE ba.business_id = b.id
+            AND ba.status = 'accredited'
+            AND (ba.expires_at IS NULL OR ba.expires_at >= CURRENT_DATE)
+          ORDER BY ba.verified_at DESC NULLS LAST, ba.created_at DESC
+          LIMIT 1
+        ) acc ON true
+        ${where}
+        ORDER BY ${orderBy}, b.id ASC
+        LIMIT $1 OFFSET $2
+      `,
+      listParams,
+    ),
     query(`SELECT COUNT(*)::integer AS total_items FROM businesses b ${countWhere}`, countParams),
   ])
 
@@ -1176,6 +1394,267 @@ async function listBusinesses(filters, pagination) {
 async function getBusinessById(id) {
   const result = await query('SELECT * FROM businesses WHERE id = $1 LIMIT 1', [id])
   return mapBusiness(result.rows[0])
+}
+
+async function assertBusinessIsAccredited(id) {
+  const result = await query(
+    `
+      SELECT 1
+      FROM businesses b
+      WHERE b.id = $1
+        AND b.status = 'active'
+        AND EXISTS (
+          SELECT 1
+          FROM business_accreditations ba
+          WHERE ba.business_id = b.id
+            AND ba.status = 'accredited'
+            AND (ba.expires_at IS NULL OR ba.expires_at >= CURRENT_DATE)
+        )
+      LIMIT 1
+    `,
+    [id],
+  )
+
+  if (!result.rowCount) {
+    const error = new Error('Select an active accredited business for this product.')
+    error.statusCode = 400
+    error.code = 'VALIDATION_ERROR'
+    error.publicMessage = 'Select an active accredited business for this product.'
+    throw error
+  }
+}
+
+function slugify(value) {
+  const slug = String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return slug || 'business'
+}
+
+async function uniqueBusinessSlug(baseSlug) {
+  let candidate = baseSlug
+  let suffix = 2
+
+  while (true) {
+    const result = await query('SELECT 1 FROM businesses WHERE slug = $1 LIMIT 1', [candidate])
+    if (!result.rowCount) return candidate
+    candidate = `${baseSlug}-${suffix}`
+    suffix += 1
+  }
+}
+
+async function getAccreditedEstablishmentByRecordId(id) {
+  const result = await query(
+    `
+      SELECT
+        r.id,
+        r.record_number,
+        r.status,
+        r.issued_at,
+        r.expires_at,
+        a.application_number,
+        a.accreditation_type,
+        bp.id AS business_profile_id,
+        bp.business_name,
+        bp.business_type,
+        bp.business_permit_number,
+        bp.dti_sec_registration_number,
+        bp.region,
+        bp.province,
+        bp.city_municipality,
+        bp.barangay,
+        bp.street_address,
+        bp.latitude,
+        bp.longitude,
+        owner.first_name,
+        owner.last_name,
+        owner.email,
+        owner.phone
+      FROM accreditation_records r
+      JOIN accreditation_applications a ON a.id = r.application_id
+      JOIN business_profiles bp ON bp.id = r.business_profile_id
+      LEFT JOIN users owner ON owner.id = bp.owner_id
+      WHERE r.id = $1
+        AND r.status = 'active'
+        AND (r.expires_at IS NULL OR r.expires_at >= now())
+      LIMIT 1
+    `,
+    [id],
+  )
+
+  return mapAccreditedEstablishment(result.rows[0])
+}
+
+async function syncBusinessFromAccreditationRecord(recordId, userId, businessName = '') {
+  const establishment = await getAccreditedEstablishmentByRecordId(recordId)
+  if (!establishment) {
+    throw createInvalidReferenceError('Select an active accredited business for this product.')
+  }
+
+  const displayName = String(businessName || establishment.businessName || '').trim()
+  if (!displayName) throw createInvalidReferenceError('Enter a producer or business name.')
+
+  const baseSlug = slugify(displayName)
+  const ownerName = establishment.ownerName || null
+  const existingResult = await query(
+    `
+      SELECT id
+      FROM businesses
+      WHERE lower(name) = lower($1) OR slug = $2
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `,
+    [displayName, baseSlug],
+  )
+
+  let businessId = existingResult.rows[0]?.id
+
+  if (businessId) {
+    await query(
+      `
+        UPDATE businesses
+        SET
+          name = $2,
+          business_type = $3,
+          owner_name = COALESCE($4, owner_name),
+          address_line = $5,
+          barangay = $6,
+          municipality = $7,
+          province = $8,
+          status = 'active',
+          updated_by = $9::uuid
+        WHERE id = $1
+      `,
+      [
+        businessId,
+        displayName,
+        establishment.businessType || 'Local Producer',
+        ownerName,
+        establishment.streetAddress || null,
+        establishment.barangay || null,
+        establishment.cityMunicipality || 'Calabanga',
+        establishment.province || 'Camarines Sur',
+        userId,
+      ],
+    )
+  } else {
+    const slug = await uniqueBusinessSlug(baseSlug)
+    const inserted = await query(
+      `
+        INSERT INTO businesses (
+          slug, name, business_type, owner_name, address_line,
+          barangay, municipality, province, status, is_featured, created_by, updated_by
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', false, $9::uuid, $9::uuid)
+        RETURNING id
+      `,
+      [
+        slug,
+        displayName,
+        establishment.businessType || 'Local Producer',
+        ownerName,
+        establishment.streetAddress || null,
+        establishment.barangay || null,
+        establishment.cityMunicipality || 'Calabanga',
+        establishment.province || 'Camarines Sur',
+        userId,
+      ],
+    )
+    businessId = inserted.rows[0].id
+  }
+
+  await query(
+    `
+      INSERT INTO business_accreditations (
+        business_id, accreditation_number, status, issued_at, expires_at, verified_at
+      )
+      SELECT $1::uuid, $2::varchar, 'accredited', $3::date, $4::date, now()
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM business_accreditations
+        WHERE business_id = $1::uuid AND accreditation_number = $2::varchar
+      )
+    `,
+    [
+      businessId,
+      establishment.recordNumber,
+      establishment.issuedAt || null,
+      establishment.expiresAt || null,
+    ],
+  )
+
+  return businessId
+}
+
+async function syncStandaloneBusinessByName(businessName, userId) {
+  const displayName = String(businessName || '').trim()
+  if (!displayName) throw createInvalidReferenceError('Enter a producer or business name.')
+
+  const baseSlug = slugify(displayName)
+  const existingResult = await query(
+    `
+      SELECT id
+      FROM businesses
+      WHERE lower(name) = lower($1) OR slug = $2
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `,
+    [displayName, baseSlug],
+  )
+
+  if (existingResult.rows[0]?.id) {
+    const businessId = existingResult.rows[0].id
+    await query(
+      `
+        UPDATE businesses
+        SET
+          name = $2,
+          status = 'active',
+          updated_by = $3::uuid
+        WHERE id = $1
+      `,
+      [businessId, displayName, userId],
+    )
+    return businessId
+  }
+
+  const slug = await uniqueBusinessSlug(baseSlug)
+  const inserted = await query(
+    `
+      INSERT INTO businesses (
+        slug, name, business_type, status, is_featured, created_by, updated_by
+      )
+      VALUES ($1, $2, 'Local Producer', 'active', false, $3::uuid, $3::uuid)
+      RETURNING id
+    `,
+    [slug, displayName, userId],
+  )
+
+  return inserted.rows[0].id
+}
+
+async function resolveProductBusinessId(data, userId, fallbackBusinessId = null) {
+  if (data.sourceAccreditationRecordId) {
+    return syncBusinessFromAccreditationRecord(data.sourceAccreditationRecordId, userId, data.businessName)
+  }
+
+  if (data.businessId) {
+    await assertRecordExists('businesses', data.businessId, 'Business')
+    return data.businessId
+  }
+
+  if (data.businessName) {
+    return syncStandaloneBusinessByName(data.businessName, userId)
+  }
+
+  if (fallbackBusinessId) return fallbackBusinessId
+  return syncStandaloneBusinessByName('Unlisted Producer', userId)
 }
 
 async function createBusiness(data, userId) {
@@ -1601,6 +2080,7 @@ module.exports = {
   getMuseumArtifactById,
   getProductById,
   getPromotionById,
+  listAccreditedEstablishments,
   listBusinesses,
   listCategories,
   listDestinations,

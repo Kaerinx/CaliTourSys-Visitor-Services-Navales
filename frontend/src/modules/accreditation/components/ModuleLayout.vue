@@ -141,7 +141,7 @@ const menu = computed(() => {
   return [
     { label: "Dashboard", path: "/accreditation/app/dashboard", icon: LayoutDashboard },
     { label: "Business Profile", path: "/accreditation/app/business-profile", icon: Building2 },
-    { label: "Apply for Accreditation", path: "/accreditation/app/apply?type=new", icon: FileText },
+    { label: "Apply for Accreditation", path: "/accreditation/app/apply?type=new&start=1", icon: FileText },
     { label: "My Applications", path: "/accreditation/app/applications", icon: FileCheck },
     { label: "Notifications", path: "/accreditation/app/notifications", icon: Bell },
     { label: "Settings", path: "/accreditation/app/settings", icon: Settings },

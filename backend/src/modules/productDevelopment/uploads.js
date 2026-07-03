@@ -49,12 +49,15 @@ const storage = multer.diskStorage({
 const assetImageUpload = multer({
   storage,
   limits: {
-    fileSize: 5 * 1024 * 1024,
+    fileSize: 10 * 1024 * 1024,
     files: 5,
   },
   fileFilter(_req, file, callback) {
     if (!allowedMimeTypes.has(file.mimetype)) {
-      return callback(new Error('Only JPG, PNG, and WebP images can be uploaded.'))
+      const error = new Error('Only JPG, PNG, and WebP images can be uploaded.')
+      error.statusCode = 400
+      error.code = 'VALIDATION_ERROR'
+      return callback(error)
     }
 
     return callback(null, true)
@@ -62,7 +65,9 @@ const assetImageUpload = multer({
 })
 
 function uploadedAssetImages(req) {
-  return (req.files || []).map((file) => ({
+  const files = req.file ? [req.file] : (req.files || [])
+
+  return files.map((file) => ({
     imageUrl: publicUploadUrl(file),
     originalName: file.originalname,
     mimeType: file.mimetype,

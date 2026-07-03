@@ -98,7 +98,14 @@ const businessListQuerySchema = z.object({
   status: businessStatusSchema.optional(),
   businessType: z.string().trim().max(120).optional(),
   featured: booleanQuerySchema,
+  accredited: booleanQuerySchema,
   sort: z.enum(['createdAt', '-createdAt', 'updatedAt', '-updatedAt', 'name', '-name', 'status']).default('-createdAt'),
+})
+
+const accreditedEstablishmentListQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(100),
+  search: z.string().trim().max(120).optional(),
 })
 
 const museumArtifactListQuerySchema = filteredListQuery(['createdAt', '-createdAt', 'updatedAt', '-updatedAt', 'name', '-name', 'status'], {
@@ -198,7 +205,9 @@ const moneySchema = z.preprocess((value) => {
 
 const productBaseSchema = z
   .object({
-    businessId: z.uuid('businessId must be a valid UUID.'),
+    businessId: z.uuid('businessId must be a valid UUID.').optional(),
+    sourceAccreditationRecordId: z.uuid('sourceAccreditationRecordId must be a valid UUID.').optional(),
+    businessName: z.string().trim().min(1).max(255).optional(),
     categoryId: z.uuid('categoryId must be a valid UUID.'),
     slug: slugSchema,
     name: z.string().trim().min(1).max(255),
@@ -213,6 +222,8 @@ const productBaseSchema = z
     isFeatured: z.boolean().default(false),
   })
   .strict()
+
+const productBodySchema = productBaseSchema
 
 const destinationBaseSchema = z
   .object({
@@ -316,6 +327,7 @@ const mapLocationPatchSchema = mapLocationBaseSchema.partial().refine((data) => 
 }, 'locationType updates must include exactly one matching target ID.')
 
 module.exports = {
+  accreditedEstablishmentListQuerySchema,
   businessBodySchema: businessBaseSchema,
   businessListQuerySchema,
   businessPatchSchema: businessBaseSchema.partial(),
@@ -334,7 +346,7 @@ module.exports = {
   museumArtifactBodySchema: museumArtifactBaseSchema,
   museumArtifactListQuerySchema,
   museumArtifactPatchSchema: museumArtifactBaseSchema.partial(),
-  productBodySchema: productBaseSchema,
+  productBodySchema,
   productListQuerySchema,
   productPatchSchema: productBaseSchema.partial(),
   promotionBodySchema,

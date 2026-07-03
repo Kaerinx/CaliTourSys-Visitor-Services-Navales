@@ -1,13 +1,13 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import CmsRelationSelect from './CmsRelationSelect.vue'
-import { toNullable, toNumberOrNull, validateRequired, validateSlug } from './formUtils'
+import { toNullable, toNumberOrNull, validateRequired } from './formUtils'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
   value: { type: Object, default: null },
   categories: { type: Array, default: () => [] },
-  businesses: { type: Array, default: () => [] },
+  accreditedEstablishments: { type: Array, default: () => [] },
   busy: { type: Boolean, default: false },
   serverError: { type: String, default: '' },
 })
@@ -19,9 +19,11 @@ const imageInput = ref(null)
 const imageFile = ref(null)
 const imageFileName = ref('')
 const imagePreviewUrl = ref('')
-const slugManuallyEdited = ref(false)
 
 const title = computed(() => (props.value?.id ? 'Edit Product' : 'Create Product'))
+const selectedEstablishment = computed(() =>
+  props.accreditedEstablishments.find((establishment) => establishment.id === form.sourceAccreditationRecordId),
+)
 const submitLabel = computed(() => {
   if (props.busy) return 'Saving...'
   return props.value?.id ? 'Save Changes' : 'Create Product'
@@ -30,9 +32,10 @@ const submitLabel = computed(() => {
 const errors = computed(() => {
   const output = {}
   if (!submitted.value) return output
-  output.slug = validateSlug(form.slug)
   output.name = validateRequired(form.name, 'Name')
-  output.businessId = validateRequired(form.businessId, 'Business')
+  if (!props.value?.id && form.name.trim() && !form.slug) {
+    output.name = 'Name must include at least one letter or number.'
+  }
   output.categoryId = validateRequired(form.categoryId, 'Category')
   if (form.priceAmount !== '' && Number(form.priceAmount) < 0) output.priceAmount = 'Price must be non-negative.'
   return Object.fromEntries(Object.entries(output).filter(([, value]) => value))
@@ -41,14 +44,13 @@ const errors = computed(() => {
 watch(() => [props.open, props.value], () => {
   Object.assign(form, defaultForm(props.value))
   submitted.value = false
-  slugManuallyEdited.value = Boolean(props.value?.slug)
   resetImageSelection()
+  setExistingImagePreview(props.value)
 }, { immediate: true })
 
 watch(
   () => form.name,
   (value) => {
-    if (slugManuallyEdited.value) return
     form.slug = generateSlug(value)
   },
 )
@@ -57,19 +59,13 @@ onBeforeUnmount(resetImageSelection)
 
 function defaultForm(value = null) {
   return {
-    businessId: value?.businessId || '',
+    sourceAccreditationRecordId: value?.sourceAccreditationRecordId || '',
     categoryId: value?.categoryId || '',
     slug: value?.slug || '',
     name: value?.name || '',
     shortDescription: value?.shortDescription || '',
-    description: value?.description || '',
     priceAmount: value?.priceAmount ?? '',
-    priceCurrency: value?.priceCurrency || 'PHP',
-    unitLabel: value?.unitLabel || '',
-    availabilityText: value?.availabilityText || '',
     accentColor: value?.accentColor || '#0f766e',
-    status: value?.status || 'draft',
-    isFeatured: Boolean(value?.isFeatured),
   }
 }
 
@@ -82,10 +78,6 @@ function generateSlug(value) {
     .replace(/[^a-z0-9\s-]/g, ' ')
     .replace(/[\s_-]+/g, '-')
     .replace(/^-+|-+$/g, '')
-}
-
-function handleSlugInput() {
-  slugManuallyEdited.value = true
 }
 
 function openImagePicker() {
@@ -110,25 +102,31 @@ function resetImageSelection() {
   if (imageInput.value) imageInput.value.value = ''
 }
 
+function setExistingImagePreview(value) {
+  const imageUrl = value?.primaryImage?.url || value?.imageUrl || ''
+  if (!imageUrl) return
+  imagePreviewUrl.value = imageUrl
+  imageFileName.value = value?.primaryImage?.altText || 'Saved product image'
+}
+
 function submitForm() {
   submitted.value = true
   if (Object.keys(errors.value).length) return
-  emit('submit', {
-    businessId: form.businessId,
+  const payload = {
+    sourceAccreditationRecordId: form.sourceAccreditationRecordId || undefined,
     categoryId: form.categoryId,
-    slug: form.slug.trim(),
     name: form.name.trim(),
     shortDescription: toNullable(form.shortDescription),
-    description: toNullable(form.description),
     priceAmount: toNumberOrNull(form.priceAmount),
-    priceCurrency: form.priceCurrency.trim() || 'PHP',
-    unitLabel: toNullable(form.unitLabel),
-    availabilityText: toNullable(form.availabilityText),
-    // TODO: Send the selected product image when the CMS product API supports image upload or image URLs.
+    priceCurrency: 'PHP',
+    unitLabel: null,
+    availabilityText: null,
     accentColor: toNullable(form.accentColor),
-    status: form.status,
-    isFeatured: form.isFeatured,
-  })
+    imageFile: imageFile.value || undefined,
+  }
+
+  if (!props.value?.id) payload.slug = form.slug.trim()
+  emit('submit', payload)
 }
 </script>
 
@@ -156,20 +154,8 @@ function submitForm() {
               </label>
 
               <label>
-                <span>Slug</span>
-                <input v-model="form.slug" :aria-invalid="Boolean(errors.slug)" @input="handleSlugInput" />
-                <span class="cms-form-modal__help">Used for the public product page URL.</span>
-                <small v-if="errors.slug">{{ errors.slug }}</small>
-              </label>
-
-              <label>
                 <span>Short description</span>
                 <textarea v-model="form.shortDescription" rows="2"></textarea>
-              </label>
-
-              <label>
-                <span>Description</span>
-                <textarea v-model="form.description" rows="4"></textarea>
               </label>
             </section>
 
@@ -177,20 +163,27 @@ function submitForm() {
               <h3 id="product-details-title">Product Details</h3>
 
               <div class="cms-form-modal__grid">
-                <CmsRelationSelect v-model="form.businessId" label="Business" required :options="businesses" :error="errors.businessId" />
+                <CmsRelationSelect v-model="form.sourceAccreditationRecordId" label="Linked Accredited Business" :options="accreditedEstablishments" placeholder="No linked accredited business" empty-text="No active accredited businesses found" :error="errors.sourceAccreditationRecordId" />
                 <CmsRelationSelect v-model="form.categoryId" label="Category" required :options="categories" :error="errors.categoryId" />
               </div>
 
-              <div class="cms-form-modal__grid">
-                <label>
-                  <span>Unit</span>
-                  <input v-model="form.unitLabel" />
-                </label>
-                <label>
-                  <span>Availability</span>
-                  <input v-model="form.availabilityText" />
-                </label>
+              <div v-if="selectedEstablishment" class="cms-product-business-card">
+                <strong>{{ selectedEstablishment.businessName }}</strong>
+                <span>{{ selectedEstablishment.location || 'Location not provided' }}</span>
+                <span>
+                  {{ selectedEstablishment.businessType || 'Business type not provided' }}
+                  <template v-if="selectedEstablishment.ownerName">
+                    / {{ selectedEstablishment.ownerName }}
+                  </template>
+                </span>
+                <span>
+                  {{ selectedEstablishment.recordNumber || 'Active accreditation' }}
+                  <template v-if="selectedEstablishment.expiresAt">
+                    / Expires {{ selectedEstablishment.expiresAt }}
+                  </template>
+                </span>
               </div>
+
             </section>
 
             <section class="cms-form-section" aria-labelledby="product-pricing-title">
@@ -201,10 +194,6 @@ function submitForm() {
                   <span>Price</span>
                   <input v-model="form.priceAmount" type="number" min="0" step="0.01" :aria-invalid="Boolean(errors.priceAmount)" />
                   <small v-if="errors.priceAmount">{{ errors.priceAmount }}</small>
-                </label>
-                <label>
-                  <span>Currency</span>
-                  <input v-model="form.priceCurrency" maxlength="3" />
                 </label>
               </div>
             </section>
@@ -223,25 +212,6 @@ function submitForm() {
                   <small v-if="imageFileName">{{ imageFileName }}</small>
                   <em id="product-image-help">Upload a clear image of the product.</em>
                 </div>
-              </div>
-            </section>
-
-            <section class="cms-form-section" aria-labelledby="product-status-title">
-              <h3 id="product-status-title">Publishing Status</h3>
-
-              <div class="cms-form-modal__status-grid">
-                <label>
-                  <span>Status</span>
-                  <select v-model="form.status">
-                    <option value="draft">Draft</option>
-                    <option value="published">Published</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </label>
-                <label class="cms-form-modal__check">
-                  <input v-model="form.isFeatured" type="checkbox" />
-                  <span>Feature this product</span>
-                </label>
               </div>
             </section>
 
@@ -440,6 +410,23 @@ small,
 
 .cms-form-modal__status-grid {
   align-items: start;
+}
+
+.cms-product-business-card {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  color: #334155;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  background: #f0fdfa;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.cms-product-business-card strong {
+  color: #0f172a;
+  font-size: 0.9rem;
 }
 
 .cms-form-modal__check {

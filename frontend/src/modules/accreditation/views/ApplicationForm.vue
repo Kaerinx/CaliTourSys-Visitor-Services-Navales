@@ -18,14 +18,9 @@
       </div>
 
       <section class="form-section">
-        <h2>Application Information</h2>
+        <h2>Business Information</h2>
         <div class="form-grid two">
-          <label>Accreditation Type
-            <select v-model="form.accreditationType">
-              <option value="New Accreditation">New Accreditation</option>
-              <option value="Renewal">Renewal</option>
-            </select>
-          </label>
+          <label>Business Name<input v-model="form.businessName" required /></label>
           <label>Business Type
             <select v-model="form.businessType" required>
               <option value="" disabled>Select business type</option>
@@ -42,6 +37,43 @@
           </label>
           <label>Business Permit Number<input v-model="form.businessPermitNumber" required /></label>
           <label>DTI/SEC Registration Number<input v-model="form.dtiSecRegistrationNumber" /></label>
+          <label>Region
+            <input :value="calabangaLocation.region" readonly />
+          </label>
+          <label>Province
+            <input :value="calabangaLocation.province" readonly />
+          </label>
+          <label>City / Municipality
+            <input :value="calabangaLocation.cityMunicipality" readonly />
+          </label>
+          <label>Barangay
+            <select v-model="form.barangay" required>
+              <option value="">Select barangay</option>
+              <option v-for="location in calabangaBarangays" :key="location" :value="location">
+                {{ location }}
+              </option>
+            </select>
+          </label>
+          <label class="span-2">Business Address<input v-model="form.streetAddress" required /></label>
+          <label>Zip Code<input :value="calabangaLocation.zipCode" readonly /></label>
+          <EstablishmentLocationPicker
+            class="span-2"
+            v-model:address="form.streetAddress"
+            v-model:latitude="form.latitude"
+            v-model:longitude="form.longitude"
+          />
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>Application Information</h2>
+        <div class="form-grid two">
+          <label>Accreditation Type
+            <select v-model="form.accreditationType">
+              <option value="New Accreditation">New Accreditation</option>
+              <option value="Renewal">Renewal</option>
+            </select>
+          </label>
           <label class="span-2">Business Owner Remarks<textarea v-model="form.remarks" rows="4" placeholder="Optional notes for tourism staff" /></label>
         </div>
       </section>
@@ -144,8 +176,14 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { Eye, FileText, Upload, X } from "@lucide/vue";
+import EstablishmentLocationPicker from "@/modules/accreditation/components/EstablishmentLocationPicker.vue";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
-import { businessTypeGroups, getRequiredDocumentsForBusinessType } from "@/modules/accreditation/data/mockData";
+import {
+  businessTypeGroups,
+  calabangaBarangays,
+  calabangaLocation,
+  getRequiredDocumentsForBusinessType,
+} from "@/modules/accreditation/data/mockData";
 import {
   createApplication,
   getApplication,
@@ -178,9 +216,18 @@ const uploadedDocuments = reactive(savedDraft?.uploadedDocuments || {});
 
 const form = reactive({
   accreditationType: routeAccreditationType || savedDraft?.form?.accreditationType || "New Accreditation",
+  businessName: savedDraft?.form?.businessName || "",
   businessType: savedDraft?.form?.businessType || "",
   businessPermitNumber: savedDraft?.form?.businessPermitNumber || "",
   dtiSecRegistrationNumber: savedDraft?.form?.dtiSecRegistrationNumber || "",
+  region: savedDraft?.form?.region || calabangaLocation.region,
+  province: savedDraft?.form?.province || calabangaLocation.province,
+  cityMunicipality: savedDraft?.form?.cityMunicipality || calabangaLocation.cityMunicipality,
+  barangay: savedDraft?.form?.barangay || "",
+  streetAddress: savedDraft?.form?.streetAddress || "",
+  zipCode: savedDraft?.form?.zipCode || calabangaLocation.zipCode,
+  latitude: savedDraft?.form?.latitude || "",
+  longitude: savedDraft?.form?.longitude || "",
   remarks: savedDraft?.form?.remarks || "",
 });
 const requiredDocumentList = computed(() => getRequiredDocumentsForBusinessType(form.businessType));
@@ -285,11 +332,21 @@ async function loadApplicationForRevision(id) {
 
     Object.assign(form, {
       accreditationType: app.accreditation_type || "New Accreditation",
+      businessName: app.business_name || "",
       businessType: app.business_type || "",
       businessPermitNumber: app.business_permit_number || "",
       dtiSecRegistrationNumber: app.dti_sec_registration_number || "",
+      region: app.region || calabangaLocation.region,
+      province: app.province || calabangaLocation.province,
+      cityMunicipality: app.city_municipality || calabangaLocation.cityMunicipality,
+      barangay: app.barangay || "",
+      streetAddress: app.street_address || "",
+      zipCode: app.zip_code || calabangaLocation.zipCode,
+      latitude: app.latitude ?? "",
+      longitude: app.longitude ?? "",
       remarks: app.owner_remarks || "",
     });
+    normalizeLocationSelection();
 
     Object.keys(uploadedDocuments).forEach((doc) => delete uploadedDocuments[doc]);
     for (const document of result.documents || []) {
@@ -310,6 +367,7 @@ async function loadApplicationForRevision(id) {
 async function persistDraft() {
   await auth.connectDemoToBackend();
   resetLocalDemoApplicationIfConnected();
+  normalizeLocationSelection();
 
   if (isDemoSession()) {
     if (!applicationId.value) {
@@ -533,6 +591,9 @@ function saveLocalDraft() {
 }
 
 function applyBusinessProfileDefaults(profile) {
+  if (!form.businessName && profile.business_name) {
+    form.businessName = profile.business_name;
+  }
   if (!form.businessType && profile.business_type) {
     form.businessType = profile.business_type;
   }
@@ -541,6 +602,29 @@ function applyBusinessProfileDefaults(profile) {
   }
   if (!form.dtiSecRegistrationNumber && profile.dti_sec_registration_number) {
     form.dtiSecRegistrationNumber = profile.dti_sec_registration_number;
+  }
+  if (!form.barangay && profile.barangay) {
+    form.barangay = profile.barangay;
+  }
+  if (!form.streetAddress && profile.street_address) {
+    form.streetAddress = profile.street_address;
+  }
+  form.region = profile.region || calabangaLocation.region;
+  form.province = profile.province || calabangaLocation.province;
+  form.cityMunicipality = profile.city_municipality || calabangaLocation.cityMunicipality;
+  form.zipCode = profile.zip_code || calabangaLocation.zipCode;
+  form.latitude = profile.latitude ?? form.latitude;
+  form.longitude = profile.longitude ?? form.longitude;
+  normalizeLocationSelection();
+}
+
+function normalizeLocationSelection() {
+  form.region = calabangaLocation.region;
+  form.province = calabangaLocation.province;
+  form.cityMunicipality = calabangaLocation.cityMunicipality;
+  form.zipCode = calabangaLocation.zipCode;
+  if (!calabangaBarangays.includes(form.barangay)) {
+    form.barangay = calabangaBarangays[0] || "";
   }
 }
 
@@ -561,6 +645,23 @@ function resetDraftState() {
   applicationId.value = "";
   applicationNumber.value = "";
   applicationStatus.value = "draft";
+  localStorage.removeItem(draftStorageKey);
+  Object.assign(form, {
+    accreditationType: getAccreditationTypeFromRoute() || form.accreditationType || "New Accreditation",
+    businessName: "",
+    businessType: "",
+    businessPermitNumber: "",
+    dtiSecRegistrationNumber: "",
+    region: calabangaLocation.region,
+    province: calabangaLocation.province,
+    cityMunicipality: calabangaLocation.cityMunicipality,
+    barangay: calabangaBarangays[0] || "",
+    streetAddress: "",
+    zipCode: calabangaLocation.zipCode,
+    latitude: "",
+    longitude: "",
+    remarks: "",
+  });
   Object.keys(selectedFiles).forEach((doc) => clearSelectedFile(doc));
   Object.keys(uploadedDocuments).forEach((doc) => {
     delete uploadedDocuments[doc];
