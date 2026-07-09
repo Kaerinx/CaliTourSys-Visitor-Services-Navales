@@ -51,7 +51,10 @@ router
   .get(authenticate, controller.listApplications)
   .post(authenticate, authorize("business_owner"), controller.createApplication);
 
-router.get("/applications/:id", authenticate, controller.getApplication);
+router
+  .route("/applications/:id")
+  .get(authenticate, controller.getApplication)
+  .delete(authenticate, authorize("business_owner"), controller.deleteDraftApplication);
 router.patch(
   "/applications/:id/draft",
   authenticate,

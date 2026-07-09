@@ -1,4 +1,4 @@
-const { query } = require('../../config/db')
+const { pool, query } = require('../../config/db')
 const { PUBLIC_PACKAGE_STATUSES } = require('../productDevelopment/constants')
 
 function addParam(params, value) {
@@ -152,6 +152,12 @@ function mapPackage(row) {
     },
     targetMarket: row.target_market,
     estimatedDuration: row.estimated_duration,
+    basePrice: toNumber(row.base_price),
+    basePax: row.base_pax == null ? null : Number(row.base_pax),
+    extraPaxPrice: toNumber(row.extra_pax_price),
+    minPax: row.min_pax == null ? null : Number(row.min_pax),
+    maxPax: row.max_pax == null ? null : Number(row.max_pax),
+    paymentRequired: toBoolean(row.payment_required),
     packageStatus: row.package_status,
     remarks: row.remarks || '',
     primaryImage: {
@@ -181,18 +187,99 @@ function mapPackageItem(row) {
   }
 }
 
+function mapPackageBookingRequest(row) {
+  return {
+    id: row.id,
+    packageId: row.package_id,
+    packageName: row.package_name_snapshot,
+    selectedPax: Number(row.selected_pax),
+    basePrice: toNumber(row.base_price_snapshot),
+    basePax: row.base_pax_snapshot == null ? null : Number(row.base_pax_snapshot),
+    extraPaxPrice: toNumber(row.extra_pax_price_snapshot),
+    totalAmount: toNumber(row.computed_total_amount),
+    visitor: {
+      fullName: row.visitor_full_name,
+      email: row.visitor_email,
+      phoneNumber: row.visitor_phone_number,
+    },
+    representative: {
+      fullName: row.representative_full_name || row.visitor_full_name,
+      email: row.representative_email || row.visitor_email,
+      phoneNumber: row.representative_phone_number || row.visitor_phone_number,
+    },
+    participants: Array.isArray(row.participants) ? row.participants : [],
+    preferredBookingDate: row.preferred_booking_date,
+    message: row.message || '',
+    paymentRequired: toBoolean(row.payment_required_snapshot),
+    bookingStatus: row.booking_status,
+    paymentStatus: row.payment_status,
+    paymentInstruction: row.payment_instruction_snapshot || '',
+    paymentReferenceNumber: row.payment_reference_number || '',
+    proofOfPayment: row.proof_file_url
+      ? {
+          fileUrl: row.proof_file_url,
+          originalFilename: row.proof_original_filename,
+          mimeType: row.proof_mime_type,
+          fileSize: row.proof_file_size == null ? null : Number(row.proof_file_size),
+          uploadedAt: row.proof_uploaded_at,
+        }
+      : null,
+    paymentSubmittedAt: row.payment_submitted_at,
+    paymentVerifiedAt: row.payment_verified_at,
+    paymentVerifiedBy: row.payment_verified_by,
+    paymentRejectionReason: row.payment_rejection_reason,
+    paymentNotes: row.payment_notes,
+    pricingNote: row.pricing_note,
+    touristAccountId: row.tourist_account_id || null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
 function mapEvent(row) {
+  const primaryCategory = mapCategory(row)
+  const categories = Array.isArray(row.categories) && row.categories.length
+    ? row.categories
+    : primaryCategory
+      ? [primaryCategory]
+      : []
+  const relatedAssets = Array.isArray(row.related_assets) && row.related_assets.length
+    ? row.related_assets
+    : row.related_asset_name
+      ? [
+          {
+            id: row.related_asset_id,
+            name: row.related_asset_name,
+            location: row.related_asset_location,
+            category: row.related_asset_category,
+          },
+        ]
+      : []
   return {
     id: row.id,
     slug: row.slug,
     title: row.title,
     shortDescription: row.short_description,
-    category: mapCategory(row),
+    category: primaryCategory,
+    categories,
     startsAt: row.starts_at,
     endsAt: row.ends_at,
     venueName: row.venue_name,
+    relatedAsset: row.related_asset_name
+      ? {
+          id: row.related_asset_id,
+          name: row.related_asset_name,
+          location: row.related_asset_location,
+          category: row.related_asset_category,
+      }
+      : null,
+    relatedAssets,
     primaryImage: imageFromRow(row),
     isFeatured: toBoolean(row.is_featured),
+    isRecurring: toBoolean(row.is_recurring),
+    recurrenceType: row.recurrence_type,
+    usualMonth: row.usual_month,
+    nextOccurrenceDate: row.next_occurrence_date,
   }
 }
 
@@ -639,6 +726,226 @@ async function getPackageBySlug(slug) {
   }
 }
 
+async function getPackageForBooking(packageId) {
+  const result = await query(
+    `
+      SELECT
+        id,
+        name,
+        base_price,
+        base_pax,
+        extra_pax_price,
+        min_pax,
+        max_pax,
+        payment_required,
+        package_status
+      FROM tourism_packages
+      WHERE id = $1
+        AND package_status = ANY($2::text[])
+      LIMIT 1
+    `,
+    [packageId, [...PUBLIC_PACKAGE_STATUSES]],
+  )
+
+  return result.rows[0] || null
+}
+
+async function createPackageBookingRequest(data) {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const result = await client.query(
+      `
+        INSERT INTO package_booking_requests (
+          package_id,
+          package_name_snapshot,
+          selected_pax,
+          base_price_snapshot,
+          base_pax_snapshot,
+          extra_pax_price_snapshot,
+          computed_total_amount,
+          visitor_full_name,
+          visitor_email,
+          visitor_phone_number,
+          representative_full_name,
+          representative_email,
+          representative_phone_number,
+          preferred_booking_date,
+          message,
+          payment_required_snapshot,
+          payment_instruction_snapshot,
+          booking_status,
+          payment_status,
+          pricing_note,
+          tourist_account_id
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, lower($9), $10, $11, lower($12), $13, $14, $15, $16, $17, $18, $19, $20, $21
+        )
+        RETURNING *
+      `,
+      [
+        data.packageId,
+        data.packageNameSnapshot,
+        data.selectedPax,
+        data.basePriceSnapshot,
+        data.basePaxSnapshot,
+        data.extraPaxPriceSnapshot,
+        data.computedTotalAmount,
+        data.visitorFullName,
+        data.visitorEmail,
+        data.visitorPhoneNumber,
+        data.representativeFullName,
+        data.representativeEmail,
+        data.representativePhoneNumber,
+        data.preferredBookingDate,
+        data.message,
+        data.paymentRequiredSnapshot,
+        data.paymentInstructionSnapshot,
+        data.bookingStatus,
+        data.paymentStatus,
+        data.pricingNote,
+        data.touristAccountId || null,
+      ],
+    )
+
+    const booking = result.rows[0]
+    const participants = []
+
+    for (const participant of data.participants || []) {
+      const participantResult = await client.query(
+        `
+          INSERT INTO package_booking_request_participants (
+            package_booking_request_id,
+            participant_order,
+            full_name,
+            age,
+            gender,
+            notes
+          )
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING id, participant_order, full_name, age, gender, notes
+        `,
+        [
+          booking.id,
+          participant.participantOrder,
+          participant.fullName,
+          participant.age,
+          participant.gender,
+          participant.notes || '',
+        ],
+      )
+      const inserted = participantResult.rows[0]
+      participants.push({
+        id: inserted.id,
+        participantOrder: inserted.participant_order,
+        fullName: inserted.full_name,
+        age: inserted.age == null ? null : Number(inserted.age),
+        gender: inserted.gender,
+        notes: inserted.notes || '',
+      })
+    }
+
+    await client.query('COMMIT')
+    return mapPackageBookingRequest({ ...booking, participants })
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+async function getPackageBookingRequestById(requestId) {
+  const result = await query(
+    'SELECT * FROM package_booking_requests WHERE id = $1 LIMIT 1',
+    [requestId],
+  )
+
+  return result.rows[0] || null
+}
+
+async function findPackageBookingRequestForPublicLookup({ requestId, email, phoneNumber }) {
+  const result = await query(
+    `
+      SELECT *
+      FROM package_booking_requests
+      WHERE id = $1
+        AND (
+          ($2::text IS NOT NULL AND visitor_email = lower($2))
+          OR (
+            $3::text IS NOT NULL
+            AND regexp_replace(visitor_phone_number, '\\D', '', 'g') = $3
+          )
+        )
+      LIMIT 1
+    `,
+    [requestId, email || null, phoneNumber || null],
+  )
+
+  return result.rows[0] ? mapPackageBookingRequest(result.rows[0]) : null
+}
+
+async function listPackageBookingRequestsByTouristId(touristAccountId) {
+  const result = await query(
+    `
+      SELECT *
+      FROM package_booking_requests
+      WHERE tourist_account_id = $1
+      ORDER BY created_at DESC, preferred_booking_date DESC
+    `,
+    [touristAccountId],
+  )
+
+  return result.rows.map(mapPackageBookingRequest)
+}
+
+async function getPackageBookingRequestByTouristId({ requestId, touristAccountId }) {
+  const result = await query(
+    `
+      SELECT *
+      FROM package_booking_requests
+      WHERE id = $1
+        AND tourist_account_id = $2
+      LIMIT 1
+    `,
+    [requestId, touristAccountId],
+  )
+
+  return result.rows[0] ? mapPackageBookingRequest(result.rows[0]) : null
+}
+
+async function updatePackageBookingPaymentProof(requestId, data) {
+  const result = await query(
+    `
+      UPDATE package_booking_requests
+      SET payment_reference_number = $2,
+          proof_file_url = $3,
+          proof_original_filename = $4,
+          proof_mime_type = $5,
+          proof_file_size = $6,
+          proof_uploaded_at = now(),
+          payment_submitted_at = now(),
+          payment_status = 'proof_submitted',
+          payment_rejection_reason = NULL,
+          payment_notes = COALESCE($7, payment_notes)
+      WHERE id = $1
+      RETURNING *
+    `,
+    [
+      requestId,
+      data.paymentReferenceNumber || null,
+      data.fileUrl,
+      data.originalFilename,
+      data.mimeType,
+      data.fileSize,
+      data.paymentNotes || null,
+    ],
+  )
+
+  return result.rows[0] ? mapPackageBookingRequest(result.rows[0]) : null
+}
+
 async function listCategories(tableName) {
   const configs = {
     product_categories: {
@@ -680,7 +987,7 @@ function eventSelect() {
       e.title,
       e.short_description,
       e.description,
-      e.venue_name,
+      COALESCE(e.venue_name, ta.name) AS venue_name,
       e.organizer_name,
       e.contact_info,
       e.address_line,
@@ -688,14 +995,58 @@ function eventSelect() {
       e.starts_at,
       e.ends_at,
       e.is_featured,
+      e.is_recurring,
+      e.recurrence_type,
+      e.usual_month,
+      e.next_occurrence_date,
+      e.related_asset_id,
+      ta.name AS related_asset_name,
+      ta.location AS related_asset_location,
+      ta.category AS related_asset_category,
+      asset_links.related_assets,
       ec.id AS category_id,
       ec.slug AS category_slug,
       ec.name AS category_name,
       ec.display_order AS category_display_order,
+      category_links.categories,
       img.image_url AS primary_image_url,
       img.alt_text AS primary_image_alt_text
     FROM events e
     JOIN event_categories ec ON ec.id = e.category_id AND ec.status = 'published'
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(
+        json_agg(
+          json_build_object(
+            'id', linked_ec.id,
+            'slug', linked_ec.slug,
+            'name', linked_ec.name
+          )
+          ORDER BY ecl.display_order ASC, linked_ec.name ASC
+        ),
+        '[]'::json
+      ) AS categories
+      FROM event_category_links ecl
+      JOIN event_categories linked_ec ON linked_ec.id = ecl.category_id AND linked_ec.status = 'published'
+      WHERE ecl.event_id = e.id
+    ) category_links ON true
+    LEFT JOIN tourism_assets ta ON ta.id = e.related_asset_id AND ta.development_status != 'Archived'
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(
+        json_agg(
+          json_build_object(
+            'id', linked_asset.id,
+            'name', linked_asset.name,
+            'location', linked_asset.location,
+            'category', linked_asset.category
+          )
+          ORDER BY eal.display_order ASC, linked_asset.name ASC
+        ),
+        '[]'::json
+      ) AS related_assets
+      FROM event_asset_links eal
+      JOIN tourism_assets linked_asset ON linked_asset.id = eal.asset_id AND linked_asset.development_status != 'Archived'
+      WHERE eal.event_id = e.id
+    ) asset_links ON true
     LEFT JOIN LATERAL (
       SELECT COALESCE(ei.image_url, ma.file_url) AS image_url, COALESCE(ei.alt_text, ma.alt_text) AS alt_text
       FROM event_images ei
@@ -718,9 +1069,28 @@ async function listEvents(filters, pagination) {
     const ref = addParam(params, `%${filters.search}%`)
     where.push(`(e.title ILIKE ${ref} OR e.short_description ILIKE ${ref} OR e.description ILIKE ${ref})`)
   }
-  if (filters.category) where.push(`ec.slug = ${addParam(params, filters.category)}`)
+  if (filters.category) {
+    const ref = addParam(params, filters.category)
+    where.push(`(
+      ec.slug = ${ref}
+      OR EXISTS (
+        SELECT 1
+        FROM event_category_links filter_ecl
+        JOIN event_categories filter_ec ON filter_ec.id = filter_ecl.category_id AND filter_ec.status = 'published'
+        WHERE filter_ecl.event_id = e.id AND filter_ec.slug = ${ref}
+      )
+    )`)
+  }
   if (filters.featured !== undefined) where.push(`e.is_featured = ${addParam(params, filters.featured)}`)
-  if (filters.from) where.push(`e.starts_at >= ${addParam(params, filters.from)}`)
+  if (filters.period === 'upcoming') {
+    where.push('(e.starts_at >= now() OR (e.ends_at IS NOT NULL AND e.ends_at >= now()))')
+  } else if (filters.period === 'past') {
+    where.push('COALESCE(e.ends_at, e.starts_at) < now()')
+  }
+  if (filters.from) {
+    const ref = addParam(params, filters.from)
+    where.push(`(e.starts_at >= ${ref} OR (e.ends_at IS NOT NULL AND e.ends_at >= ${ref}))`)
+  }
   if (filters.to) where.push(`e.starts_at <= ${addParam(params, filters.to)}`)
 
   const orderBy =
@@ -1829,6 +2199,13 @@ module.exports = {
   getProductBySlug,
   listPackages,
   getPackageBySlug,
+  getPackageForBooking,
+  createPackageBookingRequest,
+  getPackageBookingRequestById,
+  getPackageBookingRequestByTouristId,
+  findPackageBookingRequestForPublicLookup,
+  listPackageBookingRequestsByTouristId,
+  updatePackageBookingPaymentProof,
   listTourismAssets,
   listEvents,
   getEventBySlug,

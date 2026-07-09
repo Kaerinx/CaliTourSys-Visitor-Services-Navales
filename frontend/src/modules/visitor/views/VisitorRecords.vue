@@ -51,7 +51,7 @@
           <select v-model="draftFilters.source_type" :disabled="isReceptionist">
             <option value="">All Sources</option>
             <option value="resort">Resort</option>
-            <option value="museum">Museum</option>
+            <option v-if="SHOW_MUSEUM_MODULE" value="museum">Museum</option>
             <option value="tourism_office">Tourism Office</option>
           </select>
         </label>
@@ -188,6 +188,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
 import ManagementLayout from '../components/ManagementLayout.vue'
 import VisitorTable from '../components/VisitorTable.vue'
 import { receptionistNav, tourismNav } from './nav'

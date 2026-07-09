@@ -4,238 +4,237 @@
 
     <main>
       <section class="service-hero" aria-labelledby="service-title">
-        <div class="service-shell service-hero__layout">
-          <div>
-            <p class="service-kicker">Official online service</p>
+        <div class="service-hero__overlay">
+          <div class="service-shell service-hero__content">
+            <p class="service-kicker">Business Accreditation</p>
             <h1 id="service-title">{{ serviceIdentity.serviceName }}</h1>
             <p class="service-lede">{{ serviceIdentity.description }}</p>
-            <p class="service-audience">
-              For tourism business owners and authorized representatives operating in Calabanga.
-            </p>
             <div class="service-actions">
-              <a class="service-button service-button--primary" href="#eligibility-check">
-                Check if your business can apply
+              <RouterLink class="service-button service-button--primary" to="/accreditation/register">
+                Apply for Accreditation
                 <ArrowRight :size="17" aria-hidden="true" />
-              </a>
-              <RouterLink class="service-button service-button--secondary" to="/accreditation/login">
-                Sign in to an existing account
               </RouterLink>
+              <a class="service-button service-button--secondary" href="#requirements">View Requirements</a>
+              <a class="service-button service-button--secondary" href="#process">Check Application Process</a>
+              <RouterLink class="service-button service-button--ghost" to="/accreditation/login">Sign In</RouterLink>
             </div>
           </div>
-
         </div>
       </section>
 
-      <section class="service-facts" aria-labelledby="facts-title">
+      <section id="services" class="services-section" aria-labelledby="services-title">
         <div class="service-shell">
-          <div class="section-heading section-heading--compact">
-            <p class="question-label">What is this?</p>
-            <h2 id="facts-title">A municipal service for tourism business accreditation.</h2>
-            <p>
-              The {{ serviceIdentity.office }} receives and reviews online accreditation and renewal
-              requests. Your application is not approved until the office completes its review.
-            </p>
-          </div>
-
-          <div class="service-facts__grid">
-            <article v-for="detail in serviceDetails" :key="detail.label">
-              <span>{{ detail.label }}</span>
-              <strong>{{ detail.value }}</strong>
-              <p>{{ detail.note }}</p>
-              <small>LGU confirmation required</small>
-            </article>
-          </div>
+          <h2 id="services-title">Services</h2>
+          <article class="simple-service-card">
+            <h3>{{ serviceOverview.title }}</h3>
+            <div class="simple-service-card__body">
+              <p>
+                The Tourism Certificate of Registration / Endorsement for Accreditation is issued
+                to tourism-related establishments in Calabanga that submit the minimum requirements
+                and pay the corresponding registration fee, when applicable.
+              </p>
+              <p>
+                The certificate contains basic information about the tourism establishment and
+                confirms that the application was registered with the Municipality of Calabanga
+                Tourism Office for review, updates, and certificate release coordination.
+              </p>
+              <a href="#requirements">More details</a>
+            </div>
+          </article>
         </div>
       </section>
 
-      <section class="content-section" aria-labelledby="capabilities-title">
-        <div class="service-shell split-layout">
-          <div class="section-heading">
-            <p class="question-label">What can I do here?</p>
-            <h2 id="capabilities-title">Manage your accreditation request online.</h2>
-            <p>
-              This service supports new applications and renewals from account creation through the
-              Tourism Office decision.
-            </p>
-          </div>
-
-          <div class="service-list">
-            <article v-for="(capability, index) in serviceCapabilities" :key="capability.title">
-              <span>{{ String(index + 1).padStart(2, "0") }}</span>
-              <div>
-                <h3>{{ capability.title }}</h3>
-                <p>{{ capability.description }}</p>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="content-section content-section--muted" aria-labelledby="requirements-title">
+      <section id="business-types" class="content-section content-section--muted" aria-labelledby="business-types-title">
         <div class="service-shell">
           <div class="section-heading">
-            <p class="question-label">What do I need?</p>
-            <h2 id="requirements-title">Prepare your information before starting.</h2>
+            <p class="question-label">Business type selection</p>
+            <h2 id="business-types-title">Registration starts by identifying how the business is organized.</h2>
             <p>
-              Providing complete and readable information helps the Tourism Office review your
-              request. Additional documents may be requested during review.
+              The selected structure determines owner, partner, or representative fields, required
+              authority documents, validation rules, and the application sections shown later.
             </p>
           </div>
 
-          <div class="requirements-grid">
-            <article class="requirements-panel">
-              <div class="panel-heading">
-                <Info :size="22" aria-hidden="true" />
-                <div>
-                  <span>Required information</span>
-                  <h3>Business and applicant details</h3>
-                </div>
-              </div>
+          <div class="business-type-grid">
+            <article
+              v-for="type in businessLegalTypes"
+              :key="type.value"
+              :class="{ selected: selectedLegalType === type.value }"
+            >
+              <button type="button" @click="selectedLegalType = type.value">
+                <Building2 :size="21" aria-hidden="true" />
+                <span>{{ type.title }}</span>
+              </button>
+              <p>{{ type.summary }}</p>
               <ul>
-                <li v-for="item in requiredBusinessInformation" :key="item">
-                  <CheckCircle2 :size="17" aria-hidden="true" />
-                  {{ item }}
-                </li>
+                <li v-for="field in type.fields" :key="field">{{ field }}</li>
               </ul>
             </article>
+          </div>
 
-            <article class="requirements-panel">
+          <aside class="selection-result" aria-live="polite">
+            <strong>{{ selectedLegalProfile.title }} validation</strong>
+            <p>{{ selectedLegalProfile.validation }}</p>
+          </aside>
+        </div>
+      </section>
+
+      <section id="requirements" class="content-section" aria-labelledby="requirements-title">
+        <div class="service-shell">
+          <div class="requirements-layout">
+            <div class="section-heading">
+              <p class="question-label">Requirements</p>
+              <h2 id="requirements-title">Filter requirements before you apply.</h2>
+              <p>
+                Applicants should not have to scan one long document. This preview groups common
+                requirements and adds category-specific documents based on the selected tourism business type.
+              </p>
+            </div>
+
+            <form class="requirement-filter" aria-label="Requirement filter controls">
+              <div class="filter-heading">
+                <Filter :size="20" aria-hidden="true" />
+                <strong>Requirement filters</strong>
+              </div>
+              <label>
+                Business structure
+                <select v-model="selectedLegalType">
+                  <option v-for="type in businessLegalTypes" :key="type.value" :value="type.value">
+                    {{ type.title }}
+                  </option>
+                </select>
+              </label>
+              <label>
+                Business category or industry
+                <select v-model="selectedCategory">
+                  <optgroup v-for="group in businessTypeGroups" :key="group.label" :label="group.label">
+                    <option v-for="type in group.options" :key="type" :value="type">{{ type }}</option>
+                  </optgroup>
+                </select>
+              </label>
+              <label>
+                Application type
+                <select v-model="selectedApplicationType">
+                  <option v-for="type in applicationTypes" :key="type" :value="type">{{ type }}</option>
+                </select>
+              </label>
+            </form>
+          </div>
+
+          <div class="requirement-results">
+            <article class="document-panel">
               <div class="panel-heading">
                 <FileText :size="22" aria-hidden="true" />
                 <div>
-                  <span>Required uploads</span>
-                  <h3>Common business documents</h3>
+                  <span>Required documents</span>
+                  <h3>{{ selectedCategory }} - {{ selectedApplicationType }}</h3>
                 </div>
               </div>
-              <ul>
-                <li v-for="document in commonPermitDocuments" :key="document">
+              <ul class="document-list">
+                <li v-for="document in categoryDocuments" :key="document">
                   <CheckCircle2 :size="17" aria-hidden="true" />
-                  {{ document }}
+                  <span>{{ document }}</span>
+                  <small>PDF, JPG, or PNG e-copy</small>
                 </li>
               </ul>
-              <p class="panel-note">Additional permit uploads are shown in the application form after you select your business type.</p>
-              <p class="panel-note">Accepted uploads: PDF, JPG, or PNG, up to 10MB per file.</p>
             </article>
+
+            <div class="requirement-groups">
+              <details v-for="group in requirementProfiles" :key="group.label" open>
+                <summary>{{ group.label }}</summary>
+                <div class="requirement-group__items">
+                  <article v-for="item in group.items" :key="item.name">
+                    <strong>{{ item.name }}</strong>
+                    <span>{{ item.format }} | {{ item.copy }}</span>
+                    <p>{{ item.note }}</p>
+                  </article>
+                </div>
+              </details>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="content-section" aria-labelledby="process-title">
+      <section id="process" class="content-section content-section--muted" aria-labelledby="process-title">
         <div class="service-shell">
           <div class="section-heading">
-            <p class="question-label">How does the process work?</p>
-            <h2 id="process-title">Five steps from preparation to decision.</h2>
+            <p class="question-label">Guide / Procedure</p>
+            <h2 id="process-title">A step-by-step process with clear applicant and officer actions.</h2>
             <p>
-              Processing time depends on the completeness of your application and the Tourism
-              Office review. Sign in regularly to check for updates.
+              Each step shows what the applicant does, what the system or officer does next, and
+              the possible status applicants should expect to see.
             </p>
           </div>
 
-          <ol class="process-list">
+          <ol class="process-timeline">
             <li v-for="(step, index) in processSteps" :key="step.title">
-              <span>{{ index + 1 }}</span>
+              <span class="step-number">{{ index + 1 }}</span>
               <div>
                 <h3>{{ step.title }}</h3>
-                <p>{{ step.description }}</p>
+                <p>{{ step.instruction }}</p>
+                <dl>
+                  <div>
+                    <dt>Applicant action</dt>
+                    <dd>{{ step.applicantAction }}</dd>
+                  </div>
+                  <div>
+                    <dt>System / officer action</dt>
+                    <dd>{{ step.officerAction }}</dd>
+                  </div>
+                </dl>
+                <span class="status-chip">{{ step.status }}</span>
               </div>
             </li>
           </ol>
         </div>
       </section>
 
-      <section id="eligibility-check" class="content-section eligibility-section" aria-labelledby="eligibility-title">
-        <div class="service-shell">
+      <section id="account-flow" class="content-section" aria-labelledby="account-flow-title">
+        <div class="service-shell account-layout">
           <div class="section-heading">
-            <p class="question-label">Can my business apply?</p>
-            <h2 id="eligibility-title">Complete this advisory eligibility check.</h2>
+            <p class="question-label">Account creation flow</p>
+            <h2 id="account-flow-title">Applicants know access activates after verification.</h2>
             <p>
-              This check helps you prepare. It does not approve, reject, or prevent an application.
-              The Tourism Office makes the final eligibility decision.
+              The registration flow explains that the account is not immediately active. Business
+              verification happens first, then email verification unlocks sign-in access.
             </p>
+            <RouterLink class="service-button service-button--primary" to="/accreditation/register">
+              Create Applicant Account
+            </RouterLink>
           </div>
 
-          <div class="eligibility-layout">
-            <form class="eligibility-form" @submit.prevent="evaluateEligibility">
-              <fieldset v-for="(question, index) in eligibilityQuestions" :key="question.id">
-                <legend>
-                  <span>{{ index + 1 }}</span>
-                  {{ question.label }}
-                </legend>
-                <p>{{ question.help }}</p>
-                <div class="answer-options">
-                  <label>
-                    <input
-                      v-model="answers[question.id]"
-                      type="radio"
-                      :name="question.id"
-                      :value="true"
-                      @change="resultShown = false"
-                    />
-                    Yes
-                  </label>
-                  <label>
-                    <input
-                      v-model="answers[question.id]"
-                      type="radio"
-                      :name="question.id"
-                      :value="false"
-                      @change="resultShown = false"
-                    />
-                    No or not sure
-                  </label>
-                </div>
-              </fieldset>
+          <ol class="account-flow-list">
+            <li v-for="(item, index) in accountCreationFlow" :key="item">
+              <span>{{ index + 1 }}</span>
+              <p>{{ item }}</p>
+            </li>
+          </ol>
+        </div>
+      </section>
 
-              <div class="eligibility-form__actions">
-                <button class="service-button service-button--primary" type="submit" :disabled="!eligibilityComplete">
-                  Check my answers
-                </button>
-                <button class="text-button" type="button" @click="resetEligibility">
-                  <RotateCcw :size="15" aria-hidden="true" />
-                  Clear answers
-                </button>
-                <span aria-live="polite">{{ answeredCount }} of {{ eligibilityQuestions.length }} answered</span>
-              </div>
-            </form>
-
-            <aside class="category-panel">
-              <h3>Supported business categories</h3>
-              <p>Selecting a supported category does not guarantee approval.</p>
-              <details v-for="group in businessTypeGroups" :key="group.label">
-                <summary>{{ group.label }}</summary>
-                <p>{{ group.options.join(", ") }}</p>
-              </details>
-            </aside>
-          </div>
-
-          <div
-            v-if="resultShown"
-            ref="eligibilityResultEl"
-            class="eligibility-result"
-            :class="{ 'eligibility-result--guidance': !likelyEligible }"
-            role="status"
-            aria-live="polite"
-            tabindex="-1"
-          >
-            <ShieldCheck v-if="likelyEligible" :size="28" aria-hidden="true" />
-            <CircleHelp v-else :size="28" aria-hidden="true" />
-            <div>
-              <h3>{{ likelyEligible ? "Your business appears ready to start." : "Contact the Tourism Office for guidance." }}</h3>
-              <p v-if="likelyEligible">
-                Based on your answers, you can proceed to account registration and prepare your application.
-                The Tourism Office will still verify all information.
-              </p>
-              <p v-else>
-                You may still create an account and apply. Contact the Tourism Office first if you are unsure
-                about your location, category, authority, or documents.
-              </p>
-              <div class="service-actions service-actions--result">
-                <RouterLink class="service-button service-button--primary" to="/accreditation/register">
-                  {{ likelyEligible ? "Create an account and apply" : "Continue to registration" }}
-                </RouterLink>
-                <a class="service-button service-button--secondary" href="#help">Contact the Tourism Office</a>
-              </div>
+      <section class="content-section content-section--muted" aria-labelledby="status-title">
+        <div class="service-shell status-layout">
+          <div>
+            <div class="section-heading section-heading--compact">
+              <p class="question-label">Applicant statuses</p>
+              <h2 id="status-title">Plain-language labels for every application state.</h2>
             </div>
+            <div class="status-grid">
+              <span v-for="status in applicantStatuses" :key="status" class="status-chip">{{ status }}</span>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-heading section-heading--compact">
+              <p class="question-label">Notifications</p>
+              <h2>Moments when applicants should be notified.</h2>
+            </div>
+            <ul class="notification-list">
+              <li v-for="point in notificationPoints" :key="point">
+                <Bell :size="18" aria-hidden="true" />
+                {{ point }}
+              </li>
+            </ul>
           </div>
         </div>
       </section>
@@ -243,16 +242,16 @@
       <section class="start-section" aria-labelledby="start-title">
         <div class="service-shell start-section__layout">
           <div>
-            <p class="question-label">How do I start?</p>
-            <h2 id="start-title">Check your eligibility, then create your service account.</h2>
+            <p class="question-label">Ready to begin?</p>
+            <h2 id="start-title">Create an account, wait for business verification, then complete your application.</h2>
             <p>
-              New applicants should complete the advisory check first. Returning applicants can
-              sign in to track or continue an existing request.
+              Returning applicants can sign in to continue a draft, upload documents, respond to
+              corrections, or track certificate release.
             </p>
           </div>
           <div class="service-actions">
-            <a class="service-button service-button--primary" href="#eligibility-check">Check eligibility</a>
-            <RouterLink class="service-button service-button--secondary" to="/accreditation/login">Sign in</RouterLink>
+            <RouterLink class="service-button service-button--primary" to="/accreditation/register">Apply for Accreditation</RouterLink>
+            <RouterLink class="service-button service-button--secondary" to="/accreditation/login">Sign In</RouterLink>
           </div>
         </div>
       </section>
@@ -263,62 +262,57 @@
 </template>
 
 <script setup>
-import { computed, nextTick, reactive, ref } from "vue";
+import { computed, ref } from "vue";
 import {
   ArrowRight,
+  Bell,
+  Building2,
   CheckCircle2,
-  CircleHelp,
   FileText,
-  Info,
-  RotateCcw,
-  ShieldCheck,
+  Filter,
 } from "@lucide/vue";
 import PublicServiceFooter from "@/modules/accreditation/components/PublicServiceFooter.vue";
 import PublicServiceHeader from "@/modules/accreditation/components/PublicServiceHeader.vue";
-import { businessTypeGroups, commonPermitDocuments } from "@/modules/accreditation/data/mockData";
 import {
-  eligibilityQuestions,
+  businessTypeGroups,
+  getRequiredDocumentsForBusinessType,
+} from "@/modules/accreditation/data/mockData";
+import {
+  accountCreationFlow,
+  applicantStatuses,
+  applicationTypes,
+  businessLegalTypes,
+  notificationPoints,
   processSteps,
-  requiredBusinessInformation,
-  serviceCapabilities,
-  serviceDetails,
+  requirementProfiles,
   serviceIdentity,
+  serviceOverview,
 } from "@/modules/accreditation/data/publicServiceContent";
 
-const answers = reactive(
-  Object.fromEntries(eligibilityQuestions.map((question) => [question.id, null])),
+const selectedLegalType = ref(businessLegalTypes[0].value);
+const selectedCategory = ref("Resort");
+const selectedApplicationType = ref(applicationTypes[0]);
+
+const selectedLegalProfile = computed(
+  () => businessLegalTypes.find((type) => type.value === selectedLegalType.value) || businessLegalTypes[0],
 );
-const resultShown = ref(false);
-const eligibilityResultEl = ref(null);
 
-const answeredCount = computed(
-  () => Object.values(answers).filter((answer) => answer !== null).length,
-);
-const eligibilityComplete = computed(() => answeredCount.value === eligibilityQuestions.length);
-const likelyEligible = computed(() => eligibilityComplete.value);
-
-async function evaluateEligibility() {
-  if (!eligibilityComplete.value) return;
-
-  resultShown.value = true;
-  await nextTick();
-  eligibilityResultEl.value?.scrollIntoView({ behavior: "smooth", block: "center" });
-  eligibilityResultEl.value?.focus({ preventScroll: true });
-}
-
-function resetEligibility() {
-  for (const question of eligibilityQuestions) answers[question.id] = null;
-  resultShown.value = false;
-}
+const categoryDocuments = computed(() => {
+  const documents = getRequiredDocumentsForBusinessType(selectedCategory.value);
+  if (selectedApplicationType.value === "Renewal") {
+    return [...documents, "Previous certificate or endorsement"];
+  }
+  return documents;
+});
 </script>
 
 <style scoped>
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap");
 
 .service-page {
   min-height: 100vh;
-  background: #f2f0eb;
-  color: #1a1a1a;
+  background: #f6f8f5;
+  color: #17231e;
   font-family: Inter, system-ui, sans-serif;
   line-height: 1.6;
 }
@@ -331,7 +325,7 @@ function resetEligibility() {
 }
 
 .service-page :focus-visible {
-  outline: 3px solid #d4711b;
+  outline: 3px solid #c58b18;
   outline-offset: 3px;
 }
 
@@ -341,35 +335,22 @@ function resetEligibility() {
 }
 
 .service-hero {
-  position: relative;
-  overflow: hidden;
-  border-bottom: 1px solid #164225;
+  min-height: 620px;
   background:
-    radial-gradient(circle at 82% 18%, rgba(216, 243, 220, 0.18), transparent 26%),
-    radial-gradient(circle at 12% 88%, rgba(212, 113, 27, 0.2), transparent 30%),
-    linear-gradient(135deg, #1b4332 0%, #2d6a4f 52%, #14532d 100%);
+    linear-gradient(90deg, rgba(12, 43, 33, 0.92), rgba(12, 43, 33, 0.68) 58%, rgba(12, 43, 33, 0.28)),
+    url("@/assets/hero-banner.jpg") center / cover no-repeat;
   color: #ffffff;
 }
 
-.service-hero__layout {
-  min-height: 560px;
+.service-hero__overlay {
+  min-height: 620px;
   display: flex;
   align-items: center;
-  padding: 84px 0 92px;
+  padding: 88px 0 118px;
 }
 
-.service-kicker,
-.question-label {
-  margin: 0 0 12px;
-  color: #1b4332;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.service-kicker {
-  color: rgba(255, 255, 255, 0.78);
+.service-hero__content {
+  max-width: 790px;
 }
 
 h1,
@@ -383,46 +364,51 @@ p {
 h1,
 h2,
 h3 {
-  color: #1a1a1a;
+  color: #173f32;
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  line-height: 1.2;
-  white-space: normal;
+  line-height: 1.15;
+  letter-spacing: 0;
 }
 
 h1 {
-  max-width: 720px;
+  max-width: 760px;
   margin-bottom: 20px;
   color: #ffffff;
-  font-size: clamp(42px, 6vw, 64px);
-  font-weight: 700;
-  letter-spacing: 0;
-  line-height: 1.05;
+  font-size: clamp(42px, 6vw, 68px);
+  font-weight: 800;
 }
 
 h2 {
   margin-bottom: 14px;
-  font-size: clamp(28px, 4vw, 40px);
-  font-weight: 600;
-  letter-spacing: 0;
+  font-size: clamp(27px, 4vw, 40px);
+  font-weight: 700;
 }
 
 h3 {
   margin-bottom: 8px;
-  font-size: 17px;
+  font-size: 18px;
+}
+
+.service-kicker,
+.question-label,
+.summary-eyebrow {
+  margin: 0 0 12px;
+  color: #176249;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.service-kicker {
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .service-lede {
   max-width: 720px;
-  margin-bottom: 12px;
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 19px;
-}
-
-.service-audience {
   margin-bottom: 0;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 14px;
-  font-weight: 600;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 19px;
 }
 
 .service-actions {
@@ -439,94 +425,134 @@ h3 {
   justify-content: center;
   gap: 8px;
   padding: 10px 18px;
-  border: 1.5px solid #1b4332;
+  border: 1.5px solid #176249;
   border-radius: 8px;
-  color: #1b4332;
+  color: #176249;
+  background: #ffffff;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 800;
   text-decoration: none;
   cursor: pointer;
 }
 
 .service-button--primary {
-  background: #1b4332;
+  background: #176249;
   color: #ffffff;
 }
 
 .service-button--primary:hover {
-  background: #14532d;
-}
-
-.service-button--secondary {
-  background: #ffffff;
+  background: #104c38;
 }
 
 .service-button--secondary:hover {
-  background: #d8f3dc;
+  background: #e8f3ed;
 }
 
-.service-hero .service-button--primary {
-  border-color: #ffffff;
-  background: #ffffff;
-  color: #1b4332;
-}
-
-.service-hero .service-button--primary:hover {
-  background: #d8f3dc;
-}
-
-.service-hero .service-button--secondary {
+.service-button--ghost {
   border-color: rgba(255, 255, 255, 0.72);
   background: transparent;
   color: #ffffff;
 }
 
-.service-hero .service-button--secondary:hover {
+.service-button--ghost:hover {
   border-color: #ffffff;
   background: rgba(255, 255, 255, 0.12);
 }
 
-.service-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.52;
+.service-hero .service-button--primary {
+  border-color: #ffffff;
+  background: #ffffff;
+  color: #174d3d;
 }
 
-.service-hero__layout > *,
-.split-layout > *,
-.requirements-grid > *,
-.eligibility-layout > * {
-  min-width: 0;
+.service-hero .service-button--primary:hover {
+  background: #e8f3ed;
 }
 
-.requirements-panel ul {
-  display: grid;
-  gap: 13px;
-  margin: 20px 0;
-  padding: 0;
-  list-style: none;
+.service-hero .service-button--secondary {
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
 }
 
-.requirements-panel li {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  gap: 10px;
-  color: #3f3f3f;
+.services-section {
+  padding: 68px 0 74px;
+  background: #222424;
+  color: #e9ddc9;
+}
+
+.services-section h2 {
+  margin: 0 0 34px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid rgba(233, 221, 201, 0.45);
+  color: #e9ddc9;
+  font-size: clamp(36px, 5vw, 50px);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.simple-service-card {
+  border: 1px solid rgba(233, 221, 201, 0.2);
+  background: #232525;
+}
+
+.simple-service-card h3 {
+  margin: 0;
+  padding: 13px 16px;
+  background: #284f63;
+  color: #ffffff;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.6;
+  text-transform: uppercase;
+}
+
+.simple-service-card__body {
+  padding: 17px 18px 24px;
+}
+
+.simple-service-card__body p {
+  max-width: 1120px;
+  margin: 0 0 18px;
+  color: #e9ddc9;
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.simple-service-card__body a {
+  color: #e9ddc9;
+  font-size: 17px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.simple-service-card__body a:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.section-heading p,
+.business-type-grid p,
+.selection-result p,
+.document-list small,
+.requirement-group__items p,
+.process-timeline p,
+.process-timeline dd,
+.account-flow-list p,
+.notification-list,
+.start-section p {
+  color: #52665e;
   font-size: 14px;
 }
 
-.requirements-panel li svg {
-  margin-top: 3px;
-  color: #1b4332;
-}
-
-.service-facts,
 .content-section,
 .start-section {
   padding: 76px 0;
 }
 
-.service-facts {
-  background: #fffdf8;
+.content-section--muted {
+  border-block: 1px solid #d9e1dc;
+  background: #ffffff;
 }
 
 .section-heading {
@@ -535,333 +561,350 @@ h3 {
 }
 
 .section-heading--compact {
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
-.section-heading p:last-child,
-.start-section p,
-.service-list p,
-.process-list p,
-.requirements-panel p,
-.category-panel p,
-.eligibility-form fieldset p,
-.eligibility-result p {
-  color: #5c5c5c;
-  font-size: 15px;
-}
-
-.service-facts__grid {
+.split-layout,
+.requirements-layout,
+.account-layout,
+.status-layout {
   display: grid;
+  grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.28fr);
+  gap: 46px;
+}
+
+.split-layout > *,
+.requirements-layout > *,
+.account-layout > *,
+.status-layout > * {
+  min-width: 0;
+}
+
+.requirement-filter,
+.document-panel {
+  padding: 26px;
+  border: 1px solid #d9e1dc;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+dt {
+  color: #173f32;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+dd {
+  margin: 0;
+}
+
+.business-type-grid,
+.status-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.business-type-grid article,
+.requirement-group__items article {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #d9e1dc;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.business-type-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.business-type-grid article.selected {
+  border-color: #176249;
+  box-shadow: inset 0 0 0 2px rgba(23, 98, 73, 0.18);
+}
+
+.business-type-grid button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #173f32;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.business-type-grid button svg {
+  color: #176249;
+}
+
+.business-type-grid p {
+  margin: 14px 0;
+}
+
+.business-type-grid ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: #344d44;
+  font-size: 13px;
+}
+
+.selection-result {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border-left: 4px solid #b27a12;
+  background: #fff8e8;
+}
+
+.selection-result strong {
+  color: #5b3d06;
+}
+
+.selection-result p {
+  margin: 5px 0 0;
+}
+
+.requirement-filter {
+  align-self: start;
+  display: grid;
   gap: 16px;
 }
 
-.service-facts__grid article {
-  display: grid;
-  align-content: start;
-  padding: 22px;
-  border-left: 4px solid #1b4332;
-  background: #f2f0eb;
+.filter-heading,
+.panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #173f32;
 }
 
-.service-facts__grid span,
+.requirement-filter label {
+  display: grid;
+  gap: 7px;
+  color: #294c40;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.requirement-filter select {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid #b9c9c1;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #17231e;
+  font: inherit;
+}
+
+.requirement-results {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 20px;
+}
+
 .panel-heading span {
-  color: #5c5c5c;
+  color: #52665e;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-.service-facts__grid strong {
-  margin-top: 8px;
-  color: #1a1a1a;
-  font-size: 18px;
+.panel-heading h3 {
+  margin: 2px 0 0;
 }
 
-.service-facts__grid p {
-  margin: 8px 0 14px;
-  color: #5c5c5c;
-  font-size: 13px;
-}
-
-.service-facts__grid small {
-  align-self: end;
-  color: #8a5c00;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.split-layout {
+.document-list {
   display: grid;
-  grid-template-columns: minmax(280px, 0.7fr) minmax(0, 1.3fr);
-  gap: 64px;
+  gap: 12px;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.service-list {
-  border-top: 1px solid #e8e4dc;
-}
-
-.service-list article {
+.document-list li {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 16px;
-  padding: 22px 0;
-  border-bottom: 1px solid #e8e4dc;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px 10px;
+  padding: 12px 0;
+  border-top: 1px solid #e3e9e5;
 }
 
-.service-list article > span {
-  color: #1b4332;
-  font-size: 13px;
-  font-weight: 800;
+.document-list svg {
+  margin-top: 3px;
+  color: #176249;
 }
 
-.service-list p,
-.process-list p {
-  margin-bottom: 0;
+.document-list small {
+  grid-column: 2;
 }
 
-.content-section--muted {
-  border-block: 1px solid #e8e4dc;
-  background: #fffdf8;
-}
-
-.requirements-grid,
-.eligibility-layout {
+.requirement-groups {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 22px;
+  gap: 12px;
 }
 
-.requirements-panel,
-.eligibility-form,
-.category-panel {
-  padding: 26px;
-  border: 1px solid #e8e4dc;
+.requirement-groups details {
+  border: 1px solid #d9e1dc;
   border-radius: 8px;
   background: #ffffff;
 }
 
-.panel-heading {
+.requirement-groups summary {
+  padding: 16px 18px;
+  color: #173f32;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.requirement-group__items {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  gap: 12px;
+  gap: 10px;
+  padding: 0 18px 18px;
 }
 
-.panel-heading svg {
-  color: #1b4332;
+.requirement-group__items article {
+  padding: 14px;
+  background: #f8faf7;
 }
 
-.panel-heading h3 {
-  margin-top: 3px;
+.requirement-group__items strong,
+.requirement-group__items span {
+  display: block;
 }
 
-.panel-note {
-  margin: 20px 0 0;
-  padding-top: 16px;
-  border-top: 1px solid #e8e4dc;
+.requirement-group__items span {
+  margin-top: 4px;
+  color: #176249;
+  font-size: 12px;
+  font-weight: 800;
 }
 
-.process-list {
+.requirement-group__items p {
+  margin: 7px 0 0;
+}
+
+.process-timeline {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.process-list li {
-  min-height: 230px;
-  padding: 22px;
-  border-top: 4px solid #1b4332;
-  border-right: 1px solid #e8e4dc;
-  background: #fffdf8;
+.process-timeline li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid #d9e1dc;
+  border-radius: 8px;
+  background: #ffffff;
 }
 
-.process-list li:first-child {
-  border-left: 1px solid #e8e4dc;
-}
-
-.process-list li > span {
+.step-number,
+.account-flow-list span {
   width: 32px;
   height: 32px;
   display: grid;
   place-items: center;
-  margin-bottom: 36px;
   border-radius: 50%;
-  background: #d8f3dc;
-  color: #1b4332;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.eligibility-section {
-  scroll-margin-top: 20px;
-  background: #f2f0eb;
-}
-
-.eligibility-form {
-  display: grid;
-  gap: 0;
-  padding: 0 26px;
-}
-
-.eligibility-form fieldset {
-  margin: 0;
-  padding: 24px 0;
-  border: 0;
-  border-bottom: 1px solid #e8e4dc;
-}
-
-.eligibility-form legend {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 10px;
-  color: #1a1a1a;
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.eligibility-form legend span {
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: #d8f3dc;
-  color: #1b4332;
+  background: #e7f2ed;
+  color: #176249;
   font-size: 12px;
+  font-weight: 800;
 }
 
-.eligibility-form fieldset p {
-  margin: 8px 0 12px 38px;
-  font-size: 13px;
+.process-timeline p {
+  margin-bottom: 14px;
 }
 
-.answer-options {
+.process-timeline dl {
   display: grid;
-  grid-template-columns: repeat(2, 145px);
   gap: 10px;
-  margin-left: 38px;
+  margin: 0 0 14px;
 }
 
-.answer-options label {
-  min-height: 46px;
+.status-chip {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 7px 12px;
-  border: 1px solid #e8e4dc;
-  border-radius: 5px;
-  color: #3f3f3f;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.2;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.answer-options label:has(input:checked) {
-  border-color: #1b4332;
-  background: #d8f3dc;
-}
-
-.answer-options input {
-  width: 16px;
-  height: 16px;
-  min-height: 0;
-  flex: 0 0 16px;
-  margin: 0;
-  accent-color: #1b4332;
-}
-
-.eligibility-form__actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 14px;
-  padding: 24px 0;
-}
-
-.eligibility-form__actions span {
-  margin-left: auto;
-  color: #5c5c5c;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid #b9c9c1;
+  border-radius: 999px;
+  background: #f8faf7;
+  color: #294c40;
   font-size: 12px;
-  font-weight: 700;
-}
-
-.text-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px;
-  border: 0;
-  background: transparent;
-  color: #1b4332;
-  font-size: 13px;
   font-weight: 800;
-  cursor: pointer;
 }
 
-.category-panel h3 {
-  font-size: 20px;
+.account-layout .service-button {
+  margin-top: 10px;
 }
 
-.category-panel details {
-  border-top: 1px solid #e8e4dc;
-}
-
-.category-panel details:last-child {
-  border-bottom: 1px solid #e8e4dc;
-}
-
-.category-panel summary {
-  padding: 14px 2px;
-  color: #1a1a1a;
-  font-size: 13px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.category-panel details p {
-  margin: -4px 0 16px;
-  font-size: 12px;
-}
-
-.eligibility-result {
-  margin-top: 22px;
+.account-flow-list {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  gap: 16px;
-  padding: 24px;
-  border: 1px solid #95d5b2;
-  border-left: 5px solid #1b4332;
-  background: #d8f3dc;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.eligibility-result > svg {
-  color: #1b4332;
+.account-flow-list li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid #d9e1dc;
 }
 
-.eligibility-result--guidance {
-  border-color: #e2c37b;
-  border-left-color: #9a6800;
-  background: #fff9e8;
+.account-flow-list p {
+  margin: 3px 0 0;
 }
 
-.eligibility-result--guidance > svg {
-  color: #8a5c00;
+.status-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.service-actions--result {
-  margin-top: 18px;
+.status-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.notification-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notification-list li {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d9e1dc;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.notification-list svg {
+  margin-top: 2px;
+  color: #b27a12;
 }
 
 .start-section {
-  border-top: 1px solid #e8e4dc;
-  background: #fffdf8;
+  border-top: 1px solid #d9e1dc;
+  background: #ffffff;
 }
 
 .start-section__layout {
@@ -872,7 +915,7 @@ h3 {
 }
 
 .start-section__layout > div:first-child {
-  max-width: 700px;
+  max-width: 740px;
 }
 
 .start-section .service-actions {
@@ -880,36 +923,37 @@ h3 {
   margin-top: 0;
 }
 
-@media (max-width: 1000px) {
-  .service-hero__layout,
+@media (max-width: 1080px) {
+  .process-timeline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .split-layout,
-  .eligibility-layout {
+  .requirements-layout,
+  .account-layout,
+  .status-layout,
+  .requirement-results {
     grid-template-columns: minmax(0, 1fr);
-    gap: 36px;
+  }
+}
+
+@media (max-width: 820px) {
+  .service-shell {
+    width: min(100% - 32px, 1200px);
   }
 
-  .service-facts__grid {
-    grid-template-columns: 1fr;
+  .service-hero,
+  .service-hero__overlay {
+    min-height: 560px;
   }
 
-  .process-list {
-    grid-template-columns: 1fr;
-    gap: 12px;
+  .service-hero__overlay {
+    padding: 72px 0 104px;
   }
 
-  .process-list li,
-  .process-list li:first-child {
-    min-height: auto;
-    display: grid;
-    grid-template-columns: 42px minmax(0, 1fr);
-    gap: 14px;
-    padding: 20px;
-    border: 1px solid #e8e4dc;
-    border-left: 4px solid #1b4332;
-  }
-
-  .process-list li > span {
-    margin-bottom: 0;
+  .business-type-grid,
+  .process-timeline {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .start-section__layout {
@@ -918,60 +962,29 @@ h3 {
   }
 }
 
-@media (max-width: 720px) {
-  .service-shell {
-    width: min(100% - 32px, 1200px);
-  }
-
-  .service-hero__layout {
-    min-height: auto;
-    padding: 64px 0;
-  }
-
+@media (max-width: 640px) {
   h1 {
     font-size: 42px;
   }
 
-  .service-facts,
   .content-section,
+  .services-section,
   .start-section {
     padding: 54px 0;
   }
 
-  .requirements-grid {
-    grid-template-columns: minmax(0, 1fr);
+  .simple-service-card h3 {
+    font-size: 16px;
   }
 
-  .requirements-panel,
-  .category-panel {
-    padding: 22px;
-  }
-
-  .eligibility-form {
-    padding: 0 20px;
-  }
-
-  .eligibility-form fieldset p,
-  .answer-options {
-    margin-left: 0;
-  }
-
-  .answer-options {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .simple-service-card__body p,
+  .simple-service-card__body a {
+    font-size: 15px;
   }
 
   .service-actions,
   .service-actions .service-button {
     width: 100%;
-  }
-
-  .eligibility-form__actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .eligibility-form__actions span {
-    margin-left: 0;
   }
 }
 </style>

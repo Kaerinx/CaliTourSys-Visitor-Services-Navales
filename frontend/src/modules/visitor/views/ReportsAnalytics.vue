@@ -31,7 +31,7 @@
           <select v-model="filters.source_type">
             <option value="">All Sources</option>
             <option value="resort">Resort</option>
-            <option value="museum">Museum</option>
+            <option v-if="SHOW_MUSEUM_MODULE" value="museum">Museum</option>
             <option value="tourism_office">Tourism Office</option>
           </select>
         </div>
@@ -95,6 +95,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
 import ManagementLayout from '../components/ManagementLayout.vue'
 import { visitorApi } from '../services/visitorApi'
 

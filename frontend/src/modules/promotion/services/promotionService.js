@@ -40,11 +40,53 @@ function formatPrice(price) {
   }).format(Number(price.amount))
 }
 
+function formatCurrencyAmount(amount) {
+  if (amount === null || amount === undefined) return 'Price upon inquiry'
+
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    maximumFractionDigits: Number(amount) % 1 === 0 ? 0 : 2,
+  }).format(Number(amount))
+}
+
+function packagePricingFields(tourismPackage) {
+  return {
+    basePrice: tourismPackage.basePrice ?? tourismPackage.base_price ?? null,
+    basePax: tourismPackage.basePax ?? tourismPackage.base_pax ?? null,
+    extraPaxPrice: tourismPackage.extraPaxPrice ?? tourismPackage.extra_pax_price ?? null,
+    minPax: tourismPackage.minPax ?? tourismPackage.min_pax ?? null,
+    maxPax: tourismPackage.maxPax ?? tourismPackage.max_pax ?? null,
+    paymentRequired: tourismPackage.paymentRequired ?? tourismPackage.payment_required ?? false,
+  }
+}
+
+function packagePricingSummary(tourismPackage) {
+  const pricing = packagePricingFields(tourismPackage)
+
+  if (pricing.basePrice === null || pricing.basePrice === undefined) {
+    return 'Price upon inquiry'
+  }
+
+  if (pricing.basePax) {
+    return `${formatCurrencyAmount(pricing.basePrice)} good for ${pricing.basePax} pax`
+  }
+
+  return formatCurrencyAmount(pricing.basePrice)
+}
+
+function packageExtraPaxSummary(tourismPackage) {
+  const pricing = packagePricingFields(tourismPackage)
+  if (pricing.extraPaxPrice === null || pricing.extraPaxPrice === undefined) return ''
+  return `${formatCurrencyAmount(pricing.extraPaxPrice)} per extra person`
+}
+
 function dateParts(value) {
   if (!value) {
     return {
       day: '--',
       month: 'TBA',
+      year: '',
       date: 'Date to be announced',
     }
   }
@@ -54,6 +96,7 @@ function dateParts(value) {
     return {
       day: '--',
       month: 'TBA',
+      year: '',
       date: 'Date to be announced',
     }
   }
@@ -61,6 +104,7 @@ function dateParts(value) {
   return {
     day: new Intl.DateTimeFormat('en-PH', { day: '2-digit' }).format(date),
     month: new Intl.DateTimeFormat('en-PH', { month: 'short' }).format(date).toUpperCase(),
+    year: new Intl.DateTimeFormat('en-PH', { year: 'numeric' }).format(date),
     date: new Intl.DateTimeFormat('en-PH', {
       day: '2-digit',
       month: 'short',
@@ -167,6 +211,7 @@ function packageCategoryList(tourismPackage, fallback) {
 
 function mapReadyPackage(tourismPackage, index = 0) {
   const packageItems = Array.isArray(tourismPackage.items) ? tourismPackage.items : []
+  const pricing = packagePricingFields(tourismPackage)
   const gallery = Array.isArray(tourismPackage.gallery)
     ? tourismPackage.gallery
         .map((image) => ({
@@ -187,7 +232,14 @@ function mapReadyPackage(tourismPackage, index = 0) {
     name: tourismPackage.name,
     producer: 'Calabanga Tourism Product Development',
     businessId: null,
-    price: 'Price upon inquiry',
+    price: packagePricingSummary(tourismPackage),
+    basePrice: pricing.basePrice,
+    basePax: pricing.basePax,
+    extraPaxPrice: pricing.extraPaxPrice,
+    minPax: pricing.minPax,
+    maxPax: pricing.maxPax,
+    paymentRequired: Boolean(pricing.paymentRequired),
+    extraPaxLabel: packageExtraPaxSummary(tourismPackage),
     category,
     categories,
     accent: accentPalette[(index + 2) % accentPalette.length],
@@ -375,6 +427,9 @@ function mapAccreditedBusiness(business) {
 
 function mapEvent(event, index = 0) {
   const parts = dateParts(event.startsAt)
+  const categories = Array.isArray(event.categories) && event.categories.length
+    ? event.categories.map((category) => categoryName(category)).filter(Boolean)
+    : [categoryName(event.category)]
 
   return {
     id: event.slug,
@@ -383,13 +438,18 @@ function mapEvent(event, index = 0) {
     title: event.title,
     ...parts,
     location: event.venueName || 'Calabanga',
-    category: categoryName(event.category),
+    category: categories[0] || categoryName(event.category),
+    categories,
     accent: colorFor(event.category, index),
     desc: event.shortDescription || event.description || 'Event details are being prepared.',
     featured: Boolean(event.isFeatured),
     startsAt: event.startsAt,
     endsAt: event.endsAt,
     imageUrl: event.primaryImage?.url,
+    isRecurring: Boolean(event.isRecurring),
+    recurrenceType: event.recurrenceType,
+    usualMonth: event.usualMonth,
+    nextOccurrenceDate: event.nextOccurrenceDate,
   }
 }
 
@@ -514,6 +574,11 @@ export async function getEvents(params) {
   return data.map((event, index) => (event.slug ? mapEvent(event, index) : event))
 }
 
+export async function getEventCategories() {
+  const data = await withApiData(() => promotionApi.getEventCategories(), [])
+  return Array.isArray(data) ? data : []
+}
+
 export async function getDestinations(params) {
   const data = await withApiData(() => promotionApi.getDestinations(params), [])
   return data.map((destination, index) =>
@@ -556,6 +621,74 @@ export async function getProductById(id) {
 
 export function getPackageById(id) {
   return getReadyPackageById(id)
+}
+
+export async function submitPackageBookingRequest(tourismPackage, payload) {
+  try {
+    const representative = payload.representativeContact || {
+      fullName: payload.fullName,
+      email: payload.email,
+      phoneNumber: payload.phoneNumber,
+    }
+    const response = await promotionApi.submitPackageBookingRequest(tourismPackage.slug || tourismPackage.id, {
+      packageId: tourismPackage.apiId,
+      selectedPax: payload.selectedPax,
+      fullName: representative.fullName.trim(),
+      email: representative.email.trim().toLowerCase(),
+      phoneNumber: representative.phoneNumber.trim(),
+      representativeContact: {
+        fullName: representative.fullName.trim(),
+        email: representative.email.trim().toLowerCase(),
+        phoneNumber: representative.phoneNumber.trim(),
+      },
+      participants: Array.isArray(payload.participants)
+        ? payload.participants.map((participant) => ({
+            fullName: participant.fullName.trim(),
+            age: Number(participant.age),
+            gender: participant.gender.trim(),
+            notes: participant.notes?.trim() || undefined,
+          }))
+        : undefined,
+      preferredBookingDate: payload.preferredBookingDate,
+      message: payload.message?.trim() || undefined,
+    })
+
+    return response.data
+  } catch (error) {
+    throw new Error(userMessageForError(error))
+  }
+}
+
+export async function lookupPackageBookingRequest(payload) {
+  try {
+    const response = await promotionApi.lookupPackageBookingRequest({
+      bookingReference: payload.bookingReference.trim(),
+      email: payload.email?.trim().toLowerCase() || undefined,
+      phoneNumber: payload.phoneNumber?.trim() || undefined,
+    })
+
+    return response.data
+  } catch {
+    throw new Error('No booking request matched those details.')
+  }
+}
+
+export async function submitPackagePaymentProof(requestId, payload) {
+  try {
+    const formData = new FormData()
+    formData.append('proof', payload.file)
+    if (payload.paymentReferenceNumber?.trim()) {
+      formData.append('paymentReferenceNumber', payload.paymentReferenceNumber.trim())
+    }
+    if (payload.paymentNotes?.trim()) {
+      formData.append('paymentNotes', payload.paymentNotes.trim())
+    }
+
+    const response = await promotionApi.submitPackagePaymentProof(requestId, formData)
+    return response.data
+  } catch (error) {
+    throw new Error(userMessageForError(error))
+  }
 }
 
 export async function getBusinessById(id) {

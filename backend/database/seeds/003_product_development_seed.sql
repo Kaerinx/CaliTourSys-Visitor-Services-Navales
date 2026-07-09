@@ -250,7 +250,9 @@ WITH seed_user AS (
   SELECT id FROM users ORDER BY created_at ASC LIMIT 1
 )
 INSERT INTO tourism_packages (
-  id, name, description, category, target_market, estimated_duration, package_status, remarks, created_by
+  id, name, description, category, target_market, estimated_duration,
+  base_price, base_pax, extra_pax_price, min_pax, max_pax, payment_required,
+  package_status, remarks, created_by
 )
 VALUES
   (
@@ -260,6 +262,12 @@ VALUES
     'Cultural',
     'Pilgrims, heritage learners, student groups',
     'Half day',
+    3500.00,
+    5,
+    450.00,
+    3,
+    12,
+    true,
     'Ready for Promotion',
     'Complete chain: Quipayo Church -> Heritage Development Plan -> signage/visitor guide improvement -> Guided Heritage Walk.',
     (SELECT id FROM seed_user)
@@ -271,6 +279,12 @@ VALUES
     'Nature',
     'Eco-tourists, photographers, family groups',
     'Full day',
+    6500.00,
+    5,
+    900.00,
+    4,
+    10,
+    true,
     'Ready for Promotion',
     'Approved for public promotion while final boat schedules are coordinated per group inquiry.',
     (SELECT id FROM seed_user)
@@ -282,6 +296,12 @@ VALUES
     'Nature',
     'Students, eco-tourists, researchers',
     'Half day',
+    2800.00,
+    5,
+    350.00,
+    5,
+    20,
+    false,
     'Draft',
     'Internal package: public listing should hide this until marked ready.',
     (SELECT id FROM seed_user)
@@ -293,6 +313,12 @@ VALUES
     'Food',
     'Families, students, food tourists',
     'Half day',
+    4200.00,
+    6,
+    500.00,
+    4,
+    15,
+    false,
     'Draft',
     'Draft/internal package: should remain inside CMS.',
     (SELECT id FROM seed_user)
@@ -304,6 +330,12 @@ VALUES
     'Food',
     'Families, balikbayan visitors, local product buyers',
     'Full day',
+    7200.00,
+    6,
+    950.00,
+    4,
+    14,
+    true,
     'Ready for Promotion',
     'Published sample for public Packages QA.',
     (SELECT id FROM seed_user)

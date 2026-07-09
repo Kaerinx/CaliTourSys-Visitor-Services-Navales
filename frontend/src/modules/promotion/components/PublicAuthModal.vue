@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useTouristAuthStore } from '../stores/touristAuthStore'
 
 const props = defineProps({
   mode: {
@@ -14,11 +15,13 @@ const props = defineProps({
 
 const emit = defineEmits(['authenticated', 'close', 'change-mode'])
 
+const auth = useTouristAuthStore()
 const submitted = ref(false)
 const message = ref('')
 const form = reactive({
   name: '',
   email: '',
+  phoneNumber: '',
   password: '',
   confirmPassword: '',
 })
@@ -48,7 +51,7 @@ const emailError = computed(() => {
 const passwordError = computed(() => {
   if (!submitted.value) return ''
   if (!form.password) return 'Password is required.'
-  if (isRegister.value && form.password.length < 8) return 'Use at least 8 characters.'
+  if (isRegister.value && form.password.length < 12) return 'Use at least 12 characters.'
   return ''
 })
 
@@ -71,23 +74,27 @@ function hasErrors() {
   )
 }
 
-function submitAuth() {
+async function submitAuth() {
   submitted.value = true
   message.value = ''
   if (hasErrors()) return
 
-  const visitorSession = {
-    email: form.email.trim().toLowerCase(),
-    name: form.name.trim(),
-    mode: props.mode,
-    signedInAt: new Date().toISOString(),
-  }
+  try {
+    const payload = {
+      fullName: form.name.trim(),
+      email: form.email.trim().toLowerCase(),
+      phoneNumber: form.phoneNumber.trim(),
+      password: form.password,
+    }
+    const tourist = isRegister.value
+      ? await auth.register(payload)
+      : await auth.login({ email: payload.email, password: payload.password })
 
-  window.localStorage.setItem('calitoursys_public_visitor', JSON.stringify(visitorSession))
-  window.dispatchEvent(
-    new CustomEvent('calitoursys:visitor-authenticated', { detail: visitorSession }),
-  )
-  emit('authenticated', visitorSession)
+    window.dispatchEvent(new CustomEvent('calitoursys:visitor-authenticated', { detail: tourist }))
+    emit('authenticated', tourist)
+  } catch {
+    message.value = auth.error || 'Unable to continue. Please try again.'
+  }
 }
 
 function switchMode(nextMode) {
@@ -171,6 +178,17 @@ onBeforeUnmount(() => {
           <small v-if="emailError" id="public-auth-email-error">{{ emailError }}</small>
         </label>
 
+        <label v-if="isRegister" class="public-auth__field" for="public-auth-phone">
+          <span>Phone number</span>
+          <input
+            id="public-auth-phone"
+            v-model="form.phoneNumber"
+            autocomplete="tel"
+            placeholder="09XX XXX XXXX"
+            type="tel"
+          />
+        </label>
+
         <label class="public-auth__field" for="public-auth-password">
           <span>
             Password
@@ -206,8 +224,8 @@ onBeforeUnmount(() => {
 
         <p v-if="message" class="public-auth__message" role="status">{{ message }}</p>
 
-        <button class="public-auth__submit" type="submit">
-          {{ isRegister ? 'Create Account' : isSaveIntent ? 'Login' : 'Log in' }}
+        <button class="public-auth__submit" type="submit" :disabled="auth.isLoading">
+          {{ auth.isLoading ? 'Please wait...' : isRegister ? 'Create Account' : isSaveIntent ? 'Login' : 'Log in' }}
         </button>
       </form>
 

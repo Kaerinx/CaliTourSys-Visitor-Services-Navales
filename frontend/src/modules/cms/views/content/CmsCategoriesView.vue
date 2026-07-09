@@ -1,3 +1,7 @@
+<script setup>
+import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
+</script>
+
 <template>
   <section class="cms-content-page" aria-labelledby="cms-categories-title">
     <header class="cms-content-page__header">
@@ -21,7 +25,7 @@
         <strong>Destination Categories</strong>
         <span>Place discovery categories with optional color labels.</span>
       </RouterLink>
-      <RouterLink to="/cms/categories/museum">
+      <RouterLink v-if="SHOW_MUSEUM_MODULE" to="/cms/categories/museum">
         <strong>Museum Categories</strong>
         <span>Artifact collection labels for virtual museum content.</span>
       </RouterLink>

@@ -2,6 +2,7 @@
 import { RouterLink } from 'vue-router'
 
 import logo from '@/assets/brand/love-calabanga-logo.png'
+import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
 import { useNewsletterForm } from '../composables/useNewsletterForm'
 
 const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = useNewsletterForm()
@@ -31,7 +32,7 @@ const { newsletterEmail, newsletterMessage, isSubscribing, submitNewsletter } = 
         <RouterLink to="/products">Products</RouterLink>
         <RouterLink to="/packages">Packages</RouterLink>
         <RouterLink to="/events">Events</RouterLink>
-        <RouterLink to="/promotion/museum">Virtual Museum</RouterLink>
+        <RouterLink v-if="SHOW_MUSEUM_MODULE" to="/promotion/museum">Virtual Museum</RouterLink>
       </div>
 
       <div>

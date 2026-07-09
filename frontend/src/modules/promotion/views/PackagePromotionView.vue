@@ -51,15 +51,6 @@ const categoryFilters = computed(() => [
   ...packageCategories.map((category) => ({ name: category.name, slug: category.name })),
 ])
 
-const categoryCards = computed(() => {
-  return packageCategories.map((category) => ({
-    ...category,
-    count: packages.value.filter((tourismPackage) =>
-      packageMatchesCategory(tourismPackage, category.name),
-    ).length,
-  }))
-})
-
 const filteredPackages = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
 
@@ -149,8 +140,7 @@ onUnmounted(() => {
               by the Tourism Product Development Module.
             </p>
             <div class="hero-actions">
-              <a href="#categories" class="primary-link">Browse categories</a>
-              <a href="#available-packages" class="secondary-link">View packages</a>
+              <a href="#available-packages" class="primary-link">View packages</a>
             </div>
           </div>
 
@@ -158,47 +148,6 @@ onUnmounted(() => {
             <span class="hero-visual__main"></span>
             <span class="hero-visual__tile hero-visual__tile--church"></span>
             <span class="hero-visual__tile hero-visual__tile--bay"></span>
-          </div>
-        </div>
-      </section>
-
-      <section id="categories" class="category-section">
-        <div class="page-shell">
-          <div class="section-heading">
-            <p class="eyebrow">Choose your route</p>
-            <h2>Package categories</h2>
-            <p>
-              Start with the kind of Calabanga experience you want, then browse packages approved
-              for public promotion.
-            </p>
-          </div>
-
-          <div class="category-grid">
-            <button
-              v-for="category in categoryCards"
-              :key="category.slug"
-              type="button"
-              class="category-card"
-              :class="{ 'category-card--active': activeCategory === category.name }"
-              :style="{
-                '--category-accent': category.accent,
-                '--category-image': `url(${category.image})`,
-              }"
-              @click="selectCategory(category.name)"
-            >
-              <img
-                class="category-card__image"
-                :src="category.image"
-                :alt="`${category.name} package category`"
-              />
-              <span class="category-card__body">
-                <strong>{{ category.name }}</strong>
-                <small>{{ category.description }}</small>
-                <span>
-                  {{ category.count }} ready package{{ category.count === 1 ? '' : 's' }}
-                </span>
-              </span>
-            </button>
           </div>
         </div>
       </section>
@@ -247,9 +196,13 @@ onUnmounted(() => {
 
           <div v-if="isLoading" class="package-grid">
             <div v-for="index in 3" :key="index" class="package-card package-card--loading">
-              <span class="skeleton skeleton--title"></span>
-              <span class="skeleton"></span>
-              <span class="skeleton skeleton--short"></span>
+              <span class="package-card__image skeleton-image"></span>
+              <div class="package-card__body">
+                <span class="skeleton skeleton--short"></span>
+                <span class="skeleton skeleton--title"></span>
+                <span class="skeleton"></span>
+                <span class="skeleton"></span>
+              </div>
             </div>
           </div>
 
@@ -272,37 +225,51 @@ onUnmounted(() => {
               class="package-card"
               :to="`/packages/${tourismPackage.id}`"
             >
-              <img
-                class="package-card__image"
-                :src="tourismPackage.imageUrl"
-                :alt="`${tourismPackage.name} package image`"
-                loading="lazy"
-              />
-              <span class="status-pill">{{ tourismPackage.packageStatus }}</span>
-              <CategoryTags
-                class="package-card__categories"
-                :categories="tourismPackage.categories"
-                size="sm"
-              />
-              <h2>{{ tourismPackage.name }}</h2>
-              <p>{{ tourismPackage.description }}</p>
-
-              <span class="package-meta">
-                <span>
-                  <strong>{{ tourismPackage.estimatedDuration }}</strong>
-                  Duration
-                </span>
-                <span>
-                  <strong>{{ tourismPackage.itemCount }}</strong>
-                  Included item(s)
-                </span>
+              <span class="package-card__media">
+                <img
+                  class="package-card__image"
+                  :src="tourismPackage.imageUrl"
+                  :alt="`${tourismPackage.name} package image`"
+                  loading="lazy"
+                />
+                <span class="package-card__status">{{ tourismPackage.packageStatus }}</span>
               </span>
 
-              <span class="target-market">{{ tourismPackage.targetMarket }}</span>
-              <span class="package-card__footer">
-                <span>{{ tourismPackage.price }}</span>
-                <span>View package -></span>
-              </span>
+              <div class="package-card__body">
+                <CategoryTags
+                  class="package-card__categories"
+                  :categories="tourismPackage.categories"
+                  size="sm"
+                />
+
+                <span class="package-badges">
+                  <span>{{ tourismPackage.estimatedDuration }}</span>
+                  <span>{{ tourismPackage.itemCount }} included item(s)</span>
+                </span>
+
+                <h2>{{ tourismPackage.name }}</h2>
+                <p class="package-card__description">{{ tourismPackage.description }}</p>
+
+                <span class="target-market">{{ tourismPackage.targetMarket }}</span>
+
+                <span class="package-card__deal">
+                  <span class="package-pricing">
+                    <small>Package amount</small>
+                    <strong>{{ tourismPackage.price }}</strong>
+                    <small v-if="tourismPackage.extraPaxLabel">
+                      {{ tourismPackage.extraPaxLabel }}
+                    </small>
+                  </span>
+                  <span
+                    class="payment-pill"
+                    :class="{ 'payment-pill--required': tourismPackage.paymentRequired }"
+                  >
+                    {{ tourismPackage.paymentRequired ? 'Payment required' : 'Inquiry basis' }}
+                  </span>
+                </span>
+
+                <span class="package-card__footer">View package -></span>
+              </div>
             </RouterLink>
           </div>
         </div>
@@ -475,113 +442,193 @@ h1 {
 
 .package-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
 }
 
 .package-card {
-  min-height: 340px;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   padding: 0;
   border: 1px solid #e8e4dc;
-  border-radius: 12px;
-  background: radial-gradient(circle at 85% 10%, rgba(212, 172, 13, 0.2), transparent 32%), #ffffff;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 34px rgba(20, 38, 31, 0.06);
   transition:
     border-color 160ms ease,
+    box-shadow 160ms ease,
     transform 160ms ease;
 }
 
-.package-card > :not(.package-card__image) {
-  margin-right: 26px;
-  margin-left: 26px;
+.package-card:focus-visible {
+  outline: 3px solid rgba(27, 67, 50, 0.24);
+  outline-offset: 3px;
 }
 
-.package-card__image {
+.package-card__media {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: #dfe9e4;
+}
+
+.package-card__image,
+.skeleton-image {
   width: 100%;
-  min-height: 150px;
+  aspect-ratio: 16 / 10;
   display: block;
   margin: 0;
   background-color: #dfe9e4;
   object-fit: cover;
+  object-position: center;
+  transition: transform 220ms ease;
 }
 
 .package-card:hover {
   border-color: #1b4332;
+  box-shadow: 0 18px 46px rgba(20, 38, 31, 0.12);
   transform: translateY(-2px);
 }
 
-.status-pill,
+.package-card:hover .package-card__image {
+  transform: scale(1.035);
+}
+
+.package-card__status,
 .target-market {
-  align-self: flex-start;
   display: inline-flex;
   align-items: center;
   min-height: 26px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #e6f3ee;
-  color: #1b4332;
   font-size: 12px;
   font-weight: 700;
 }
 
-.package-card .status-pill {
-  margin-top: 22px;
+.package-card__status {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #1b4332;
+  box-shadow: 0 8px 20px rgba(20, 38, 31, 0.1);
+}
+
+.package-card__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 16px 16px 18px;
 }
 
 .package-card h2 {
-  margin: 18px 0 0;
+  margin: 12px 0 0;
   color: #14261f;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-size: 22px;
-  line-height: 1.2;
+  font-size: 20px;
+  line-height: 1.25;
 }
 
-.package-card p {
-  margin: 12px 0 0;
+.package-card__description {
+  min-height: 67px;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  margin: 10px 0 0;
   color: #5c5c5c;
+  font-size: 14px;
   line-height: 1.6;
 }
 
-.package-meta {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 22px 0;
-}
-
-.package-meta span {
+.package-badges {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 14px;
-  border-radius: 8px;
-  background: #f6f7f4;
-  color: #6b746f;
-  font-size: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
-.package-meta strong {
-  color: #14261f;
-  font-size: 15px;
+.package-badges span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #f6f7f4;
+  color: #59645f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.target-market {
+  align-self: flex-start;
+  margin-top: 14px;
+  background: #e6f3ee;
+  color: #1b4332;
+}
+
+.package-card__deal {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: auto;
+  padding-top: 18px;
 }
 
 .package-card__footer {
-  display: flex;
+  min-height: 42px;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: auto;
-  padding-top: 24px;
-  padding-bottom: 26px;
-  color: #14261f;
+  justify-content: center;
+  margin-top: 14px;
+  border: 1px solid #1b4332;
+  border-radius: 8px;
+  color: #1b4332;
   font-size: 14px;
   font-weight: 700;
 }
 
-.package-card__footer span:last-child {
-  color: #1b4332;
+.package-card:hover .package-card__footer {
+  background: #1b4332;
+  color: #ffffff;
+}
+
+.package-pricing {
+  display: grid;
+  gap: 3px;
+  color: #14261f;
+}
+
+.package-pricing strong {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.package-pricing small {
+  color: #5c5c5c;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.payment-pill {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #f5efe4;
+  color: #7a4d13;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.payment-pill--required {
+  background: #fff3d4;
+  color: #7c4b00;
 }
 
 .empty-state {
@@ -642,7 +689,7 @@ h1 {
 
   .packages-hero__inner,
   .package-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -661,8 +708,12 @@ h1 {
     font-size: 38px;
   }
 
-  .package-meta {
+  .package-grid {
     grid-template-columns: 1fr;
+  }
+
+  .package-card__image {
+    aspect-ratio: 16 / 9;
   }
 }
 
@@ -902,11 +953,11 @@ h1 {
 
 .package-card {
   border-radius: 8px;
-  background: linear-gradient(135deg, rgba(255, 249, 230, 0.9), rgba(255, 255, 255, 0.94)), #ffffff;
+  background: #ffffff;
 }
 
 .package-card__categories {
-  margin-top: 10px;
+  margin-top: 0;
 }
 
 .visit-section {

@@ -16,6 +16,19 @@ router.patch('/inquiries/:id/status', authorize('inquiries.respond'), controller
 router.post('/inquiries/:id/responses', authorize('inquiries.respond'), controller.createInquiryResponse)
 router.get('/inquiries/:id/responses', authorize('inquiries.view'), controller.listInquiryResponses)
 
+router.get('/package-booking-requests', authorize('package_bookings.view'), controller.listPackageBookingRequests)
+router.get('/package-booking-requests/:id', authorize('package_bookings.view'), controller.getPackageBookingRequest)
+router.patch('/package-booking-requests/:id/status', authorize('package_bookings.review'), controller.updatePackageBookingStatus)
+router.patch('/package-booking-requests/:id/payment/verify', authorize('package_bookings.review'), controller.verifyPackageBookingPayment)
+router.patch('/package-booking-requests/:id/payment/reject', authorize('package_bookings.review'), controller.rejectPackageBookingPayment)
+router.patch('/package-booking-requests/:id/notes', authorize('package_bookings.review'), controller.updatePackageBookingNotes)
+router.get('/package-bookings', authorize('package_bookings.view'), controller.listPackageBookingRequests)
+router.get('/package-bookings/:id', authorize('package_bookings.view'), controller.getPackageBookingRequest)
+router.patch('/package-bookings/:id/status', authorize('package_bookings.review'), controller.updatePackageBookingStatus)
+router.patch('/package-bookings/:id/payment/verify', authorize('package_bookings.review'), controller.verifyPackageBookingPayment)
+router.patch('/package-bookings/:id/payment/reject', authorize('package_bookings.review'), controller.rejectPackageBookingPayment)
+router.patch('/package-bookings/:id/notes', authorize('package_bookings.review'), controller.updatePackageBookingNotes)
+
 router.get('/newsletter-subscribers', authorize('newsletter.view'), controller.listNewsletterSubscribers)
 router.patch('/newsletter-subscribers/:id/status', authorize('newsletter.view'), controller.updateNewsletterStatus)
 

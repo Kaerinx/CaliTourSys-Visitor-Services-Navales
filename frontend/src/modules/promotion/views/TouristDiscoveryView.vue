@@ -4,6 +4,7 @@ import PromotionNavbar from '../components/PromotionNavbar.vue'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
+  getMapLocationGeoJson,
   getTourismAssets,
   loadItinerary,
   removeFromItinerary,
@@ -38,23 +39,32 @@ const FILTER_CATEGORIES = [
   { key: 'Cafe', color: '#92400e' },
 ]
 
-const categories = computed(() =>
-  FILTER_CATEGORIES.map((category) => ({
+const locations = ref([])
+
+const categories = computed(() => {
+  const knownCategories = new Set(FILTER_CATEGORIES.map((category) => category.key))
+  const extraCategories = []
+
+  locations.value.forEach((location) => {
+    if (!location.category || knownCategories.has(location.category)) return
+    knownCategories.add(location.category)
+    extraCategories.push({
+      key: location.category,
+      color: location.color || '#1b4332',
+    })
+  })
+
+  return [...FILTER_CATEGORIES, ...extraCategories].map((category) => ({
     ...category,
     count: locations.value.filter((location) => location.category === category.key).length,
-  })),
-)
-
-const locations = ref([])
+  }))
+})
 
 const searchQuery = ref('')
 const selectedId = ref('')
 const enabledCategories = ref({})
 const hasFilterInteraction = ref(false)
 const showDetail = ref(false)
-// Mobile bottom-sheet state: the detail sheet slides up over the Discover list
-// when a location is picked; the list can be collapsed to reveal the full map.
-const mobileDetailOpen = ref(false)
 const mobileListCollapsed = ref(false)
 const savedIds = ref(new Set())
 const isSaving = ref(false)
@@ -199,8 +209,6 @@ function selectLocation(id) {
   if (id !== selectedId.value) clearRoute()
   selectedId.value = id
   if (!id) return
-  // Tapping a marker or a result surfaces the detail sheet on mobile.
-  mobileDetailOpen.value = true
   router.replace({
     path: route.path,
     query: {
@@ -210,8 +218,9 @@ function selectLocation(id) {
   })
 }
 
-function closeMobileDetail() {
-  mobileDetailOpen.value = false
+function openLocationDetail(id) {
+  if (id) selectLocation(id)
+  showDetail.value = true
 }
 
 function toggleMobileList() {
@@ -255,16 +264,30 @@ async function loadLocations() {
   mapRuntimeError.value = ''
 
   try {
-    const tourismAssetData = await getTourismAssets({ limit: 50, sort: '-updatedAt' })
-    const locationData = tourismAssetData.map((asset, index) => locationFromTourismAsset(asset, index))
+    const [tourismAssetData, mapLocationData] = await Promise.all([
+      getTourismAssets({ limit: 50, sort: '-updatedAt' }),
+      getMapLocationGeoJson(),
+    ])
+    const mapFeatures = Array.isArray(mapLocationData?.features) ? mapLocationData.features : []
+    const destinationBySlug = new Map()
+    tourismAssetData.forEach((asset) => {
+      if (asset.id) destinationBySlug.set(String(asset.id), asset)
+      if (asset.slug) destinationBySlug.set(String(asset.slug), asset)
+    })
 
-    mapGeoJson.value = {
-      type: 'FeatureCollection',
-      features: locationData.map(featureFromAssetLocation).filter(Boolean),
-    }
+    const locationData = mapFeatures.length
+      ? mapFeatures.map((feature, index) => locationFromFeature(feature, index, destinationBySlug))
+      : tourismAssetData.map((asset, index) => locationFromTourismAsset(asset, index))
+
+    mapGeoJson.value = mapFeatures.length
+      ? mapLocationData
+      : {
+          type: 'FeatureCollection',
+          features: locationData.map(featureFromAssetLocation).filter(Boolean),
+        }
     locations.value = locationData
     enabledCategories.value = Object.fromEntries(
-      FILTER_CATEGORIES.map((category) => [category.key, true]),
+      categories.value.map((category) => [category.key, true]),
     )
     selectedId.value = String(route.query.location || locationData[0]?.id || '')
     await refreshSavedDestinations()
@@ -420,9 +443,8 @@ async function getDirections(location) {
     return
   }
 
-  // 3. Draw it on the map and reveal it (close the mobile sheet so the map shows).
+  // 3. Draw it on the map and keep the map visible.
   routeGeoJson.value = result
-  mobileDetailOpen.value = false
   feedbackMessage.value =
     `Route to ${location.name} · ${formatRouteDistance(result.distance)} · ` +
     `${formatRouteDuration(result.duration)} drive`
@@ -558,6 +580,7 @@ onBeforeUnmount(() => {
           :empty-title="hasFilterInteraction || hasActiveFilters ? 'No locations match your filters.' : 'Asset coordinates not set yet'"
           :empty-text="hasFilterInteraction || hasActiveFilters ? 'Try selecting more categories.' : 'Product Development assets are listed here. Add map coordinates later to place them on the map.'"
           @select="selectLocation"
+          @request-details="openLocationDetail"
           @map-error="mapRuntimeError = $event"
         />
 
@@ -581,80 +604,6 @@ onBeforeUnmount(() => {
             Clear route
           </button>
         </div>
-
-        <article
-          v-if="selectedLocation"
-          class="map-selection-panel"
-          :class="{ 'map-selection-panel--open': mobileDetailOpen }"
-          aria-live="polite"
-        >
-          <div class="sheet-topbar">
-            <button
-              type="button"
-              class="sheet-handle"
-              aria-label="Dismiss details"
-              @click="closeMobileDetail"
-            >
-              <span class="sheet-handle__bar"></span>
-            </button>
-            <button
-              type="button"
-              class="sheet-close"
-              aria-label="Close details"
-              @click="closeMobileDetail"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </button>
-          </div>
-          <div
-            class="map-selection-panel__image"
-            :style="{
-              '--popup-color': selectedLocation.color,
-              backgroundImage: selectedLocation.imageUrl
-                ? `url(${selectedLocation.imageUrl})`
-                : undefined,
-            }"
-          >
-            <AccreditationBadge v-if="selectedLocation.accredited" floating />
-          </div>
-          <div class="map-selection-panel__body">
-            <h2>{{ selectedLocation.name }}</h2>
-            <div class="popup-meta">
-              <span class="category-badge">{{ selectedLocation.category }}</span>
-              <span>{{ selectedLocationTypeLabel }}</span>
-            </div>
-            <p>{{ selectedLocation.description }}</p>
-            <div class="map-selection-panel__actions">
-              <button type="button" class="map-selection-panel__primary" @click="showDetail = true">
-                View details
-                <span aria-hidden="true">-&gt;</span>
-              </button>
-              <button
-                type="button"
-                class="map-selection-panel__secondary"
-                :disabled="isSaving || !selectedCanBeSaved"
-                @click="toggleItinerary(selectedLocation)"
-              >
-                {{
-                  selectedCanBeSaved
-                    ? savedIds.has(selectedLocation.id)
-                      ? 'Saved'
-                      : 'Save'
-                    : 'Save unavailable'
-                }}
-              </button>
-              <button
-                type="button"
-                class="map-selection-panel__secondary"
-                @click="shareLocation(selectedLocation)"
-              >
-                Share
-              </button>
-            </div>
-          </div>
-        </article>
 
         <div class="map-legend">
           <span v-for="category in categories" :key="category.key">
@@ -981,8 +930,7 @@ h1 {
 }
 
 .filter-row:focus-visible,
-.result-card:focus-visible,
-.map-selection-panel__actions button:focus-visible {
+.result-card:focus-visible {
   outline: 3px solid rgba(27, 67, 50, 0.22);
   outline-offset: 2px;
 }
@@ -1275,90 +1223,6 @@ h1 {
   animation: fadeUp 240ms ease-out both;
 }
 
-.map-selection-panel {
-  position: absolute;
-  top: 84px;
-  right: 22px;
-  z-index: 3;
-  width: min(360px, calc(100% - 44px));
-  overflow: hidden;
-  border: 1px solid #e8e4dc;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 18px 48px rgba(27, 67, 50, 0.16);
-  animation: fadeUpPanel 220ms ease-out both;
-}
-
-.map-selection-panel__image {
-  position: relative;
-  min-height: 130px;
-  background:
-    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.25), transparent 45%),
-    linear-gradient(135deg, var(--popup-color), color-mix(in srgb, var(--popup-color) 62%, white));
-  background-position: center;
-  background-size: cover;
-}
-
-.map-selection-panel__body {
-  display: grid;
-  gap: 12px;
-  padding: 16px;
-}
-
-.map-selection-panel__body h2 {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.map-selection-panel__body p {
-  display: -webkit-box;
-  overflow: hidden;
-  margin: 0;
-  color: #5c5c5c;
-  font-size: 13px;
-  line-height: 1.45;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.map-selection-panel__actions {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 8px;
-  margin-top: 2px;
-}
-
-.map-selection-panel__actions button {
-  min-width: 0;
-  min-height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 12px;
-  border: 1.5px solid #1b4332;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.2;
-  cursor: pointer;
-}
-
-.map-selection-panel__primary {
-  background: #1b4332;
-  color: #ffffff;
-}
-
-.map-selection-panel__secondary {
-  background: #ffffff;
-  color: #1b4332;
-}
-
-.map-selection-panel__actions button:disabled {
-  cursor: default;
-  opacity: 0.56;
-}
-
 .location-popup__image {
   position: relative;
   height: 140px;
@@ -1419,7 +1283,6 @@ h1 {
   cursor: pointer;
 }
 
-.map-selection-panel__actions button:disabled,
 .detail-drawer__actions button:disabled {
   cursor: wait;
   opacity: 0.72;
@@ -1662,10 +1525,6 @@ h1 {
     flex-basis: 330px;
   }
 
-  .map-selection-panel {
-    width: min(320px, calc(100% - 44px));
-  }
-
   .map-legend {
     max-width: calc(100% - 380px);
   }
@@ -1787,48 +1646,6 @@ h1 {
     height: 44px;
   }
 
-  /* ---- Selected detail: bottom sheet that slides up over the list ---- */
-  .map-selection-panel {
-    position: absolute;
-    z-index: 30;
-    top: auto;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    width: auto;
-    max-height: 62vh;
-    max-height: 62dvh;
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    border: 0;
-    border-radius: 18px 18px 0 0;
-    box-shadow: 0 -14px 36px rgba(27, 67, 50, 0.24);
-    padding-bottom: env(safe-area-inset-bottom);
-    animation: none;
-    transform: translateY(110%);
-    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-    pointer-events: none;
-  }
-
-  .map-selection-panel--open {
-    transform: translateY(0);
-    pointer-events: auto;
-  }
-
-  .map-selection-panel__image {
-    display: none;
-  }
-
-  .map-selection-panel__actions {
-    grid-template-columns: 1fr 1fr 1fr;
-  }
-
-  .map-selection-panel__actions button {
-    min-height: 38px;
-    padding: 0 8px;
-  }
-
   .detail-drawer {
     width: 100%;
   }
@@ -1842,22 +1659,9 @@ h1 {
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .discovery-sidebar,
-    .map-selection-panel {
+    .discovery-sidebar {
       transition: none;
     }
-  }
-}
-
-@keyframes fadeUpPanel {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 </style>

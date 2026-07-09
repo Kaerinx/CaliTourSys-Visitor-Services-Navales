@@ -61,7 +61,7 @@
             Type
             <select v-model="form.type" required>
               <option value="resort">Resort</option>
-              <option value="museum">Museum</option>
+              <option v-if="SHOW_MUSEUM_MODULE" value="museum">Museum</option>
               <option value="tourist_spot">Tourist Spot</option>
               <option value="other">Other</option>
             </select>
@@ -102,6 +102,7 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
 import ManagementLayout from '../components/ManagementLayout.vue'
 import visitorApi from '../services/visitorApi'
 

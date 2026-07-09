@@ -1,5 +1,7 @@
 const express = require('express')
 const controller = require('./public.controller')
+const { paymentProofUpload } = require('./paymentProofUploads')
+const { authenticateTourist } = require('../../middleware/authenticateTourist')
 const {
   inquiryRateLimiter,
   itineraryWriteRateLimiter,
@@ -22,6 +24,7 @@ router.get('/products', controller.listProducts)
 router.get('/products/:slug', controller.getProductBySlug)
 router.get('/packages', controller.listPackages)
 router.get('/packages/:slug', controller.getPackageBySlug)
+router.post('/packages/:slug/booking-requests', inquiryRateLimiter, authenticateTourist, controller.createPackageBookingRequest)
 router.get('/tourism-assets', controller.listTourismAssets)
 
 router.get('/businesses', controller.listAccreditedBusinesses)
@@ -42,6 +45,18 @@ router.get('/itinerary/:sessionToken', controller.getItinerary)
 router.post('/itinerary/:sessionToken/items', itineraryWriteRateLimiter, controller.addItineraryItem)
 router.delete('/itinerary/:sessionToken/items/:itemId', itineraryWriteRateLimiter, controller.deleteItineraryItem)
 
+router.post(
+  '/package-booking-requests/lookup',
+  inquiryRateLimiter,
+  controller.lookupPackageBookingRequest,
+)
+
+router.post(
+  '/package-booking-requests/:requestId/payment-proof',
+  inquiryRateLimiter,
+  paymentProofUpload.single('proof'),
+  controller.uploadPackageBookingPaymentProof,
+)
 router.post('/inquiries', inquiryRateLimiter, controller.createInquiry)
 router.post('/newsletter-subscriptions', newsletterRateLimiter, controller.createNewsletterSubscription)
 

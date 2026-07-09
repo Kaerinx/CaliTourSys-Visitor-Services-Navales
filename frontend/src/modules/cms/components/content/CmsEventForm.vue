@@ -1,10 +1,11 @@
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, reactive, watch } from 'vue'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
   value: { type: Object, default: null },
   categories: { type: Array, default: () => [] },
+  assets: { type: Array, default: () => [] },
   busy: { type: Boolean, default: false },
   serverError: { type: String, default: '' },
 })
@@ -12,9 +13,20 @@ const props = defineProps({
 const emit = defineEmits(['close', 'submit'])
 const submitted = reactive({ value: false })
 const form = reactive(defaultForm())
-const imageInput = ref(null)
-const imageFileName = ref('')
-const imagePreviewUrl = ref('')
+const monthOptions = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
 
 const isEditing = computed(() => Boolean(props.value?.id))
 const title = computed(() => (isEditing.value ? 'Edit event' : 'Create event'))
@@ -26,58 +38,120 @@ const submitLabel = computed(() => {
 const errors = computed(() => {
   const output = {}
   if (!submitted.value) return output
-  if (!form.categoryId) output.categoryId = 'Category is required.'
-  if (!form.slug.trim()) output.slug = 'Slug is required.'
-  else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug.trim())) output.slug = 'Use lowercase letters, numbers, and hyphens only.'
-  if (!form.title.trim()) output.title = 'Title is required.'
-  if (!form.startsAt) output.startsAt = 'Start date is required.'
-  if (form.startsAt && form.endsAt && new Date(form.endsAt).getTime() < new Date(form.startsAt).getTime()) {
+  if (!form.categorySelections.length) output.category = 'Select at least one event category.'
+  if (form.categorySelections.length > 2) output.category = 'Select up to two event categories only.'
+  if (!form.title.trim()) output.title = 'Event name is required.'
+  if (!form.startDate) output.startDate = 'Start date is required.'
+  const startsAt = toApiDateTime(form.startDate, form.startTime)
+  const endsAt = toApiDateTime(form.endDate, form.endTime)
+  if (startsAt && endsAt && new Date(endsAt).getTime() < new Date(startsAt).getTime()) {
     output.endsAt = 'End date must be after the start date.'
   }
+  if (form.imageError) output.imageFile = form.imageError
   return output
 })
 
 watch(
   () => [props.open, props.value],
   () => {
+    revokePreviewUrl()
     Object.assign(form, defaultForm(props.value))
     submitted.value = false
-    resetImageSelection()
   },
   { immediate: true },
 )
 
-onBeforeUnmount(resetImageSelection)
+watch(
+  () => form.isRecurring,
+  (isRecurring) => {
+    if (isRecurring && form.recurrenceType === 'one_time') form.recurrenceType = 'yearly'
+    if (!isRecurring) {
+      form.recurrenceType = 'one_time'
+      form.usualMonth = ''
+      form.nextOccurrenceDate = ''
+    }
+  },
+)
 
 function defaultForm(value = null) {
+  const startParts = toDateTimeParts(value?.startsAt)
+  const endParts = toDateTimeParts(value?.endsAt)
+
   return {
-    categoryId: value?.categoryId || '',
-    slug: value?.slug || '',
+    categorySelections: parseEventCategories(value),
+    relatedAssetSelections: parseRelatedAssets(value),
     title: value?.title || '',
-    shortDescription: value?.shortDescription || '',
     description: value?.description || '',
-    venueName: value?.venueName || '',
     organizerName: value?.organizerName || '',
     contactInfo: value?.contactInfo || '',
     addressLine: value?.addressLine || '',
     barangay: value?.barangay || '',
-    startsAt: toInputDate(value?.startsAt),
-    endsAt: toInputDate(value?.endsAt),
+    startDate: startParts.date,
+    startTime: startParts.time,
+    endDate: endParts.date,
+    endTime: endParts.time,
+    primaryImageUrl: value?.primaryImage?.url || '',
+    imageFile: null,
+    imageFileName: value?.primaryImage?.url ? 'Current event image' : '',
+    imagePreviewUrl: '',
+    imageError: '',
     status: value?.status || 'draft',
     isFeatured: Boolean(value?.isFeatured),
+    isRecurring: Boolean(value?.isRecurring),
+    recurrenceType: value?.recurrenceType || (value?.isRecurring ? 'yearly' : 'one_time'),
+    usualMonth: value?.usualMonth || '',
+    nextOccurrenceDate: toDateOnly(value?.nextOccurrenceDate),
   }
 }
 
-function toInputDate(value) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toISOString().slice(0, 16)
+function parseEventCategories(value = null) {
+  const ids = Array.isArray(value?.categoryIds) && value.categoryIds.length
+    ? value.categoryIds
+    : Array.isArray(value?.categories) && value.categories.length
+      ? value.categories.map((category) => category.id)
+      : [value?.categoryId].filter(Boolean)
+
+  const categoryOptionsReady = props.categories.length > 0
+  return [
+    ...new Set(ids.filter((id) => !categoryOptionsReady || props.categories.some((category) => category.id === id))),
+  ].slice(0, 2)
 }
 
-function toApiDate(value) {
-  if (!value) return null
-  return new Date(value).toISOString()
+function parseRelatedAssets(value = null) {
+  const ids = Array.isArray(value?.relatedAssetIds) && value.relatedAssetIds.length
+    ? value.relatedAssetIds
+    : Array.isArray(value?.relatedAssets) && value.relatedAssets.length
+      ? value.relatedAssets.map((asset) => asset.id)
+      : [value?.relatedAssetId].filter(Boolean)
+
+  const assetOptionsReady = props.assets.length > 0
+  return [
+    ...new Set(ids.filter((id) => !assetOptionsReady || props.assets.some((asset) => asset.id === id))),
+  ].slice(0, 2)
+}
+
+function toDateTimeParts(value) {
+  if (!value) return { date: '', time: '' }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return { date: '', time: '' }
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString()
+  return {
+    date: local.slice(0, 10),
+    time: local.slice(11, 16),
+  }
+}
+
+function toApiDateTime(dateValue, timeValue) {
+  if (!dateValue) return null
+  return new Date(`${dateValue}T${timeValue || '00:00'}`).toISOString()
+}
+
+function toDateOnly(value) {
+  if (!value) return ''
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10)
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().slice(0, 10)
 }
 
 function emptyToNull(value) {
@@ -85,46 +159,84 @@ function emptyToNull(value) {
   return trimmed ? trimmed : null
 }
 
-function openImagePicker() {
-  imageInput.value?.click()
+function slugify(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-')
 }
 
-function handleImageChange(event) {
-  const [file] = Array.from(event.target.files || [])
-  resetImageSelection()
+function revokePreviewUrl() {
+  if (form.imagePreviewUrl) URL.revokeObjectURL(form.imagePreviewUrl)
+}
+
+function onImageChange(event) {
+  const [file] = event.target.files || []
+  form.imageError = ''
+  revokePreviewUrl()
+  form.imageFile = null
+  form.imageFileName = form.primaryImageUrl ? 'Current event image' : ''
+  form.imagePreviewUrl = ''
+
   if (!file) return
 
-  imageFileName.value = file.name
-  imagePreviewUrl.value = URL.createObjectURL(file)
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    form.imageError = 'Use a JPG, PNG, or WebP image.'
+    event.target.value = ''
+    return
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    form.imageError = 'Image must be 10MB or smaller.'
+    event.target.value = ''
+    return
+  }
+
+  form.imageFile = file
+  form.imageFileName = file.name
+  form.imagePreviewUrl = URL.createObjectURL(file)
 }
 
-function resetImageSelection() {
-  if (imagePreviewUrl.value) URL.revokeObjectURL(imagePreviewUrl.value)
-  imageFileName.value = ''
-  imagePreviewUrl.value = ''
-  if (imageInput.value) imageInput.value.value = ''
+function isCategoryDisabled(categoryId) {
+  return form.categorySelections.length >= 2 && !form.categorySelections.includes(categoryId)
+}
+
+function isAssetOptionDisabled(assetId, selectedIndex) {
+  return form.relatedAssetSelections.some((selectedId, index) => selectedId === assetId && index !== selectedIndex)
 }
 
 function submitForm() {
   submitted.value = true
   if (Object.keys(errors.value).length) return
 
+  const generatedSlug = slugify(form.title) || 'event'
+  const categoryIds = form.categorySelections.slice(0, 2)
+  const relatedAssetIds = [...new Set(form.relatedAssetSelections.filter(Boolean))].slice(0, 2)
+
   emit('submit', {
-    categoryId: form.categoryId,
-    slug: form.slug.trim(),
+    categoryId: categoryIds[0],
+    categoryIds,
+    relatedAssetId: relatedAssetIds[0] || null,
+    relatedAssetIds,
+    slug: props.value?.slug && props.value?.title === form.title.trim() ? props.value.slug : generatedSlug,
     title: form.title.trim(),
-    shortDescription: emptyToNull(form.shortDescription),
     description: emptyToNull(form.description),
-    venueName: emptyToNull(form.venueName),
     organizerName: emptyToNull(form.organizerName),
     contactInfo: emptyToNull(form.contactInfo),
     addressLine: emptyToNull(form.addressLine),
     barangay: emptyToNull(form.barangay),
-    startsAt: toApiDate(form.startsAt),
-    endsAt: toApiDate(form.endsAt),
-    status: form.status,
+    startsAt: toApiDateTime(form.startDate, form.startTime),
+    endsAt: toApiDateTime(form.endDate, form.endTime),
+    ...(form.imageFile ? { imageFile: form.imageFile } : {}),
+    ...(form.primaryImageUrl && !form.imageFile ? { primaryImageUrl: form.primaryImageUrl } : {}),
+    status: props.value?.status || 'draft',
     isFeatured: form.isFeatured,
-    // TODO: Send the selected event image when the CMS event API supports image upload or image URLs.
+    isRecurring: Boolean(form.isRecurring),
+    recurrenceType: form.isRecurring ? form.recurrenceType : 'one_time',
+    usualMonth: form.isRecurring && form.usualMonth ? Number(form.usualMonth) : null,
+    nextOccurrenceDate: form.isRecurring ? emptyToNull(form.nextOccurrenceDate) : null,
   })
 }
 </script>
@@ -146,45 +258,45 @@ function submitForm() {
             <section class="cms-event-section" aria-labelledby="event-basic-title">
               <h3 id="event-basic-title">Basic Information</h3>
 
+              <fieldset class="cms-event-category-group" :aria-invalid="Boolean(errors.category)">
+                <legend>Category</legend>
+                <div class="cms-event-category-group__options">
+                  <label
+                    v-for="category in categories"
+                    :key="category.id"
+                    class="cms-event-category-option"
+                    :class="{ 'is-selected': form.categorySelections.includes(category.id) }"
+                  >
+                    <input
+                      v-model="form.categorySelections"
+                      type="checkbox"
+                      :value="category.id"
+                      :disabled="isCategoryDisabled(category.id)"
+                    />
+                    <span>{{ category.name }}</span>
+                  </label>
+                </div>
+                <small v-if="errors.category">{{ errors.category }}</small>
+              </fieldset>
+
               <div class="cms-event-grid">
                 <label>
-                  <span>Category</span>
-                  <select v-model="form.categoryId" :aria-invalid="Boolean(errors.categoryId)">
-                    <option value="">Select category</option>
-                    <option v-for="category in categories" :key="category.id" :value="category.id">
-                      {{ category.name }}
-                    </option>
-                  </select>
-                  <small v-if="errors.categoryId">{{ errors.categoryId }}</small>
-                </label>
-
-                <label>
-                  <span>Status</span>
-                  <select v-model="form.status">
-                    <option value="draft">Draft</option>
-                    <option value="published">Published</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </label>
-              </div>
-
-              <div class="cms-event-grid">
-                <label>
-                  <span>Slug</span>
-                  <input v-model="form.slug" :aria-invalid="Boolean(errors.slug)" />
-                  <small v-if="errors.slug">{{ errors.slug }}</small>
-                </label>
-                <label>
-                  <span>Title</span>
+                  <span>Event Name</span>
                   <input v-model="form.title" :aria-invalid="Boolean(errors.title)" />
                   <small v-if="errors.title">{{ errors.title }}</small>
                 </label>
               </div>
 
-              <label>
-                <span>Short description</span>
-                <textarea v-model="form.shortDescription" rows="2"></textarea>
-              </label>
+              <div class="cms-event-grid">
+                <label>
+                  <span>Organizer</span>
+                  <input v-model="form.organizerName" />
+                </label>
+                <label>
+                  <span>Contact info</span>
+                  <input v-model="form.contactInfo" />
+                </label>
+              </div>
 
               <label>
                 <span>Description</span>
@@ -193,34 +305,49 @@ function submitForm() {
             </section>
 
             <section class="cms-event-section" aria-labelledby="event-venue-title">
-              <h3 id="event-venue-title">Venue and Contact</h3>
+              <h3 id="event-venue-title">Related Asset / Venue</h3>
 
               <div class="cms-event-grid">
                 <label>
-                  <span>Venue</span>
-                  <input v-model="form.venueName" />
+                  <span>Related Asset 1</span>
+                  <select v-model="form.relatedAssetSelections[0]">
+                    <option value="">No linked asset</option>
+                    <option
+                      v-for="asset in assets"
+                      :key="asset.id"
+                      :value="asset.id"
+                      :disabled="isAssetOptionDisabled(asset.id, 0)"
+                    >
+                      {{ asset.name }}{{ asset.location ? ` - ${asset.location}` : '' }}
+                    </option>
+                  </select>
                 </label>
                 <label>
-                  <span>Organizer</span>
-                  <input v-model="form.organizerName" />
+                  <span>Related Asset 2</span>
+                  <select v-model="form.relatedAssetSelections[1]">
+                    <option value="">No second linked asset</option>
+                    <option
+                      v-for="asset in assets"
+                      :key="asset.id"
+                      :value="asset.id"
+                      :disabled="isAssetOptionDisabled(asset.id, 1)"
+                    >
+                      {{ asset.name }}{{ asset.location ? ` - ${asset.location}` : '' }}
+                    </option>
+                  </select>
                 </label>
               </div>
 
               <div class="cms-event-grid">
-                <label>
-                  <span>Contact info</span>
-                  <input v-model="form.contactInfo" />
-                </label>
                 <label>
                   <span>Barangay</span>
                   <input v-model="form.barangay" />
                 </label>
+                <label>
+                  <span>Address line</span>
+                  <input v-model="form.addressLine" />
+                </label>
               </div>
-
-              <label>
-                <span>Address line</span>
-                <input v-model="form.addressLine" />
-              </label>
             </section>
 
             <section class="cms-event-section" aria-labelledby="event-schedule-title">
@@ -228,16 +355,61 @@ function submitForm() {
 
               <div class="cms-event-grid">
                 <label>
-                  <span>Starts at</span>
-                  <input v-model="form.startsAt" type="datetime-local" :aria-invalid="Boolean(errors.startsAt)" />
-                  <small v-if="errors.startsAt">{{ errors.startsAt }}</small>
+                  <span>Start Date</span>
+                  <input v-model="form.startDate" type="date" :aria-invalid="Boolean(errors.startDate)" />
+                  <small v-if="errors.startDate">{{ errors.startDate }}</small>
                 </label>
                 <label>
-                  <span>Ends at</span>
-                  <input v-model="form.endsAt" type="datetime-local" :aria-invalid="Boolean(errors.endsAt)" />
+                  <span>Start Time</span>
+                  <input v-model="form.startTime" type="time" />
+                </label>
+                <label>
+                  <span>End Date</span>
+                  <input v-model="form.endDate" type="date" :aria-invalid="Boolean(errors.endsAt)" />
                   <small v-if="errors.endsAt">{{ errors.endsAt }}</small>
                 </label>
+                <label>
+                  <span>End Time</span>
+                  <input v-model="form.endTime" type="time" />
+                </label>
               </div>
+            </section>
+
+            <section class="cms-event-section" aria-labelledby="event-recurrence-title">
+              <h3 id="event-recurrence-title">Recurrence Planning</h3>
+
+              <label class="cms-event-check">
+                <input v-model="form.isRecurring" type="checkbox" />
+                <span>Is recurring event</span>
+              </label>
+
+              <div class="cms-event-grid">
+                <label>
+                  <span>Recurrence Type</span>
+                  <select v-model="form.recurrenceType" :disabled="!form.isRecurring">
+                    <option value="one_time">One-time</option>
+                    <option value="yearly">Yearly</option>
+                    <option value="twice_a_year">Twice a Year</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Usual Month</span>
+                  <select v-model="form.usualMonth" :disabled="!form.isRecurring">
+                    <option value="">Select month</option>
+                    <option v-for="(month, index) in monthOptions" :key="month" :value="index + 1">
+                      {{ month }}
+                    </option>
+                  </select>
+                </label>
+                <label>
+                  <span>Next Occurrence Date</span>
+                  <input v-model="form.nextOccurrenceDate" type="date" :disabled="!form.isRecurring" />
+                </label>
+              </div>
+              <em class="cms-event-help">
+                Use the schedule above for the confirmed occurrence. Recurrence helps staff prepare
+                the next annual or occasional version.
+              </em>
             </section>
 
             <section class="cms-event-section" aria-labelledby="event-media-title">
@@ -246,16 +418,19 @@ function submitForm() {
               <div class="cms-event-image">
                 <span>Event Image</span>
                 <div class="cms-event-image__control">
-                  <div v-if="imagePreviewUrl" class="cms-event-image__preview">
-                    <img :src="imagePreviewUrl" :alt="imageFileName || 'Selected event image preview'" />
+                  <div v-if="form.imagePreviewUrl || form.primaryImageUrl" class="cms-event-image__preview">
+                    <img :src="form.imagePreviewUrl || form.primaryImageUrl" alt="Event image preview" />
                   </div>
                   <div v-else class="cms-event-image__empty" aria-hidden="true">No image selected</div>
 
                   <div>
-                    <input ref="imageInput" class="cms-event-image__input" type="file" accept="image/*" @change="handleImageChange" />
-                    <button type="button" aria-describedby="event-image-help" @click="openImagePicker">Add Image</button>
-                    <small v-if="imageFileName">{{ imageFileName }}</small>
-                    <em id="event-image-help">Upload a clear poster, event photo, or banner image.</em>
+                    <label class="cms-event-image__picker">
+                      <span>Choose Image</span>
+                      <input type="file" accept="image/jpeg,image/png,image/webp" @change="onImageChange" />
+                    </label>
+                    <small v-if="form.imageFileName">{{ form.imageFileName }}</small>
+                    <small v-if="errors.imageFile">{{ errors.imageFile }}</small>
+                    <em id="event-image-help">Use a clear JPG, PNG, or WebP poster/photo.</em>
                   </div>
                 </div>
               </div>
@@ -447,6 +622,66 @@ small {
   min-width: 0;
 }
 
+.cms-event-category-group {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cms-event-category-group legend {
+  margin-bottom: 7px;
+  color: #334155;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.cms-event-category-group__options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cms-event-category-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.cms-event-category-option input {
+  width: 18px;
+  min-height: 18px;
+  accent-color: #0f766e;
+}
+
+.cms-event-category-option span {
+  min-width: 0;
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.cms-event-category-option.is-selected span {
+  color: #0f172a;
+}
+
+.cms-event-category-option.is-selected {
+  color: #0f766e;
+  border-color: #5eead4;
+  background: #ecfdf5;
+}
+
+.cms-event-category-option:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .cms-event-check {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -514,11 +749,42 @@ small {
   justify-items: start;
 }
 
-.cms-event-image__input {
-  display: none;
+.cms-event-image__picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cms-event-image__picker > span {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 13px;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.cms-event-image__picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 
 .cms-event-image em {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.cms-event-help {
   color: #64748b;
   font-size: 0.8rem;
   font-style: normal;

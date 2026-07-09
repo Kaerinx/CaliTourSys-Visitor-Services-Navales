@@ -54,6 +54,12 @@ const NAVIGATION_ITEMS = [
     requiredAny: ['inquiries.view', 'inquiries.respond'],
   },
   {
+    key: 'package-bookings',
+    label: 'Package Bookings',
+    path: '/cms/package-bookings',
+    requiredAny: ['package_bookings.view', 'package_bookings.review'],
+  },
+  {
     key: 'newsletter',
     label: 'Newsletter',
     path: '/cms/newsletter',

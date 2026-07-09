@@ -88,6 +88,7 @@ import { computed, onMounted, ref } from 'vue'
 import ManagementLayout from '../components/ManagementLayout.vue'
 import VisitorTable from '../components/VisitorTable.vue'
 import { visitorApi } from '../services/visitorApi'
+import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
 
 const summary = ref({})
 const records = ref([])
@@ -112,11 +113,11 @@ const cards = computed(() => [
     value: summary.value.international_tourists,
     note: 'From other countries',
   },
-  { label: 'Museum Records', value: summary.value.museum_visitors, note: 'Museum visits recorded today' },
+  SHOW_MUSEUM_MODULE ? { label: 'Museum Records', value: summary.value.museum_visitors, note: 'Museum visits recorded today' } : null,
   { label: 'Pending Inquiries', value: summary.value.pending_inquiries, note: 'For review via email' },
   { label: 'Reports Available', value: 3, note: 'Summary, trend, classification' },
   { label: 'Active Destinations', value: summary.value.total_destinations, note: 'Active destination listings' },
-])
+].filter(Boolean))
 
 const recentRecords = computed(() => records.value.slice(0, 5))
 

@@ -9,10 +9,13 @@ import CmsStatusBadge from '../../components/content/CmsStatusBadge.vue'
 import { useCmsAuthStore } from '../../stores/authStore'
 import { cmsContentApi } from '../../services/cmsContentApi'
 import { friendlyContentError, useCmsList } from '../../composables/useCmsList'
+import { getTourismAssets } from '@/modules/product/services/productApi'
 
 const auth = useCmsAuthStore()
 const categories = ref([])
+const assets = ref([])
 const categoryLoadError = ref('')
+const assetLoadError = ref('')
 const {
   error,
   filters,
@@ -30,6 +33,7 @@ const columns = [
   { key: 'title', label: 'Event' },
   { key: 'category', label: 'Category' },
   { key: 'status', label: 'Status' },
+  { key: 'recurrence', label: 'Recurrence' },
   { key: 'featured', label: 'Featured' },
   { key: 'dates', label: 'Date' },
   { key: 'actions', label: 'Actions' },
@@ -49,7 +53,7 @@ const displayedItems = computed(() => {
 })
 
 onMounted(async () => {
-  await Promise.all([load(), loadCategories()])
+  await Promise.all([load(), loadCategories(), loadAssets()])
 })
 
 function can(permission) {
@@ -66,6 +70,16 @@ async function loadCategories() {
   }
 }
 
+async function loadAssets() {
+  assetLoadError.value = ''
+  try {
+    const response = await getTourismAssets({ limit: 100 })
+    assets.value = (response.data || []).filter((asset) => asset.developmentStatus !== 'Archived')
+  } catch (err) {
+    assetLoadError.value = friendlyContentError(err)
+  }
+}
+
 function openCreate() {
   selected.value = null
   formError.value = ''
@@ -74,6 +88,23 @@ function openCreate() {
 
 function openEdit(item) {
   selected.value = item
+  formError.value = ''
+  formOpen.value = true
+}
+
+function openDuplicate(item) {
+  selected.value = {
+    ...item,
+    id: null,
+    slug: '',
+    title: nextOccurrenceTitle(item),
+    startsAt: shiftOccurrenceDate(item.startsAt, item.recurrenceType),
+    endsAt: shiftOccurrenceDate(item.endsAt, item.recurrenceType),
+    status: 'draft',
+    isFeatured: false,
+    publishedAt: null,
+    archivedAt: null,
+  }
   formError.value = ''
   formOpen.value = true
 }
@@ -137,6 +168,53 @@ function formatDateTime(value) {
     minute: '2-digit',
   }).format(date)
 }
+
+function formatEventCategories(item) {
+  const categories = Array.isArray(item.categories) && item.categories.length ? item.categories : [item.category].filter(Boolean)
+  return categories.map((category) => category?.name).filter(Boolean).join(' / ') || 'Uncategorized'
+}
+
+function formatRecurrence(item) {
+  if (!item.isRecurring) return 'One-time'
+
+  const type =
+    {
+      yearly: 'Yearly',
+      twice_a_year: 'Twice a year',
+      one_time: 'One-time',
+    }[item.recurrenceType] || 'Recurring'
+  const month = item.usualMonth
+    ? new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(2026, Number(item.usualMonth) - 1, 1))
+    : ''
+  const next = item.nextOccurrenceDate ? `Next: ${formatDateOnly(item.nextOccurrenceDate)}` : ''
+  return [type, month, next].filter(Boolean).join(' / ')
+}
+
+function formatDateOnly(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
+}
+
+function shiftOccurrenceDate(value, recurrenceType) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  date.setMonth(date.getMonth() + (recurrenceType === 'twice_a_year' ? 6 : 12))
+  return date.toISOString()
+}
+
+function nextOccurrenceTitle(item) {
+  const nextStartsAt = shiftOccurrenceDate(item.startsAt, item.recurrenceType)
+  const year = nextStartsAt ? new Date(nextStartsAt).getFullYear() : ''
+  const baseTitle = String(item.title || '').replace(/\s+\d{4}\s*$/, '').trim()
+  return year ? `${baseTitle} ${year}` : `${baseTitle} Copy`
+}
 </script>
 
 <template>
@@ -151,6 +229,7 @@ function formatDateTime(value) {
 
     <div v-if="notice" class="cms-content-page__notice" role="status">{{ notice }}</div>
     <div v-if="categoryLoadError" class="cms-content-page__notice" role="status">{{ categoryLoadError }}</div>
+    <div v-if="assetLoadError" class="cms-content-page__notice" role="status">{{ assetLoadError }}</div>
 
     <CmsContentToolbar
       v-model:search="filters.search"
@@ -182,13 +261,15 @@ function formatDateTime(value) {
               <span>{{ item.slug }}</span>
             </span>
           </td>
-          <td>{{ item.category?.name || 'Uncategorized' }}</td>
+          <td>{{ formatEventCategories(item) }}</td>
           <td><CmsStatusBadge :status="item.status" /></td>
+          <td>{{ formatRecurrence(item) }}</td>
           <td><span class="cms-feature-dot" :class="{ 'is-featured': item.isFeatured }">{{ item.isFeatured ? 'Featured' : 'Standard' }}</span></td>
           <td>{{ formatDateRange(item) }}</td>
           <td>
             <span class="cms-table-actions">
               <button v-if="can('events.update')" type="button" @click="openEdit(item)">Edit</button>
+              <button v-if="can('events.create')" type="button" @click="openDuplicate(item)">Duplicate</button>
               <button v-if="can('events.publish') && item.status !== 'published'" type="button" @click="askAction('publish', item)">Publish</button>
               <button v-if="can('events.archive') && item.status !== 'archived'" class="is-danger" type="button" @click="askAction('archive', item)">Archive</button>
             </span>
@@ -204,11 +285,13 @@ function formatDateTime(value) {
           </span>
           <div class="cms-mobile-meta">
             <CmsStatusBadge :status="item.status" />
-            <span>{{ item.category?.name || 'Uncategorized' }}</span>
+            <span>{{ formatEventCategories(item) }}</span>
+            <span>{{ formatRecurrence(item) }}</span>
           </div>
           <span>{{ formatDateRange(item) }}</span>
           <div class="cms-mobile-card__actions cms-table-actions">
             <button v-if="can('events.update')" type="button" @click="openEdit(item)">Edit</button>
+            <button v-if="can('events.create')" type="button" @click="openDuplicate(item)">Duplicate</button>
             <button v-if="can('events.publish') && item.status !== 'published'" type="button" @click="askAction('publish', item)">Publish</button>
             <button v-if="can('events.archive') && item.status !== 'archived'" class="is-danger" type="button" @click="askAction('archive', item)">Archive</button>
           </div>
@@ -222,6 +305,7 @@ function formatDateTime(value) {
       :open="formOpen"
       :value="selected"
       :categories="categories"
+      :assets="assets"
       :busy="isSaving"
       :server-error="formError"
       @close="formOpen = false"

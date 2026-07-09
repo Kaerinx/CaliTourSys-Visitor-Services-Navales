@@ -152,6 +152,7 @@ import ManagementLayout from '../components/ManagementLayout.vue'
 import { adminNav, receptionistNav, tourismNav } from './nav'
 import { useAuthStore } from '../stores/authStore'
 import { visitorApi } from '../services/visitorApi'
+import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
 
 const auth = useAuthStore()
 
@@ -204,10 +205,10 @@ const accessItems = computed(() => [
   { label: 'Role', value: roleLabel.value },
   { label: 'Account Status', value: accountStatusLabel.value },
   { label: 'Visitor Records', value: 'View and verify monitoring records' },
-  { label: 'Museum Records', value: 'View and monitor museum records' },
+  SHOW_MUSEUM_MODULE ? { label: 'Museum Records', value: 'View and monitor museum records' } : null,
   { label: 'Inquiries', value: 'Review inquiry status for email follow-up' },
   { label: 'Reports', value: 'View summaries, trends, and classification reports' },
-])
+].filter(Boolean))
 
 const assignedId = computed(() => user.value.assigned_establishment_id || user.value.assigned_resort_id)
 const assignedEstablishment = computed(() => {

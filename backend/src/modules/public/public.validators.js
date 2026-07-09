@@ -49,6 +49,10 @@ const itineraryItemParamsSchema = sessionTokenParamsSchema.extend({
   itemId: z.uuid('itemId must be a valid UUID.'),
 })
 
+const packageBookingRequestParamsSchema = z.object({
+  requestId: z.uuid('requestId must be a valid UUID.'),
+})
+
 const createItinerarySessionBodySchema = z
   .object({
     visitorLabel: z.string().trim().min(1).max(120).optional(),
@@ -72,6 +76,68 @@ const createInquiryBodySchema = z
     sourcePage: z.string().trim().max(255).optional(),
   })
   .strict()
+
+const bookingDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD date format.')
+  .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)), 'Must be a valid booking date.')
+
+const packageBookingParticipantSchema = z
+  .object({
+    fullName: z.string().trim().min(1).max(255),
+    age: z.coerce.number().int().min(0).max(130),
+    gender: z.string().trim().min(1).max(40),
+    notes: z.string().trim().max(1000).optional(),
+  })
+  .strict()
+
+const packageBookingRepresentativeSchema = z
+  .object({
+    fullName: z.string().trim().min(1).max(255),
+    email: z.email().max(255),
+    phoneNumber: z.string().trim().min(1).max(80),
+  })
+  .strict()
+
+const createPackageBookingRequestBodySchema = z
+  .object({
+    packageId: z.uuid('packageId must be a valid UUID.'),
+    selectedPax: z.coerce.number().int().min(1, 'selectedPax must be at least 1.'),
+    fullName: z.string().trim().min(1).max(255).optional(),
+    email: z.email().max(255).optional(),
+    phoneNumber: z.string().trim().min(1).max(80).optional(),
+    representativeContact: packageBookingRepresentativeSchema.optional(),
+    participants: z.array(packageBookingParticipantSchema).min(1).max(80).optional(),
+    preferredBookingDate: bookingDateSchema,
+    message: z.string().trim().max(5000).optional(),
+  })
+  .strict()
+  .refine(
+    (data) =>
+      data.representativeContact ||
+      (data.fullName && data.email && data.phoneNumber),
+    {
+      message: 'Representative contact information is required.',
+      path: ['representativeContact'],
+    },
+  )
+
+const lookupPackageBookingRequestBodySchema = z
+  .object({
+    bookingReference: z.string().trim().min(1).max(120).optional(),
+    requestId: z.string().trim().min(1).max(120).optional(),
+    email: z.email().max(255).optional(),
+    phoneNumber: z.string().trim().max(80).optional(),
+  })
+  .strict()
+  .refine((data) => data.bookingReference || data.requestId, {
+    message: 'Booking reference is required.',
+    path: ['bookingReference'],
+  })
+  .refine((data) => data.email || data.phoneNumber, {
+    message: 'Email address or phone number is required.',
+    path: ['email'],
+  })
 
 const createNewsletterSubscriptionBodySchema = z
   .object({
@@ -118,8 +184,10 @@ const eventListQuerySchema = listQuery([
   '-title',
   'featured',
 ]).extend({
+  category: z.string().trim().max(120).optional(),
   from: dateQuerySchema,
   to: dateQuerySchema,
+  period: z.enum(['upcoming', 'past', 'all']).optional(),
 })
 
 const destinationListQuerySchema = listQuery([
@@ -160,8 +228,11 @@ module.exports = {
   mapLocationsQuerySchema,
   sessionTokenParamsSchema,
   itineraryItemParamsSchema,
+  packageBookingRequestParamsSchema,
   createItinerarySessionBodySchema,
   createItineraryItemBodySchema,
   createInquiryBodySchema,
+  createPackageBookingRequestBodySchema,
+  lookupPackageBookingRequestBodySchema,
   createNewsletterSubscriptionBodySchema,
 }

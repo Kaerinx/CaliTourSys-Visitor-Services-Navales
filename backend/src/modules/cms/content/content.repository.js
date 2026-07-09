@@ -437,9 +437,59 @@ async function listEvents(filters, pagination) {
         SELECT
           e.*,
           ec.slug AS category_slug,
-          ec.name AS category_name
+          ec.name AS category_name,
+          category_links.categories,
+          asset_links.related_assets,
+          ta.name AS related_asset_name,
+          ta.location AS related_asset_location,
+          ta.category AS related_asset_category,
+          img.id AS primary_image_id,
+          img.image_url AS primary_image_url,
+          img.alt_text AS primary_image_alt_text
         FROM events e
         JOIN event_categories ec ON ec.id = e.category_id
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(
+            json_agg(
+              json_build_object(
+                'id', linked_ec.id,
+                'slug', linked_ec.slug,
+                'name', linked_ec.name
+              )
+              ORDER BY ecl.display_order ASC, linked_ec.name ASC
+            ),
+            '[]'::json
+          ) AS categories
+          FROM event_category_links ecl
+          JOIN event_categories linked_ec ON linked_ec.id = ecl.category_id
+          WHERE ecl.event_id = e.id
+        ) category_links ON true
+        LEFT JOIN tourism_assets ta ON ta.id = e.related_asset_id
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(
+            json_agg(
+              json_build_object(
+                'id', linked_asset.id,
+                'name', linked_asset.name,
+                'location', linked_asset.location,
+                'category', linked_asset.category
+              )
+              ORDER BY eal.display_order ASC, linked_asset.name ASC
+            ),
+            '[]'::json
+          ) AS related_assets
+          FROM event_asset_links eal
+          JOIN tourism_assets linked_asset ON linked_asset.id = eal.asset_id
+          WHERE eal.event_id = e.id
+        ) asset_links ON true
+        LEFT JOIN LATERAL (
+          SELECT ei.id, COALESCE(ei.image_url, ma.file_url) AS image_url, COALESCE(ei.alt_text, ma.alt_text) AS alt_text
+          FROM event_images ei
+          LEFT JOIN media_assets ma ON ma.id = ei.media_asset_id AND ma.status = 'active'
+          WHERE ei.event_id = e.id
+          ORDER BY ei.is_primary DESC, ei.display_order ASC, ei.created_at ASC
+          LIMIT 1
+        ) img ON true
         ${where}
         ORDER BY ${orderBy}, e.id ASC
         LIMIT $1 OFFSET $2
@@ -468,9 +518,59 @@ async function getEventById(id) {
       SELECT
         e.*,
         ec.slug AS category_slug,
-        ec.name AS category_name
+        ec.name AS category_name,
+        category_links.categories,
+        asset_links.related_assets,
+        ta.name AS related_asset_name,
+        ta.location AS related_asset_location,
+        ta.category AS related_asset_category,
+        img.id AS primary_image_id,
+        img.image_url AS primary_image_url,
+        img.alt_text AS primary_image_alt_text
       FROM events e
       JOIN event_categories ec ON ec.id = e.category_id
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(
+          json_agg(
+            json_build_object(
+              'id', linked_ec.id,
+              'slug', linked_ec.slug,
+              'name', linked_ec.name
+            )
+            ORDER BY ecl.display_order ASC, linked_ec.name ASC
+          ),
+          '[]'::json
+        ) AS categories
+        FROM event_category_links ecl
+        JOIN event_categories linked_ec ON linked_ec.id = ecl.category_id
+        WHERE ecl.event_id = e.id
+      ) category_links ON true
+      LEFT JOIN tourism_assets ta ON ta.id = e.related_asset_id
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(
+          json_agg(
+            json_build_object(
+              'id', linked_asset.id,
+              'name', linked_asset.name,
+              'location', linked_asset.location,
+              'category', linked_asset.category
+            )
+            ORDER BY eal.display_order ASC, linked_asset.name ASC
+          ),
+          '[]'::json
+        ) AS related_assets
+        FROM event_asset_links eal
+        JOIN tourism_assets linked_asset ON linked_asset.id = eal.asset_id
+        WHERE eal.event_id = e.id
+      ) asset_links ON true
+      LEFT JOIN LATERAL (
+        SELECT ei.id, COALESCE(ei.image_url, ma.file_url) AS image_url, COALESCE(ei.alt_text, ma.alt_text) AS alt_text
+        FROM event_images ei
+        LEFT JOIN media_assets ma ON ma.id = ei.media_asset_id AND ma.status = 'active'
+        WHERE ei.event_id = e.id
+        ORDER BY ei.is_primary DESC, ei.display_order ASC, ei.created_at ASC
+        LIMIT 1
+      ) img ON true
       WHERE e.id = $1
       LIMIT 1
     `,
@@ -486,8 +586,96 @@ async function assertEventCategoryExists(categoryId) {
   }
 }
 
+async function assertEventCategoriesExist(categoryIds) {
+  const uniqueIds = [...new Set((categoryIds || []).filter(Boolean))]
+  if (!uniqueIds.length) return
+
+  const result = await query('SELECT id FROM event_categories WHERE id = ANY($1::uuid[])', [uniqueIds])
+  if (result.rowCount !== uniqueIds.length) {
+    throw createInvalidReferenceError('One or more event categories do not exist.')
+  }
+}
+
+async function replaceEventCategoryLinks(eventId, categoryIds) {
+  const uniqueIds = [...new Set((categoryIds || []).filter(Boolean))].slice(0, 2)
+  await query('DELETE FROM event_category_links WHERE event_id = $1', [eventId])
+
+  for (const [index, categoryId] of uniqueIds.entries()) {
+    await query(
+      `
+        INSERT INTO event_category_links (event_id, category_id, display_order)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (event_id, category_id)
+        DO UPDATE SET display_order = EXCLUDED.display_order
+      `,
+      [eventId, categoryId, index + 1],
+    )
+  }
+}
+
+async function assertRelatedAssetExists(assetId) {
+  if (!assetId) return
+  const result = await query('SELECT 1 FROM tourism_assets WHERE id = $1 AND development_status != $2 LIMIT 1', [
+    assetId,
+    'Archived',
+  ])
+  if (result.rowCount === 0) {
+    throw createInvalidReferenceError('Related tourism asset does not exist or is archived.')
+  }
+}
+
+async function assertRelatedAssetsExist(assetIds) {
+  const uniqueIds = [...new Set((assetIds || []).filter(Boolean))]
+  if (!uniqueIds.length) return
+
+  const result = await query(
+    'SELECT id FROM tourism_assets WHERE id = ANY($1::uuid[]) AND development_status != $2',
+    [uniqueIds, 'Archived'],
+  )
+  if (result.rowCount !== uniqueIds.length) {
+    throw createInvalidReferenceError('One or more related tourism assets do not exist or are archived.')
+  }
+}
+
+async function replaceEventAssetLinks(eventId, assetIds) {
+  const uniqueIds = [...new Set((assetIds || []).filter(Boolean))].slice(0, 2)
+  await query('DELETE FROM event_asset_links WHERE event_id = $1', [eventId])
+
+  for (const [index, assetId] of uniqueIds.entries()) {
+    await query(
+      `
+        INSERT INTO event_asset_links (event_id, asset_id, display_order)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (event_id, asset_id)
+        DO UPDATE SET display_order = EXCLUDED.display_order
+      `,
+      [eventId, assetId, index + 1],
+    )
+  }
+}
+
+async function replacePrimaryEventImage(eventId, imageUrl, altText) {
+  await query('DELETE FROM event_images WHERE event_id = $1', [eventId])
+  if (!imageUrl) return
+
+  await query(
+    `
+      INSERT INTO event_images (event_id, image_url, alt_text, display_order, is_primary)
+      VALUES ($1, $2, $3, 1, true)
+    `,
+    [eventId, imageUrl, altText || null],
+  )
+}
+
 async function createEvent(data, userId) {
-  await assertEventCategoryExists(data.categoryId)
+  const categoryIds = data.categoryIds?.length ? data.categoryIds : [data.categoryId]
+  const primaryCategoryId = categoryIds[0]
+  const relatedAssetIds = data.relatedAssetIds?.length ? data.relatedAssetIds : [data.relatedAssetId].filter(Boolean)
+  const primaryRelatedAssetId = relatedAssetIds[0] || null
+  await assertEventCategoryExists(primaryCategoryId)
+  await assertEventCategoriesExist(categoryIds)
+  await assertRelatedAssetExists(primaryRelatedAssetId)
+  await assertRelatedAssetsExist(relatedAssetIds)
 
   try {
     const result = await query(
@@ -498,6 +686,7 @@ async function createEvent(data, userId) {
           title,
           short_description,
           description,
+          related_asset_id,
           venue_name,
           organizer_name,
           contact_info,
@@ -508,6 +697,10 @@ async function createEvent(data, userId) {
           accent_color,
           status,
           is_featured,
+          is_recurring,
+          recurrence_type,
+          usual_month,
+          next_occurrence_date,
           published_at,
           archived_at,
           created_by,
@@ -517,21 +710,23 @@ async function createEvent(data, userId) {
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-          $11, $12, $13, $14::content_status, $15,
-          CASE WHEN $14::content_status = 'published' THEN now() ELSE NULL END,
-          CASE WHEN $14::content_status = 'archived' THEN now() ELSE NULL END,
-          $16::uuid, $16::uuid,
-          CASE WHEN $14::content_status = 'published' THEN $16::uuid ELSE NULL END,
-          CASE WHEN $14::content_status = 'archived' THEN $16::uuid ELSE NULL END
+          $11, $12, $13, $14, $15::content_status, $16,
+          $17, $18, $19, $20,
+          CASE WHEN $15::content_status = 'published' THEN now() ELSE NULL END,
+          CASE WHEN $15::content_status = 'archived' THEN now() ELSE NULL END,
+          $21::uuid, $21::uuid,
+          CASE WHEN $15::content_status = 'published' THEN $21::uuid ELSE NULL END,
+          CASE WHEN $15::content_status = 'archived' THEN $21::uuid ELSE NULL END
         )
         RETURNING *
       `,
       [
-        data.categoryId,
+        primaryCategoryId,
         data.slug,
         data.title,
         data.shortDescription ?? null,
         data.description ?? null,
+        primaryRelatedAssetId,
         data.venueName ?? null,
         data.organizerName ?? null,
         data.contactInfo ?? null,
@@ -542,10 +737,17 @@ async function createEvent(data, userId) {
         data.accentColor ?? null,
         data.status || 'draft',
         data.isFeatured ?? false,
+        data.isRecurring ?? false,
+        data.recurrenceType || 'one_time',
+        data.usualMonth ?? null,
+        data.nextOccurrenceDate ?? null,
         userId,
       ],
     )
 
+    await replacePrimaryEventImage(result.rows[0].id, data.primaryImageUrl ?? null, data.title)
+    await replaceEventCategoryLinks(result.rows[0].id, categoryIds)
+    await replaceEventAssetLinks(result.rows[0].id, relatedAssetIds)
     return getEventById(result.rows[0].id)
   } catch (error) {
     throw createDuplicateSlugError(error)
@@ -555,7 +757,30 @@ async function createEvent(data, userId) {
 async function updateEvent(id, data, userId) {
   const existing = await getEventById(id)
   if (!existing) throw createNotFoundError('Event')
-  if (data.categoryId) await assertEventCategoryExists(data.categoryId)
+  const categoryIds = data.categoryIds?.length
+    ? data.categoryIds
+    : data.categoryId
+      ? [data.categoryId]
+      : existing.categoryIds || [existing.categoryId]
+  const primaryCategoryId = categoryIds[0]
+  const relatedAssetIds = data.relatedAssetIds?.length
+    ? data.relatedAssetIds
+    : Object.prototype.hasOwnProperty.call(data, 'relatedAssetId')
+      ? [data.relatedAssetId].filter(Boolean)
+      : existing.relatedAssetIds || [existing.relatedAssetId].filter(Boolean)
+  const primaryRelatedAssetId = relatedAssetIds[0] || null
+  if (primaryCategoryId) await assertEventCategoryExists(primaryCategoryId)
+  await assertEventCategoriesExist(categoryIds)
+  await assertRelatedAssetsExist(relatedAssetIds)
+  const nextRelatedAssetId = Object.prototype.hasOwnProperty.call(data, 'relatedAssetIds') || Object.prototype.hasOwnProperty.call(data, 'relatedAssetId')
+    ? primaryRelatedAssetId
+    : existing.relatedAssetId ?? null
+  const nextUsualMonth = Object.prototype.hasOwnProperty.call(data, 'usualMonth')
+    ? data.usualMonth ?? null
+    : existing.usualMonth ?? null
+  const nextOccurrenceDate = Object.prototype.hasOwnProperty.call(data, 'nextOccurrenceDate')
+    ? data.nextOccurrenceDate ?? null
+    : existing.nextOccurrenceDate ?? null
 
   try {
     const result = await query(
@@ -567,27 +792,33 @@ async function updateEvent(id, data, userId) {
           title = COALESCE($4, title),
           short_description = COALESCE($5, short_description),
           description = COALESCE($6, description),
-          venue_name = COALESCE($7, venue_name),
-          organizer_name = COALESCE($8, organizer_name),
-          contact_info = COALESCE($9, contact_info),
-          address_line = COALESCE($10, address_line),
-          barangay = COALESCE($11, barangay),
-          starts_at = COALESCE($12, starts_at),
-          ends_at = COALESCE($13, ends_at),
-          accent_color = COALESCE($14, accent_color),
-          status = COALESCE($15::content_status, status),
-          is_featured = COALESCE($16, is_featured),
-          updated_by = $17
+          related_asset_id = $7,
+          venue_name = COALESCE($8, venue_name),
+          organizer_name = COALESCE($9, organizer_name),
+          contact_info = COALESCE($10, contact_info),
+          address_line = COALESCE($11, address_line),
+          barangay = COALESCE($12, barangay),
+          starts_at = COALESCE($13, starts_at),
+          ends_at = COALESCE($14, ends_at),
+          accent_color = COALESCE($15, accent_color),
+          status = COALESCE($16::content_status, status),
+          is_featured = COALESCE($17, is_featured),
+          is_recurring = COALESCE($18, is_recurring),
+          recurrence_type = COALESCE($19, recurrence_type),
+          usual_month = $20,
+          next_occurrence_date = $21,
+          updated_by = $22
         WHERE id = $1
         RETURNING id
       `,
       [
         id,
-        data.categoryId ?? null,
+        primaryCategoryId ?? null,
         data.slug ?? null,
         data.title ?? null,
         data.shortDescription ?? null,
         data.description ?? null,
+        nextRelatedAssetId,
         data.venueName ?? null,
         data.organizerName ?? null,
         data.contactInfo ?? null,
@@ -598,9 +829,21 @@ async function updateEvent(id, data, userId) {
         data.accentColor ?? null,
         data.status ?? null,
         data.isFeatured ?? null,
+        data.isRecurring ?? null,
+        data.recurrenceType ?? null,
+        nextUsualMonth,
+        nextOccurrenceDate,
         userId,
       ],
     )
+
+    if (Object.prototype.hasOwnProperty.call(data, 'primaryImageUrl')) {
+      await replacePrimaryEventImage(result.rows[0].id, data.primaryImageUrl ?? null, data.title || existing.title)
+    }
+    if (data.categoryIds?.length || data.categoryId) await replaceEventCategoryLinks(result.rows[0].id, categoryIds)
+    if (Object.prototype.hasOwnProperty.call(data, 'relatedAssetIds') || Object.prototype.hasOwnProperty.call(data, 'relatedAssetId')) {
+      await replaceEventAssetLinks(result.rows[0].id, relatedAssetIds)
+    }
 
     return {
       before: existing,

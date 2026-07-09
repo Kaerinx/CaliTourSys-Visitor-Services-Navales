@@ -204,6 +204,20 @@ async function submitApplication(req, res, next) {
   }
 }
 
+async function deleteDraftApplication(req, res, next) {
+  try {
+    const application = await service.deleteDraftApplication(req.user.id, req.params.id);
+    await audit(req, {
+      action: "Deleted draft accreditation application",
+      module: "Applications",
+      referenceId: application.application_number,
+    });
+    return res.json({ application, message: "Draft application deleted successfully." });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function reviewApplication(req, res, next) {
   try {
     const application = await service.reviewApplication(req.user.id, req.params.id, req.body);
@@ -410,6 +424,7 @@ module.exports = {
   createApplication,
   createUser,
   dashboard,
+  deleteDraftApplication,
   downloadDocument,
   getApplication,
   getProfile,

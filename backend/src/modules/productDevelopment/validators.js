@@ -41,6 +41,16 @@ const timeSchema = z
 
 const optionalDate = dateSchema.optional().nullable()
 const optionalTime = timeSchema.optional().nullable()
+const optionalMoney = (label) =>
+  z.preprocess(
+    (value) => (value === '' || value === undefined ? null : value),
+    z.coerce.number({ message: `${label} must be a number.` }).min(0, `${label} must be non-negative.`).optional().nullable(),
+  )
+const optionalPositiveInteger = (label) =>
+  z.preprocess(
+    (value) => (value === '' || value === undefined ? null : value),
+    z.coerce.number({ message: `${label} must be a number.` }).int(`${label} must be a whole number.`).min(1, `${label} must be at least 1.`).optional().nullable(),
+  )
 
 const assetImageSchema = z
   .object({
@@ -157,6 +167,12 @@ const packageBodySchema = z
     category: z.enum(PACKAGE_CATEGORIES),
     targetMarket: requiredText('Target market', 255),
     estimatedDuration: requiredText('Estimated duration', 120),
+    basePrice: optionalMoney('Base price'),
+    basePax: optionalPositiveInteger('Base pax'),
+    extraPaxPrice: optionalMoney('Extra person price'),
+    minPax: optionalPositiveInteger('Minimum pax'),
+    maxPax: optionalPositiveInteger('Maximum pax'),
+    paymentRequired: z.boolean().default(false),
     packageStatus: z.enum(PACKAGE_STATUSES).default('Draft'),
     remarks: optionalText(),
     items: z.array(packageItemSchema).min(1, 'Select at least one development plan.'),
@@ -169,6 +185,18 @@ const packageBodySchema = z
   .refine((data) => data.packageStatus !== 'Ready for Promotion', {
     message: 'Use the readiness review action to mark packages as Ready for Promotion.',
     path: ['packageStatus'],
+  })
+  .refine((data) => !data.minPax || !data.maxPax || data.maxPax >= data.minPax, {
+    message: 'Maximum pax must be greater than or equal to minimum pax.',
+    path: ['maxPax'],
+  })
+  .refine((data) => !data.basePax || !data.minPax || data.basePax >= data.minPax, {
+    message: 'Base pax must be greater than or equal to minimum pax.',
+    path: ['basePax'],
+  })
+  .refine((data) => !data.basePax || !data.maxPax || data.basePax <= data.maxPax, {
+    message: 'Base pax must be less than or equal to maximum pax.',
+    path: ['basePax'],
   })
 
 const readinessBodySchema = z

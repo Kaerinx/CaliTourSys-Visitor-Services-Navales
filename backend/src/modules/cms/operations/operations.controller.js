@@ -76,12 +76,14 @@ module.exports = {
   getAuditLog: detailHandler(service.getAuditLog),
   getInquiry: detailHandler(service.getInquiry),
   getMedia: detailHandler(service.getMedia),
+  getPackageBookingRequest: detailHandler(service.getPackageBookingRequest),
   getUser: detailHandler(service.getUser),
   listAuditLogs: listHandler(validators.auditLogListQuerySchema, service.listAuditLogs),
   listInquiries: listHandler(validators.inquiryListQuerySchema, service.listInquiries),
   listInquiryResponses: detailHandler(service.listInquiryResponses),
   listMedia: listHandler(validators.mediaListQuerySchema, service.listMedia),
   listNewsletterSubscribers: listHandler(validators.newsletterListQuerySchema, service.listNewsletterSubscribers),
+  listPackageBookingRequests: listHandler(validators.packageBookingRequestListQuerySchema, service.listPackageBookingRequests),
   listPermissions: async (req, res, next) => {
     try {
       setNoStore(res)
@@ -104,6 +106,10 @@ module.exports = {
   updateInquiryStatus: idBodyHandler(validators.inquiryStatusBodySchema, service.updateInquiryStatus),
   updateMedia: idBodyHandler(validators.mediaPatchSchema, service.updateMedia),
   updateNewsletterStatus: idBodyHandler(validators.newsletterStatusBodySchema, service.updateNewsletterStatus),
+  updatePackageBookingNotes: idBodyHandler(validators.packageBookingNotesBodySchema, service.updatePackageBookingNotes),
+  updatePackageBookingStatus: idBodyHandler(validators.packageBookingStatusBodySchema, service.updatePackageBookingStatus),
+  rejectPackageBookingPayment: idBodyHandler(validators.packageBookingPaymentRejectBodySchema, service.rejectPackageBookingPayment),
+  verifyPackageBookingPayment: idRequestHandler(service.verifyPackageBookingPayment),
   updateUserRoles: idBodyHandler(validators.userRolesBodySchema, service.updateUserRoles),
   updateUserStatus: idBodyHandler(validators.userStatusBodySchema, service.updateUserStatus),
 }
