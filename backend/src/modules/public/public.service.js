@@ -18,6 +18,88 @@ function createConflictError(message) {
   return error
 }
 
+function createValidationError(message) {
+  const error = new Error(message)
+  error.statusCode = 400
+  error.code = 'VALIDATION_ERROR'
+  error.publicMessage = message
+  return error
+}
+
+const DEFAULT_PAYMENT_INSTRUCTIONS =
+  'Manual payment instructions will be provided by the Calabanga Tourism Office after review. Upload proof of payment here after sending the payment.'
+
+function toFiniteNumber(value) {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function isFiniteAmount(value) {
+  const parsed = toFiniteNumber(value)
+  return parsed !== null && parsed >= 0
+}
+
+function toPositiveInteger(value) {
+  const parsed = toFiniteNumber(value)
+  if (parsed === null) return null
+  const integer = Math.trunc(parsed)
+  return integer >= 1 ? integer : null
+}
+
+function optionalText(value, maxLength, fieldLabel) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  if (text.length > maxLength) throw createValidationError(`${fieldLabel} must be ${maxLength} characters or fewer.`)
+  return text
+}
+
+function normalizeLookupReference(value) {
+  const raw = String(value || '').trim()
+  const withoutPrefix = raw.replace(/^pkg[-\s]*/i, '').trim()
+  const uuidMatch = withoutPrefix.match(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  )
+
+  return uuidMatch ? withoutPrefix.toLowerCase() : null
+}
+
+function normalizePhoneForLookup(value) {
+  const normalized = String(value || '').replace(/\D/g, '')
+  return normalized || null
+}
+
+function buildPublicBookingLookupResponse(request) {
+  const hasComputedTotal = isFiniteAmount(request.totalAmount)
+  const proof = request.proofOfPayment
+    ? {
+        originalFilename: request.proofOfPayment.originalFilename,
+        mimeType: request.proofOfPayment.mimeType,
+        fileSize: request.proofOfPayment.fileSize,
+        uploadedAt: request.proofOfPayment.uploadedAt,
+      }
+    : null
+
+  return {
+    id: request.id,
+    bookingReference: `PKG-${request.id}`,
+    packageId: request.packageId,
+    packageName: request.packageName,
+    selectedPax: request.selectedPax,
+    preferredBookingDate: request.preferredBookingDate,
+    totalAmount: request.totalAmount,
+    pricingNote: request.pricingNote || (!hasComputedTotal ? 'Price upon inquiry.' : ''),
+    bookingStatus: request.bookingStatus,
+    paymentStatus: request.paymentStatus,
+    paymentRequired: request.paymentRequired,
+    paymentInstruction: request.paymentRequired && hasComputedTotal ? request.paymentInstruction : '',
+    proofOfPayment: proof,
+    paymentSubmittedAt: request.paymentSubmittedAt,
+    createdAt: request.createdAt,
+    updatedAt: request.updatedAt,
+  }
+}
+
 async function getHome() {
   return repository.getHome()
 }
@@ -52,6 +134,167 @@ async function getPackageBySlug(slug) {
   const tourismPackage = await repository.getPackageBySlug(slug)
   if (!tourismPackage) throw createNotFoundError('Package not found.')
   return tourismPackage
+}
+
+function buildPackageBookingPricing(tourismPackage, selectedPax) {
+  const minimumPax = toPositiveInteger(tourismPackage.min_pax) || 1
+  const maximumPax = toPositiveInteger(tourismPackage.max_pax)
+
+  if (selectedPax < minimumPax) {
+    throw createValidationError(`Selected pax must be at least ${minimumPax}.`)
+  }
+
+  if (maximumPax && selectedPax > maximumPax) {
+    throw createValidationError(`Selected pax cannot exceed ${maximumPax}.`)
+  }
+
+  const basePrice = toFiniteNumber(tourismPackage.base_price)
+  const basePaxSnapshot = toPositiveInteger(tourismPackage.base_pax)
+  const calculationBasePax = basePaxSnapshot || minimumPax || 1
+  const extraPaxPrice = toFiniteNumber(tourismPackage.extra_pax_price)
+
+  if (!isFiniteAmount(basePrice)) {
+    return {
+      basePriceSnapshot: null,
+      basePaxSnapshot,
+      extraPaxPriceSnapshot: isFiniteAmount(extraPaxPrice) ? extraPaxPrice : null,
+      computedTotalAmount: null,
+      pricingNote: 'Price upon inquiry.',
+    }
+  }
+
+  if (selectedPax <= calculationBasePax) {
+    return {
+      basePriceSnapshot: basePrice,
+      basePaxSnapshot,
+      extraPaxPriceSnapshot: isFiniteAmount(extraPaxPrice) ? extraPaxPrice : null,
+      computedTotalAmount: basePrice,
+      pricingNote: null,
+    }
+  }
+
+  if (!isFiniteAmount(extraPaxPrice)) {
+    return {
+      basePriceSnapshot: basePrice,
+      basePaxSnapshot,
+      extraPaxPriceSnapshot: null,
+      computedTotalAmount: null,
+      pricingNote: 'Extra person pricing is upon inquiry.',
+    }
+  }
+
+  return {
+    basePriceSnapshot: basePrice,
+    basePaxSnapshot,
+    extraPaxPriceSnapshot: extraPaxPrice,
+    computedTotalAmount: basePrice + (selectedPax - calculationBasePax) * extraPaxPrice,
+    pricingNote: null,
+  }
+}
+
+async function createPackageBookingRequest(body, context = {}) {
+  const tourismPackage = await repository.getPackageForBooking(body.packageId)
+  if (!tourismPackage) throw createNotFoundError('Package not found.')
+
+  const participants = Array.isArray(body.participants)
+    ? body.participants.map((participant, index) => ({
+        participantOrder: index + 1,
+        fullName: participant.fullName,
+        age: participant.age,
+        gender: participant.gender,
+        notes: participant.notes || '',
+      }))
+    : []
+  const selectedPax = toPositiveInteger(body.selectedPax)
+  if (!selectedPax) throw createValidationError('Selected pax must be at least 1.')
+  if (participants.length && participants.length !== selectedPax) {
+    throw createValidationError('Participant count must match selected pax.')
+  }
+
+  const pricing = buildPackageBookingPricing(tourismPackage, selectedPax)
+  const paymentRequired = Boolean(tourismPackage.payment_required)
+  const hasComputedTotal = isFiniteAmount(pricing.computedTotalAmount)
+  const representative = body.representativeContact || {
+    fullName: body.fullName,
+    email: body.email,
+    phoneNumber: body.phoneNumber,
+  }
+
+  return repository.createPackageBookingRequest({
+    packageId: tourismPackage.id,
+    packageNameSnapshot: tourismPackage.name,
+    selectedPax,
+    ...pricing,
+    visitorFullName: representative.fullName,
+    visitorEmail: representative.email,
+    visitorPhoneNumber: representative.phoneNumber,
+    representativeFullName: representative.fullName,
+    representativeEmail: representative.email,
+    representativePhoneNumber: representative.phoneNumber,
+    participants,
+    preferredBookingDate: body.preferredBookingDate,
+    message: body.message || '',
+    touristAccountId: context.touristAccountId || null,
+    paymentRequiredSnapshot: paymentRequired,
+    paymentInstructionSnapshot: paymentRequired && hasComputedTotal ? DEFAULT_PAYMENT_INSTRUCTIONS : null,
+    bookingStatus: 'pending',
+    paymentStatus: paymentRequired && hasComputedTotal ? 'unpaid' : 'pending_inquiry',
+  })
+}
+
+async function uploadPackageBookingPaymentProof(requestId, proof, body = {}) {
+  if (!proof) throw createValidationError('Upload a proof of payment file.')
+
+  const request = await repository.getPackageBookingRequestById(requestId)
+  if (!request) throw createNotFoundError('Booking request not found.')
+
+  if (!request.payment_required_snapshot) {
+    throw createValidationError('This booking request does not require payment proof.')
+  }
+
+  if (!isFiniteAmount(request.computed_total_amount)) {
+    throw createValidationError('This booking request is still inquiry-based and does not accept payment proof yet.')
+  }
+
+  if (request.payment_status === 'verified') {
+    throw createValidationError('This payment has already been verified and can no longer be replaced.')
+  }
+
+  return repository.updatePackageBookingPaymentProof(requestId, {
+    ...proof,
+    paymentReferenceNumber: optionalText(body.paymentReferenceNumber, 120, 'Payment reference number'),
+    paymentNotes: optionalText(body.paymentNotes, 2000, 'Payment notes'),
+  })
+}
+
+async function lookupPackageBookingRequest(body) {
+  const requestId = normalizeLookupReference(body.bookingReference || body.requestId)
+  const email = body.email ? String(body.email).trim().toLowerCase() : null
+  const phoneNumber = normalizePhoneForLookup(body.phoneNumber)
+
+  if (!requestId) throw createNotFoundError('No booking request matched those details.')
+  if (!email && !phoneNumber) throw createValidationError('Email address or phone number is required.')
+
+  const request = await repository.findPackageBookingRequestForPublicLookup({
+    requestId,
+    email,
+    phoneNumber,
+  })
+
+  if (!request) throw createNotFoundError('No booking request matched those details.')
+
+  return buildPublicBookingLookupResponse(request)
+}
+
+async function listTouristPackageBookingRequests(touristAccountId) {
+  const requests = await repository.listPackageBookingRequestsByTouristId(touristAccountId)
+  return requests.map(buildPublicBookingLookupResponse)
+}
+
+async function getTouristPackageBookingRequest({ requestId, touristAccountId }) {
+  const request = await repository.getPackageBookingRequestByTouristId({ requestId, touristAccountId })
+  if (!request) throw createNotFoundError('Booking request not found.')
+  return buildPublicBookingLookupResponse(request)
 }
 
 async function listEvents(filters) {
@@ -286,6 +529,11 @@ module.exports = {
   getProductBySlug,
   listPackages,
   getPackageBySlug,
+  createPackageBookingRequest,
+  getTouristPackageBookingRequest,
+  lookupPackageBookingRequest,
+  listTouristPackageBookingRequests,
+  uploadPackageBookingPaymentProof,
   listEvents,
   getEventBySlug,
   listDestinations,

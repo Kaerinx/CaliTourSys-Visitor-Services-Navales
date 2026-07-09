@@ -9,12 +9,37 @@ const contentStatusSchema = z.enum(['draft', 'published', 'archived'])
 const businessStatusSchema = z.enum(['active', 'inactive', 'archived'])
 const promotionTypeSchema = z.enum(['campaign', 'featured', 'seasonal', 'announcement'])
 const mapLocationTypeSchema = z.enum(['destination', 'business', 'event'])
+const eventRecurrenceTypeSchema = z.enum(['one_time', 'yearly', 'twice_a_year'])
 
 const optionalDateSchema = z
   .string()
   .datetime({ offset: true })
   .optional()
   .nullable()
+
+const imageUrlSchema = z
+  .string()
+  .trim()
+  .max(5000)
+  .refine((value) => {
+    if (value.startsWith('/uploads/')) return true
+    try {
+      const url = new URL(value)
+      return ['http:', 'https:'].includes(url.protocol)
+    } catch {
+      return false
+    }
+  }, 'Use a valid image URL.')
+
+const optionalMonthSchema = z.preprocess((value) => {
+  if (value === undefined || value === null || value === '') return null
+  return Number(value)
+}, z.number().int().min(1).max(12).nullable().optional())
+
+const optionalDateOnlySchema = z.preprocess((value) => {
+  if (value === undefined || value === null || value === '') return null
+  return value
+}, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD format.').nullable().optional())
 
 const slugSchema = z
   .string()
@@ -27,6 +52,37 @@ const booleanQuerySchema = z.preprocess((value) => {
   if (value === 'false' || value === false) return false
   return value
 }, z.boolean().optional())
+
+const booleanBodySchema = z.preprocess((value) => {
+  if (value === undefined) return undefined
+  if (value === 'true' || value === true) return true
+  if (value === 'false' || value === false) return false
+  return value
+}, z.boolean())
+
+const optionalUuidSchema = (message) =>
+  z.preprocess((value) => {
+    if (value === undefined || value === null || value === '') return null
+    return value
+  }, z.uuid(message).nullable().optional())
+
+const optionalUuidArraySchema = (message) =>
+  z.preprocess((value) => {
+    if (value === undefined || value === null || value === '') return undefined
+    if (Array.isArray(value)) return value
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value)
+        if (Array.isArray(parsed)) return parsed
+      } catch {
+        return value
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      }
+    }
+    return value
+  }, z.array(z.uuid(message)).min(1).max(2).optional())
 
 function listQuery(sortValues) {
   return z.object({
@@ -155,10 +211,13 @@ const promotionPatchSchema = promotionBaseSchema.partial().refine(
 const eventBaseSchema = z
   .object({
     categoryId: z.uuid('categoryId must be a valid UUID.'),
+    categoryIds: optionalUuidArraySchema('categoryIds must contain valid UUIDs.'),
     slug: slugSchema,
     title: z.string().trim().min(1).max(255),
     shortDescription: z.string().trim().max(5000).optional().nullable(),
     description: z.string().trim().max(20000).optional().nullable(),
+    relatedAssetId: optionalUuidSchema('relatedAssetId must be a valid UUID.'),
+    relatedAssetIds: optionalUuidArraySchema('relatedAssetIds must contain valid UUIDs.'),
     venueName: z.string().trim().max(255).optional().nullable(),
     organizerName: z.string().trim().max(255).optional().nullable(),
     contactInfo: z.string().trim().max(255).optional().nullable(),
@@ -166,9 +225,14 @@ const eventBaseSchema = z
     barangay: z.string().trim().max(120).optional().nullable(),
     startsAt: z.string().datetime({ offset: true }),
     endsAt: optionalDateSchema,
+    primaryImageUrl: imageUrlSchema.optional().nullable(),
     accentColor: z.string().trim().max(32).optional().nullable(),
     status: contentStatusSchema.default('draft'),
-    isFeatured: z.boolean().default(false),
+    isFeatured: booleanBodySchema.default(false),
+    isRecurring: booleanBodySchema.default(false),
+    recurrenceType: eventRecurrenceTypeSchema.default('one_time'),
+    usualMonth: optionalMonthSchema,
+    nextOccurrenceDate: optionalDateOnlySchema,
   })
   .strict()
 

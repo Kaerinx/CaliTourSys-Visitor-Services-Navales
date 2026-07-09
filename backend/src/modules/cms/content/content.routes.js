@@ -13,9 +13,9 @@ router.patch('/promotions/:id/publish', authorize('promotions.publish'), control
 router.patch('/promotions/:id/archive', authorize('promotions.archive'), controller.archivePromotion)
 
 router.get('/events', authorize('events.view'), controller.listEvents)
-router.post('/events', authorize('events.create'), controller.createEvent)
+router.post('/events', authorize('events.create'), assetImageUpload.single('image'), controller.createEvent)
 router.get('/events/:id', authorize('events.view'), controller.getEvent)
-router.patch('/events/:id', authorize('events.update'), controller.updateEvent)
+router.patch('/events/:id', authorize('events.update'), assetImageUpload.single('image'), controller.updateEvent)
 router.patch('/events/:id/publish', authorize('events.publish'), controller.publishEvent)
 router.patch('/events/:id/archive', authorize('events.archive'), controller.archiveEvent)
 

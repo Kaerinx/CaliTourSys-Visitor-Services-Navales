@@ -6,8 +6,8 @@ import promotionRoutes from '@/modules/promotion/routes'
 import { setAuthFailureHandler } from '@/services/http'
 import { useAuthStore } from '@/stores/auth'
 import { useAuthStore as useVisitorAuthStore } from '@/modules/visitor/stores/authStore'
+import { useTouristAuthStore } from '@/modules/promotion/stores/touristAuthStore'
 import DashboardView from '@/views/DashboardView.vue'
-import LoginView from '@/views/LoginView.vue'
 
 const ProductDashboard = () => import('@/modules/product/views/ProductDashboard.vue')
 const ProductList = () => import('@/modules/product/views/ProductList.vue')
@@ -25,7 +25,7 @@ const VisitorAdministration = () => import('@/modules/visitor/views/Administrati
 const VisitorEstablishmentManagement = () => import('@/modules/visitor/views/EstablishmentManagement.vue')
 const VisitorProfile = () => import('@/modules/visitor/views/ProfileView.vue')
 
-const visitorLoginRedirect = { name: 'cms-login', query: { redirect: '/cms/visitor' } }
+const visitorLoginRedirect = { path: '/login', query: { as: 'staff', redirect: '/cms/visitor' } }
 
 function redirectToCmsVisitor(path) {
   return (to) => ({
@@ -51,12 +51,6 @@ function cmsBusinessRedirectForAccreditationStaff(to) {
 }
 
 const productRoutes = [
-  {
-    path: '/login',
-    name: 'login',
-    component: LoginView,
-    meta: { productPublic: true },
-  },
   {
     path: '/dashboard',
     name: 'dashboard',
@@ -239,6 +233,19 @@ router.beforeEach(async (to) => {
   const cmsResult = await guardCmsRoute(to)
   if (cmsResult !== true) return cmsResult
 
+  if (to.matched.some((route) => route.meta.touristRequiresAuth)) {
+    const touristAuth = useTouristAuthStore()
+    if (!touristAuth.isAuthenticated) {
+      return { path: '/login', query: { as: 'tourist', redirect: to.fullPath } }
+    }
+
+    try {
+      await touristAuth.fetchMe()
+    } catch {
+      return { path: '/login', query: { as: 'tourist', redirect: to.fullPath } }
+    }
+  }
+
   const auth = useAuthStore()
   if (to.path.startsWith('/accreditation')) {
     const accreditationRequiresAuth = to.matched.some((route) => route.meta.requiresAuth)
@@ -272,7 +279,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.visitorRequiresAuth && !visitorAuth.isAuthenticated) {
-    return { name: 'cms-login', query: { redirect: to.fullPath } }
+    return { path: '/login', query: { as: 'staff', redirect: to.fullPath } }
   }
 
   const visitorRoles = to.meta.visitorRoles
@@ -281,11 +288,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.productRequiresAuth && !auth.isAuthenticated) {
-    return { name: 'login' }
-  }
-
-  if (to.name === 'login' && auth.isAuthenticated) {
-    return { name: 'dashboard' }
+    return { path: '/login', query: { as: 'staff', redirect: to.fullPath } }
   }
 
   return true
@@ -295,7 +298,7 @@ let handlingCmsAuthFailure = false
 
 setAuthFailureHandler(() => {
   const currentRoute = router.currentRoute.value
-  if (!currentRoute.path.startsWith('/cms') || currentRoute.name === 'cms-login') return
+  if (!currentRoute.path.startsWith('/cms')) return
 
   const auth = useCmsAuthStore()
   const redirect = currentRoute.fullPath
@@ -306,8 +309,8 @@ setAuthFailureHandler(() => {
 
   router
     .replace({
-      name: 'cms-login',
-      query: { redirect, sessionExpired: '1' },
+      path: '/login',
+      query: { as: 'staff', redirect, sessionExpired: '1' },
     })
     .catch(() => {})
     .finally(() => {

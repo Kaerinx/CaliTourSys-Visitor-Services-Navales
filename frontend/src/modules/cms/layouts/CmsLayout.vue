@@ -5,6 +5,7 @@ import CmsSidebar from '../components/CmsSidebar.vue'
 import CmsTopbar from '../components/CmsTopbar.vue'
 import { cmsApi } from '../services/cmsApi'
 import { useCmsAuthStore } from '../stores/authStore'
+import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
 
 const router = useRouter()
 const auth = useCmsAuthStore()
@@ -22,13 +23,19 @@ const fallbackNavigation = [
   { key: 'museum', label: 'Museum', path: '/cms/museum', permission: 'museum.view', icon: 'museum' },
   { key: 'visitor-services', label: 'Visitor Services / Inquiries', path: '/cms/visitor', permissions: ['inquiries.view', 'dashboard.view'], icon: 'users' },
   { key: 'inquiries', label: 'Inquiries', path: '/cms/visitor/inquiries', permission: 'inquiries.view', icon: 'message' },
+  { key: 'package-bookings', label: 'Package Bookings', path: '/cms/package-bookings', permissions: ['package_bookings.view', 'package_bookings.review'], icon: 'package' },
   { key: 'users', label: 'Users & Roles', path: '/cms/users', permissions: ['users.view', 'roles.view'], icon: 'users' },
   { key: 'audit', label: 'Audit Logs', path: '/cms/audit-logs', permission: 'audit_logs.view', icon: 'audit' },
 ]
 
 // Modules removed from the CMS sidebar (not built yet). Filtered out regardless
 // of whether navigation comes from the backend or the local fallback.
-const HIDDEN_NAV = new Set(['newsletter', 'media', 'reports'])
+const HIDDEN_NAV = new Set([
+  'newsletter',
+  'media',
+  'reports',
+  ...(SHOW_MUSEUM_MODULE ? [] : ['museum']),
+])
 
 const navigationItems = computed(() => {
   const baseItems = backendNavigation.value.length
@@ -91,6 +98,7 @@ function normalizeNavigationPath(item) {
     museum: '/cms/museum',
     'visitor-services': '/cms/visitor',
     inquiries: '/cms/visitor/inquiries',
+    'package-bookings': '/cms/package-bookings',
     'content-management': '/cms/promotions',
     'otop-support': '/cms/products',
     'business-accreditation': '/cms/businesses',
@@ -117,6 +125,7 @@ function resolveNavigationIcon(item) {
     newsletter: 'mail',
     products: 'package',
     'product-development': 'package',
+    'package-bookings': 'package',
     promotions: 'message',
     users: 'users',
     'visitor-services': 'users',

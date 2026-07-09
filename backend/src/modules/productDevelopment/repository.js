@@ -173,6 +173,12 @@ function mapPackage(row) {
     category: row.category || 'Nature',
     targetMarket: row.target_market,
     estimatedDuration: row.estimated_duration,
+    basePrice: row.base_price == null ? null : Number(row.base_price),
+    basePax: row.base_pax == null ? null : Number(row.base_pax),
+    extraPaxPrice: row.extra_pax_price == null ? null : Number(row.extra_pax_price),
+    minPax: row.min_pax == null ? null : Number(row.min_pax),
+    maxPax: row.max_pax == null ? null : Number(row.max_pax),
+    paymentRequired: Boolean(row.payment_required),
     packageStatus: row.package_status,
     remarks: row.remarks || '',
     imageUrl: row.image_url || categoryImage(row.category),
@@ -1064,9 +1070,11 @@ async function createPackage(data, userId) {
     const inserted = await client.query(
       `
         INSERT INTO tourism_packages (
-          name, description, category, target_market, estimated_duration, package_status, remarks, created_by
+          name, description, category, target_market, estimated_duration,
+          base_price, base_pax, extra_pax_price, min_pax, max_pax, payment_required,
+          package_status, remarks, created_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING id
       `,
       [
@@ -1075,6 +1083,12 @@ async function createPackage(data, userId) {
         data.category,
         data.targetMarket,
         data.estimatedDuration,
+        data.basePrice,
+        data.basePax,
+        data.extraPaxPrice,
+        data.minPax,
+        data.maxPax,
+        Boolean(data.paymentRequired),
         data.packageStatus || 'Draft',
         data.remarks || '',
         userId || null,
@@ -1099,7 +1113,9 @@ async function updatePackage(id, data) {
       `
         UPDATE tourism_packages
         SET name = $2, description = $3, category = $4, target_market = $5,
-            estimated_duration = $6, package_status = $7, remarks = $8
+            estimated_duration = $6, base_price = $7, base_pax = $8, extra_pax_price = $9,
+            min_pax = $10, max_pax = $11, payment_required = $12, package_status = $13,
+            remarks = $14
         WHERE id = $1
         RETURNING id
       `,
@@ -1110,6 +1126,12 @@ async function updatePackage(id, data) {
         data.category,
         data.targetMarket,
         data.estimatedDuration,
+        data.basePrice,
+        data.basePax,
+        data.extraPaxPrice,
+        data.minPax,
+        data.maxPax,
+        Boolean(data.paymentRequired),
         data.packageStatus,
         data.remarks || '',
       ],

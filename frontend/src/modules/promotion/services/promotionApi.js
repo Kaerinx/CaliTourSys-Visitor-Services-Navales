@@ -65,6 +65,26 @@ export function getPackageBySlug(slug) {
   return http.get(publicPath(`/packages/${slug}`))
 }
 
+export function submitPackageBookingRequest(slug, payload) {
+  return http.postAuth(publicPath(`/packages/${slug}/booking-requests`), payload)
+}
+
+export function lookupPackageBookingRequest(payload) {
+  return http.post(publicPath('/package-booking-requests/lookup'), payload)
+}
+
+export function submitPackagePaymentProof(requestId, formData) {
+  return http.post(publicPath(`/package-booking-requests/${requestId}/payment-proof`), formData)
+}
+
+export function getTouristBookings() {
+  return http.getAuth('/tourist/bookings')
+}
+
+export function getTouristBookingById(requestId) {
+  return http.getAuth(`/tourist/bookings/${requestId}`)
+}
+
 export function getProductBySlug(slug) {
   return http.get(publicPath(`/products/${slug}`))
 }

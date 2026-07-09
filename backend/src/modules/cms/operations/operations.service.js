@@ -66,6 +66,81 @@ async function listInquiryResponses(id) {
   return { items: await repository.listInquiryResponses(id) }
 }
 
+async function listPackageBookingRequests(filters) {
+  const pagination = getPagination(filters)
+  return withPagination(filters, await repository.listPackageBookingRequests(filters, pagination))
+}
+
+async function getPackageBookingRequest(id) {
+  const request = await repository.getPackageBookingRequestById(id)
+  if (!request) throw notFound('Package booking request')
+  return request
+}
+
+async function updatePackageBookingStatus(id, data, req) {
+  if (data.status === 'declined' && !data.reason) {
+    const error = new Error('Decline reason is required.')
+    error.statusCode = 400
+    error.code = 'VALIDATION_ERROR'
+    error.publicMessage = 'Decline reason is required.'
+    throw error
+  }
+
+  const result = await repository.updatePackageBookingStatus(id, data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'update',
+    entityType: 'package_booking_request',
+    entityId: result.after.id,
+    entityLabel: result.after.packageName,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function verifyPackageBookingPayment(id, req) {
+  const result = await repository.verifyPackageBookingPayment(id, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'update',
+    entityType: 'package_booking_request',
+    entityId: result.after.id,
+    entityLabel: `${result.after.packageName} payment`,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function rejectPackageBookingPayment(id, data, req) {
+  const result = await repository.rejectPackageBookingPayment(id, data)
+  await logCmsContentAudit({
+    req,
+    action: 'update',
+    entityType: 'package_booking_request',
+    entityId: result.after.id,
+    entityLabel: `${result.after.packageName} payment`,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function updatePackageBookingNotes(id, data, req) {
+  const result = await repository.updatePackageBookingNotes(id, data)
+  await logCmsContentAudit({
+    req,
+    action: 'update',
+    entityType: 'package_booking_request',
+    entityId: result.after.id,
+    entityLabel: result.after.packageName,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
 async function listNewsletterSubscribers(filters) {
   const pagination = getPagination(filters)
   return withPagination(filters, await repository.listNewsletterSubscribers(filters, pagination))
@@ -140,12 +215,18 @@ module.exports = {
   listInquiryResponses,
   listMedia,
   listNewsletterSubscribers,
+  listPackageBookingRequests,
   listPermissions,
   listRoles,
   listUsers,
+  getPackageBookingRequest,
   updateInquiryStatus,
   updateMedia,
   updateNewsletterStatus,
+  updatePackageBookingNotes,
+  updatePackageBookingStatus,
+  rejectPackageBookingPayment,
+  verifyPackageBookingPayment,
   updateUserRoles,
   updateUserStatus,
 }

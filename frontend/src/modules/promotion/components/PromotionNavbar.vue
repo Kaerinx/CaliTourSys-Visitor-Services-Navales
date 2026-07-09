@@ -1,10 +1,13 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import { useTouristAuthStore } from '../stores/touristAuthStore'
+import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
 
 import logo from '@/assets/brand/love-calabanga-logo.png'
 
 const route = useRoute()
+const touristAuth = useTouristAuthStore()
 
 const primaryLinks = [
   { label: 'Home', to: '/', match: 'exact' },
@@ -12,8 +15,8 @@ const primaryLinks = [
   { label: 'Products', to: '/products' },
   { label: 'Packages', to: '/packages' },
   { label: 'Events', to: '/events' },
-  { label: 'Museum', to: '/promotion/museum' },
-]
+  SHOW_MUSEUM_MODULE ? { label: 'Museum', to: '/promotion/museum' } : null,
+].filter(Boolean)
 
 const accreditationLinks = [
   { label: 'Online Accreditation', to: '/accreditation' },
@@ -23,8 +26,8 @@ const accreditationLinks = [
 const isMenuOpen = ref(false)
 
 const loginTo = computed(() => ({
-  path: route.path,
-  query: { ...route.query, auth: 'login' },
+  path: '/login',
+  query: { as: 'tourist' },
 }))
 
 function isActive(link) {
@@ -101,8 +104,12 @@ onBeforeUnmount(() => {
             <path d="m20 20-3.2-3.2" />
           </svg>
         </button>
-        <RouterLink class="login-button" :to="loginTo" aria-label="Open visitor login">
-          Login
+        <RouterLink
+          class="login-button"
+          :to="touristAuth.isAuthenticated ? '/tourist/dashboard' : loginTo"
+          aria-label="Open tourist account"
+        >
+          {{ touristAuth.isAuthenticated ? 'My Trip' : 'Login' }}
         </RouterLink>
         <button
           class="icon-button icon-button--menu"
@@ -167,7 +174,13 @@ onBeforeUnmount(() => {
           <RouterLink to="/promotion/inquiry" class="mobile-drawer__link">Inquiries</RouterLink>
         </nav>
 
-        <RouterLink class="mobile-drawer__login" :to="loginTo" @click="closeMenu">Login</RouterLink>
+        <RouterLink
+          class="mobile-drawer__login"
+          :to="touristAuth.isAuthenticated ? '/tourist/dashboard' : loginTo"
+          @click="closeMenu"
+        >
+          {{ touristAuth.isAuthenticated ? 'My Trip' : 'Login' }}
+        </RouterLink>
       </div>
     </transition>
   </header>

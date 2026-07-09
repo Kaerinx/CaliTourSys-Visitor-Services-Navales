@@ -26,10 +26,28 @@ function mapPromotion(row) {
 
 function mapEvent(row) {
   if (!row) return null
+  const categories = Array.isArray(row.categories) && row.categories.length
+    ? row.categories
+    : row.category_slug
+      ? [{ id: row.category_id, slug: row.category_slug, name: row.category_name }]
+      : []
+  const relatedAssets = Array.isArray(row.related_assets) && row.related_assets.length
+    ? row.related_assets
+    : row.related_asset_name
+      ? [
+          {
+            id: row.related_asset_id,
+            name: row.related_asset_name,
+            location: row.related_asset_location,
+            category: row.related_asset_category,
+          },
+        ]
+      : []
 
   return {
     id: row.id,
     categoryId: row.category_id,
+    categoryIds: categories.length ? categories.map((category) => category.id) : [row.category_id].filter(Boolean),
     category: row.category_slug
       ? {
           id: row.category_id,
@@ -37,20 +55,43 @@ function mapEvent(row) {
           name: row.category_name,
         }
       : undefined,
+    categories,
     slug: row.slug,
     title: row.title,
     shortDescription: row.short_description,
     description: row.description,
+    relatedAssetId: row.related_asset_id,
+    relatedAssetIds: relatedAssets.map((asset) => asset.id),
+    relatedAsset: row.related_asset_name
+      ? {
+          id: row.related_asset_id,
+          name: row.related_asset_name,
+          location: row.related_asset_location,
+          category: row.related_asset_category,
+      }
+      : undefined,
+    relatedAssets,
     venueName: row.venue_name,
     organizerName: row.organizer_name,
     contactInfo: row.contact_info,
     addressLine: row.address_line,
     barangay: row.barangay,
+    primaryImage: row.primary_image_url
+      ? {
+          id: row.primary_image_id,
+          url: row.primary_image_url,
+          altText: row.primary_image_alt_text,
+        }
+      : null,
     startsAt: row.starts_at,
     endsAt: row.ends_at,
     accentColor: row.accent_color,
     status: row.status,
     isFeatured: row.is_featured,
+    isRecurring: row.is_recurring,
+    recurrenceType: row.recurrence_type,
+    usualMonth: row.usual_month,
+    nextOccurrenceDate: row.next_occurrence_date,
     publishedAt: row.published_at,
     archivedAt: row.archived_at,
     createdAt: row.created_at,

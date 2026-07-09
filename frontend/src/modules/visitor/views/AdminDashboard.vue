@@ -49,7 +49,7 @@
           <select v-model="filters.source_type">
             <option value="">All</option>
             <option value="resort">Resort</option>
-            <option value="museum">Museum</option>
+            <option v-if="SHOW_MUSEUM_MODULE" value="museum">Museum</option>
             <option value="tourism_office">Tourism Office</option>
           </select>
         </div>
@@ -195,6 +195,7 @@ import ManagementLayout from '../components/ManagementLayout.vue'
 import { visitorApi } from '../services/visitorApi'
 import { adminNav } from './nav'
 import { formatDate, formatSourceType, formatVisitorType } from '../utils/format'
+import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
 
 const summary = ref({})
 const records = ref([])
@@ -240,11 +241,11 @@ const cards = computed(() => [
     value: summary.value.international_tourists,
     note: 'From other countries',
   },
-  {
+  SHOW_MUSEUM_MODULE ? {
     label: 'Museum Records',
     value: summary.value.museum_visitors,
     note: 'Museum visits recorded today',
-  },
+  } : null,
   {
     label: 'Pending Inquiries',
     value: summary.value.pending_inquiries,
@@ -260,7 +261,7 @@ const cards = computed(() => [
     value: summary.value.upcoming_events,
     note: 'Scheduled tourism activities',
   },
-])
+].filter(Boolean))
 
 const activeFilterChips = computed(() =>
   [

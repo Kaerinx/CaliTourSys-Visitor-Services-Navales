@@ -16,5 +16,23 @@ export const cmsOperationsApi = {
   archiveMedia(id) {
     return http.patchAuth(`/cms/media/${id}/archive`, {})
   },
+  getPackageBookingRequests(params) {
+    return http.getAuth('/cms/package-bookings', params)
+  },
+  getPackageBookingRequestById(id) {
+    return http.getAuth(`/cms/package-bookings/${id}`)
+  },
+  updatePackageBookingStatus(id, payload) {
+    return http.patchAuth(`/cms/package-bookings/${id}/status`, payload)
+  },
+  verifyPackageBookingPayment(id) {
+    return http.patchAuth(`/cms/package-bookings/${id}/payment/verify`, {})
+  },
+  rejectPackageBookingPayment(id, payload) {
+    return http.patchAuth(`/cms/package-bookings/${id}/payment/reject`, payload)
+  },
+  updatePackageBookingNotes(id, payload) {
+    return http.patchAuth(`/cms/package-bookings/${id}/notes`, payload)
+  },
 }
 

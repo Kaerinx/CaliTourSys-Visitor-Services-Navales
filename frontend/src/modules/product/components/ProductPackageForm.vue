@@ -38,6 +38,17 @@ const errors = computed(() => {
   if (form.categorySelections.length > 2) output.category = 'Select up to two package categories only.'
   if (!form.targetMarket.trim()) output.targetMarket = 'Target market is required.'
   if (!form.estimatedDuration.trim()) output.estimatedDuration = 'Estimated duration is required.'
+  if (!isNonNegativeMoney(form.basePrice)) output.basePrice = 'Base price must be zero or higher.'
+  if (!isPositiveInteger(form.basePax)) output.basePax = 'Base pax must be at least 1.'
+  if (!isNonNegativeMoney(form.extraPaxPrice)) output.extraPaxPrice = 'Extra person price must be zero or higher.'
+  if (!isPositiveInteger(form.minPax)) output.minPax = 'Minimum pax must be at least 1.'
+  if (!isPositiveInteger(form.maxPax)) output.maxPax = 'Maximum pax must be at least 1.'
+  const minPax = toNullableInteger(form.minPax)
+  const maxPax = toNullableInteger(form.maxPax)
+  const basePax = toNullableInteger(form.basePax)
+  if (minPax && maxPax && maxPax < minPax) output.maxPax = 'Maximum pax must be greater than or equal to minimum pax.'
+  if (basePax && minPax && basePax < minPax) output.basePax = 'Base pax must be greater than or equal to minimum pax.'
+  if (basePax && maxPax && basePax > maxPax) output.basePax = 'Base pax must be less than or equal to maximum pax.'
   if (!selectedItemCount.value) output.items = 'Select at least one development plan.'
   return output
 })
@@ -61,6 +72,12 @@ function defaultForm(value = null) {
     categorySelections: parsePackageCategory(value?.category || 'Nature'),
     targetMarket: value?.targetMarket || PACKAGE_TARGET_MARKETS[0],
     estimatedDuration: value?.estimatedDuration || PACKAGE_DURATIONS[1],
+    basePrice: value?.basePrice ?? '',
+    basePax: value?.basePax ?? '',
+    extraPaxPrice: value?.extraPaxPrice ?? '',
+    minPax: value?.minPax ?? '',
+    maxPax: value?.maxPax ?? '',
+    paymentRequired: Boolean(value?.paymentRequired),
     packageStatus: isArchived ? 'Archived' : 'Draft',
     remarks: value?.remarks || '',
     planIds: items
@@ -75,6 +92,32 @@ function defaultForm(value = null) {
 function emptyToNull(value) {
   const trimmed = String(value || '').trim()
   return trimmed ? trimmed : null
+}
+
+function toNullableNumber(value) {
+  const trimmed = String(value ?? '').trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function toNullableInteger(value) {
+  const parsed = toNullableNumber(value)
+  return parsed == null ? null : Math.trunc(parsed)
+}
+
+function isNonNegativeMoney(value) {
+  const trimmed = String(value ?? '').trim()
+  if (!trimmed) return true
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) && parsed >= 0
+}
+
+function isPositiveInteger(value) {
+  const trimmed = String(value ?? '').trim()
+  if (!trimmed) return true
+  const parsed = Number(trimmed)
+  return Number.isInteger(parsed) && parsed >= 1
 }
 
 function withCurrentOption(options, value) {
@@ -109,6 +152,12 @@ function submitForm() {
     category: formatPackageCategory(form.categorySelections),
     targetMarket: form.targetMarket.trim(),
     estimatedDuration: form.estimatedDuration.trim(),
+    basePrice: toNullableNumber(form.basePrice),
+    basePax: toNullableInteger(form.basePax),
+    extraPaxPrice: toNullableNumber(form.extraPaxPrice),
+    minPax: toNullableInteger(form.minPax),
+    maxPax: toNullableInteger(form.maxPax),
+    paymentRequired: form.paymentRequired,
     packageStatus: form.packageStatus,
     remarks: emptyToNull(form.remarks),
     items: [
@@ -205,6 +254,82 @@ function submitForm() {
                     </option>
                   </select>
                   <small v-if="errors.estimatedDuration">{{ errors.estimatedDuration }}</small>
+                </label>
+              </div>
+            </section>
+
+            <section class="package-section" aria-labelledby="package-pricing-title">
+              <h3 id="package-pricing-title">Pricing</h3>
+
+              <div class="package-grid">
+                <label>
+                  <span>Base price</span>
+                  <input
+                    v-model="form.basePrice"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    :aria-invalid="Boolean(errors.basePrice)"
+                    placeholder="5000.00"
+                  />
+                  <small v-if="errors.basePrice">{{ errors.basePrice }}</small>
+                </label>
+
+                <label>
+                  <span>Base pax</span>
+                  <input
+                    v-model="form.basePax"
+                    type="number"
+                    min="1"
+                    step="1"
+                    :aria-invalid="Boolean(errors.basePax)"
+                    placeholder="5"
+                  />
+                  <small v-if="errors.basePax">{{ errors.basePax }}</small>
+                </label>
+
+                <label>
+                  <span>Extra person price</span>
+                  <input
+                    v-model="form.extraPaxPrice"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    :aria-invalid="Boolean(errors.extraPaxPrice)"
+                    placeholder="800.00"
+                  />
+                  <small v-if="errors.extraPaxPrice">{{ errors.extraPaxPrice }}</small>
+                </label>
+
+                <label>
+                  <span>Minimum pax</span>
+                  <input
+                    v-model="form.minPax"
+                    type="number"
+                    min="1"
+                    step="1"
+                    :aria-invalid="Boolean(errors.minPax)"
+                    placeholder="1"
+                  />
+                  <small v-if="errors.minPax">{{ errors.minPax }}</small>
+                </label>
+
+                <label>
+                  <span>Maximum pax</span>
+                  <input
+                    v-model="form.maxPax"
+                    type="number"
+                    min="1"
+                    step="1"
+                    :aria-invalid="Boolean(errors.maxPax)"
+                    placeholder="10"
+                  />
+                  <small v-if="errors.maxPax">{{ errors.maxPax }}</small>
+                </label>
+
+                <label class="package-switch">
+                  <input v-model="form.paymentRequired" type="checkbox" />
+                  <span>Payment required when booking is added later</span>
                 </label>
               </div>
             </section>
@@ -529,6 +654,32 @@ small {
   width: auto;
   min-height: auto;
   margin-top: 3px;
+}
+
+.package-switch {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  align-self: end;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.package-switch input {
+  width: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 0;
+  accent-color: #0f766e;
+}
+
+.package-switch span {
+  color: #334155;
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1.3;
 }
 
 .package-check span,

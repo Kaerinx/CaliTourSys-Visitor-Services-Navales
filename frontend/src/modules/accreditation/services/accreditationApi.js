@@ -110,6 +110,11 @@ export async function submitApplication(id) {
   return data;
 }
 
+export async function deleteDraftApplication(id) {
+  const { data } = await http.delete(`/accreditation/applications/${id}`);
+  return data;
+}
+
 export async function reviewApplication(id, payload) {
   const { data } = await http.patch(`/accreditation/applications/${id}/review`, payload);
   return data;

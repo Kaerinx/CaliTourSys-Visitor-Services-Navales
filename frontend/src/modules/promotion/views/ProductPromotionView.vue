@@ -96,7 +96,7 @@ onMounted(loadProducts)
       <section class="products-hero">
         <div class="page-shell products-hero__inner">
           <div class="products-hero__copy">
-            <p class="eyebrow">Products Â· Local Producers</p>
+            <p class="eyebrow">Products / Local Producers</p>
             <h1>Products</h1>
             <p>
               Discover local products, crafts, food items, and accredited producers from Calabanga.

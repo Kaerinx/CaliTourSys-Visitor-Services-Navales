@@ -111,6 +111,67 @@ function mapInquiry(row) {
   }
 }
 
+function mapPackageBookingRequest(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    packageId: row.package_id,
+    packageName: row.package_name_snapshot,
+    selectedPax: Number(row.selected_pax),
+    basePrice: row.base_price_snapshot == null ? null : Number(row.base_price_snapshot),
+    basePax: row.base_pax_snapshot == null ? null : Number(row.base_pax_snapshot),
+    extraPaxPrice: row.extra_pax_price_snapshot == null ? null : Number(row.extra_pax_price_snapshot),
+    totalAmount: row.computed_total_amount == null ? null : Number(row.computed_total_amount),
+    visitor: {
+      fullName: row.visitor_full_name,
+      email: row.visitor_email,
+      phoneNumber: row.visitor_phone_number,
+    },
+    preferredBookingDate: row.preferred_booking_date,
+    message: row.message || '',
+    paymentRequired: Boolean(row.payment_required_snapshot),
+    paymentInstruction: row.payment_instruction_snapshot || '',
+    paymentReferenceNumber: row.payment_reference_number || '',
+    proofOfPayment: row.proof_file_url
+      ? {
+          fileUrl: row.proof_file_url,
+          originalFilename: row.proof_original_filename,
+          mimeType: row.proof_mime_type,
+          fileSize: row.proof_file_size == null ? null : Number(row.proof_file_size),
+          uploadedAt: row.proof_uploaded_at,
+        }
+      : null,
+    bookingStatus: row.booking_status,
+    paymentStatus: row.payment_status,
+    pricingNote: row.pricing_note,
+    bookingReviewNotes: row.booking_review_notes || '',
+    bookingDeclineReason: row.booking_decline_reason || '',
+    bookingReviewedAt: row.booking_reviewed_at,
+    bookingReviewedBy: row.booking_reviewed_by,
+    paymentSubmittedAt: row.payment_submitted_at,
+    paymentVerifiedAt: row.payment_verified_at,
+    paymentVerifiedBy: row.payment_verified_by,
+    paymentRejectionReason: row.payment_rejection_reason || '',
+    paymentNotes: row.payment_notes || '',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    verifiedByUser: row.verified_by_email
+      ? {
+          id: row.payment_verified_by,
+          email: row.verified_by_email,
+          displayName: row.verified_by_display_name,
+        }
+      : null,
+    reviewedByUser: row.reviewed_by_email
+      ? {
+          id: row.booking_reviewed_by,
+          email: row.reviewed_by_email,
+          displayName: row.reviewed_by_display_name,
+        }
+      : null,
+  }
+}
+
 function mapInquiryResponse(row) {
   if (!row) return null
   return {
@@ -427,6 +488,188 @@ async function listInquiryResponses(id) {
   return result.rows.map(mapInquiryResponse)
 }
 
+function packageBookingSelect() {
+  return `
+    SELECT
+      pbr.*,
+      verified_user.email AS verified_by_email,
+      verified_user.display_name AS verified_by_display_name,
+      reviewed_user.email AS reviewed_by_email,
+      reviewed_user.display_name AS reviewed_by_display_name
+    FROM package_booking_requests pbr
+    LEFT JOIN users verified_user ON verified_user.id = pbr.payment_verified_by
+    LEFT JOIN users reviewed_user ON reviewed_user.id = pbr.booking_reviewed_by
+  `
+}
+
+function packageBookingWhere(filters, startIndex = 1) {
+  const params = []
+  const where = []
+
+  function add(value) {
+    params.push(value)
+    return `$${startIndex + params.length - 1}`
+  }
+
+  if (filters.search) {
+    const ref = add(`%${filters.search}%`)
+    where.push(`(
+      pbr.id::text ILIKE ${ref}
+      OR pbr.package_name_snapshot ILIKE ${ref}
+      OR pbr.visitor_full_name ILIKE ${ref}
+      OR pbr.visitor_email ILIKE ${ref}
+      OR pbr.visitor_phone_number ILIKE ${ref}
+    )`)
+  }
+
+  if (filters.bookingStatus) where.push(`pbr.booking_status = ${add(filters.bookingStatus)}`)
+  if (filters.paymentStatus) where.push(`pbr.payment_status = ${add(filters.paymentStatus)}`)
+  if (filters.from) where.push(`pbr.created_at >= ${add(filters.from)}::timestamptz`)
+  if (filters.to) where.push(`pbr.created_at <= ${add(filters.to)}::timestamptz`)
+
+  return {
+    params,
+    sql: where.length ? `WHERE ${where.join(' AND ')}` : '',
+  }
+}
+
+function packageBookingOrderBy(sort) {
+  return {
+    createdAt: 'pbr.created_at ASC',
+    '-createdAt': 'pbr.created_at DESC',
+    preferredDate: 'pbr.preferred_booking_date ASC',
+    '-preferredDate': 'pbr.preferred_booking_date DESC',
+    packageName: 'pbr.package_name_snapshot ASC',
+    '-packageName': 'pbr.package_name_snapshot DESC',
+  }[sort || '-createdAt'] || 'pbr.created_at DESC'
+}
+
+async function listPackageBookingRequests(filters, pagination) {
+  const builtWhere = packageBookingWhere(filters, 3)
+  const countWhere = packageBookingWhere(filters, 1)
+  const orderBy = packageBookingOrderBy(filters.sort)
+
+  const [itemsResult, countResult] = await Promise.all([
+    query(
+      `
+        ${packageBookingSelect()}
+        ${builtWhere.sql}
+        ORDER BY ${orderBy}, pbr.id ASC
+        LIMIT $1 OFFSET $2
+      `,
+      [pagination.limit, pagination.offset, ...builtWhere.params],
+    ),
+    query(
+      `SELECT COUNT(*)::integer AS total_items FROM package_booking_requests pbr ${countWhere.sql}`,
+      countWhere.params,
+    ),
+  ])
+
+  return {
+    items: itemsResult.rows.map(mapPackageBookingRequest),
+    totalItems: countResult.rows[0]?.total_items || 0,
+  }
+}
+
+async function getPackageBookingRequestById(id) {
+  const result = await query(
+    `
+      ${packageBookingSelect()}
+      WHERE pbr.id = $1
+      LIMIT 1
+    `,
+    [id],
+  )
+
+  return mapPackageBookingRequest(result.rows[0])
+}
+
+async function updatePackageBookingStatus(id, data, userId) {
+  const existing = await getPackageBookingRequestById(id)
+  if (!existing) throw createNotFoundError('Package booking request')
+
+  const result = await query(
+    `
+      UPDATE package_booking_requests
+      SET booking_status = $2::varchar,
+          booking_decline_reason = CASE WHEN $2::varchar = 'declined' THEN $3 ELSE booking_decline_reason END,
+          booking_review_notes = COALESCE($4, booking_review_notes),
+          booking_reviewed_at = now(),
+          booking_reviewed_by = $5::uuid
+      WHERE id = $1
+      RETURNING *
+    `,
+    [id, data.status, data.reason || null, data.notes || null, userId],
+  )
+
+  return { before: existing, after: await getPackageBookingRequestById(result.rows[0].id) }
+}
+
+async function verifyPackageBookingPayment(id, userId) {
+  const existing = await getPackageBookingRequestById(id)
+  if (!existing) throw createNotFoundError('Package booking request')
+  if (existing.paymentStatus !== 'proof_submitted') {
+    throw createValidationError('Payment proof can only be verified while status is proof_submitted.')
+  }
+
+  const result = await query(
+    `
+      UPDATE package_booking_requests
+      SET payment_status = 'verified',
+          payment_verified_at = now(),
+          payment_verified_by = $2::uuid,
+          payment_rejection_reason = NULL
+      WHERE id = $1
+      RETURNING *
+    `,
+    [id, userId],
+  )
+
+  return { before: existing, after: await getPackageBookingRequestById(result.rows[0].id) }
+}
+
+async function rejectPackageBookingPayment(id, data) {
+  const existing = await getPackageBookingRequestById(id)
+  if (!existing) throw createNotFoundError('Package booking request')
+  if (existing.paymentStatus !== 'proof_submitted') {
+    throw createValidationError('Payment proof can only be rejected while status is proof_submitted.')
+  }
+
+  const result = await query(
+    `
+      UPDATE package_booking_requests
+      SET payment_status = 'rejected',
+          payment_rejection_reason = $2,
+          payment_notes = COALESCE($3, payment_notes),
+          payment_verified_at = NULL,
+          payment_verified_by = NULL
+      WHERE id = $1
+      RETURNING *
+    `,
+    [id, data.reason, data.notes || null],
+  )
+
+  return { before: existing, after: await getPackageBookingRequestById(result.rows[0].id) }
+}
+
+async function updatePackageBookingNotes(id, data) {
+  const existing = await getPackageBookingRequestById(id)
+  if (!existing) throw createNotFoundError('Package booking request')
+
+  const result = await query(
+    `
+      UPDATE package_booking_requests
+      SET payment_notes = $2,
+          booking_review_notes = $3
+      WHERE id = $1
+      RETURNING *
+    `,
+    [id, data.paymentNotes ?? null, data.bookingReviewNotes ?? null],
+  )
+
+  return { before: existing, after: await getPackageBookingRequestById(result.rows[0].id) }
+}
+
 async function listNewsletterSubscribers(filters, pagination) {
   const listParams = [pagination.limit, pagination.offset, filters.search || null, filters.status || null]
   const countParams = [filters.search || null, filters.status || null]
@@ -632,18 +875,24 @@ module.exports = {
   getAuditLogById,
   getInquiryById,
   getMediaById,
+  getPackageBookingRequestById,
   getUserById,
   listAuditLogs,
   listInquiries,
   listInquiryResponses,
   listMedia,
   listNewsletterSubscribers,
+  listPackageBookingRequests,
   listPermissions,
   listRoles,
   listUsers,
+  rejectPackageBookingPayment,
   replaceUserRoles,
   updateInquiryStatus,
   updateMedia,
   updateNewsletterStatus,
+  updatePackageBookingNotes,
+  updatePackageBookingStatus,
   updateUserStatus,
+  verifyPackageBookingPayment,
 }

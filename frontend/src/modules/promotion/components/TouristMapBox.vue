@@ -55,7 +55,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['select', 'map-error'])
+const emit = defineEmits(['select', 'map-error', 'request-details'])
 
 const mapContainer = ref(null)
 const mapLoadError = ref('')
@@ -122,7 +122,7 @@ function createPopupContent(feature) {
   body.appendChild(heading)
 
   const meta = document.createElement('p')
-  meta.textContent = [properties.category, properties.locationType].filter(Boolean).join(' · ')
+  meta.textContent = [properties.category, properties.locationType].filter(Boolean).join(' - ')
   body.appendChild(meta)
 
   if (properties.description) {
@@ -152,7 +152,7 @@ function openPopup(feature) {
   activePopup = new mapboxgl.Popup({
     closeButton: true,
     closeOnClick: false,
-    maxWidth: '300px',
+    maxWidth: '340px',
     offset: 24,
   })
     .setLngLat(coordinates)
@@ -189,6 +189,7 @@ function selectFeature(feature, shouldEmit = true) {
   }
 
   flyToFeature(feature)
+  openPopup(feature)
 
   if (shouldEmit) emit('select', id)
 }
@@ -318,8 +319,10 @@ function ensureClusterLayers() {
   map.on('mouseleave', CLUSTER_LAYER_ID, () => {
     map.getCanvas().style.cursor = ''
   })
-  map.on('mouseenter', UNCLUSTERED_LAYER_ID, () => {
+  map.on('mouseenter', UNCLUSTERED_LAYER_ID, (event) => {
     map.getCanvas().style.cursor = 'pointer'
+    const feature = event.features?.[0]
+    if (feature) openPopup(feature)
   })
   map.on('mouseleave', UNCLUSTERED_LAYER_ID, () => {
     map.getCanvas().style.cursor = ''
@@ -377,6 +380,8 @@ function syncMarkers() {
     element.style.setProperty('--marker-color', properties.markerColor || '#1b4332')
     element.setAttribute('aria-label', properties.label || 'Select tourism location')
     element.addEventListener('click', () => selectFeature(feature))
+    element.addEventListener('mouseenter', () => openPopup(feature))
+    element.addEventListener('focus', () => openPopup(feature))
     element.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
@@ -568,7 +573,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="tourist-mapbox">
-    <div v-show="canRenderMap && features.length > 0" ref="mapContainer" class="tourist-mapbox__canvas"></div>
+    <div v-show="canRenderMap" ref="mapContainer" class="tourist-mapbox__canvas"></div>
 
     <div v-if="!hasToken" class="tourist-mapbox__state">
       <strong>Map unavailable</strong>
@@ -602,7 +607,10 @@ onBeforeUnmount(() => {
       <span>{{ error }}</span>
     </div>
 
-    <div v-else-if="features.length === 0" class="tourist-mapbox__state">
+    <div
+      v-else-if="features.length === 0"
+      class="tourist-mapbox__state tourist-mapbox__state--floating tourist-mapbox__state--empty"
+    >
       <strong>{{ emptyTitle }}</strong>
       <span>{{ emptyText }}</span>
     </div>
@@ -658,6 +666,13 @@ onBeforeUnmount(() => {
   background: #ffffff;
   box-shadow: 0 16px 40px rgba(27, 67, 50, 0.14);
   text-align: left;
+}
+
+.tourist-mapbox__state--empty {
+  right: 16px;
+  bottom: 16px;
+  max-width: min(300px, calc(100% - 32px));
+  padding: 14px 16px;
 }
 
 .tourist-mapbox__state strong {
@@ -726,42 +741,63 @@ onBeforeUnmount(() => {
   font-family: Inter, system-ui, sans-serif;
 }
 
+:global(.mapboxgl-popup-content) {
+  overflow: hidden;
+  padding: 0;
+  border-radius: 12px;
+  box-shadow: 0 16px 42px rgba(27, 67, 50, 0.2);
+}
+
+:global(.mapboxgl-popup-close-button) {
+  width: 28px;
+  height: 28px;
+  margin: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1a1a1a;
+  font-size: 18px;
+  line-height: 1;
+}
+
 :global(.tourist-map-popup img) {
   width: 100%;
-  height: 120px;
+  height: 132px;
   display: block;
   object-fit: cover;
 }
 
 :global(.tourist-map-popup__body) {
   display: grid;
-  gap: 8px;
-  padding: 14px;
+  gap: 10px;
+  padding: 16px;
 }
 
 :global(.tourist-map-popup h3) {
   margin: 0;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-size: 15px;
+  font-size: 18px;
   line-height: 1.25;
 }
 
 :global(.tourist-map-popup p) {
   margin: 0;
   color: #5c5c5c;
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 :global(.tourist-map-popup button) {
   justify-self: start;
-  margin-top: 3px;
-  border: 0;
-  background: transparent;
-  color: #1b4332;
+  min-height: 36px;
+  margin-top: 2px;
+  padding: 0 14px;
+  border: 1px solid #1b4332;
+  border-radius: 8px;
+  background: #1b4332;
+  color: #ffffff;
   font: inherit;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 </style>

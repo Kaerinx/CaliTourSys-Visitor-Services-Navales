@@ -1,9 +1,9 @@
 ﻿<script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   getEvents,
   getMapLocations,
-  getMuseumItems,
   getPromotionalPackages,
   getPromotionalProducts,
   getTourismAssets,
@@ -11,9 +11,13 @@ import {
 import PromotionNavbar from '../components/PromotionNavbar.vue'
 import PromotionFooter from '../components/PromotionFooter.vue'
 import AccreditationBadge from '../components/AccreditationBadge.vue'
+import TouristMapBox from '../components/TouristMapBox.vue'
 import heroBanner from '@/assets/hero-banner.jpg'
+import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
 
 const heroBannerUrl = `url(${heroBanner})`
+const mapboxToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || ''
+const router = useRouter()
 
 const products = ref([])
 
@@ -28,6 +32,19 @@ const locations = ref([])
 const isLoading = ref(true)
 const errorMessage = ref('')
 const failedProductImages = ref(new Set())
+const destinationCarousel = ref(null)
+const productCarousel = ref(null)
+const packageCarousel = ref(null)
+const carouselCardsPerPage = ref(4)
+const activeCarouselPages = ref({
+  destinations: 0,
+  products: 0,
+  packages: 0,
+})
+const selectedMapLocationId = ref('')
+const isMapCollapsed = ref(false)
+const isMapExpanded = ref(false)
+const mapRuntimeError = ref('')
 
 const exploreCategories = [
   {
@@ -60,17 +77,34 @@ const exploreCategories = [
   },
 ]
 
-// Derived from the real map locations returned by the API — no fabricated counts.
-const filters = computed(() => {
-  const grouped = new Map()
-  locations.value.forEach((location) => {
-    const label = location.category || 'Other'
-    const current = grouped.get(label) || { label, count: 0, active: true, color: location.color }
-    current.count += 1
-    grouped.set(label, current)
-  })
-  return [...grouped.values()].slice(0, 5)
-})
+const mapFeatureCollection = computed(() => ({
+  type: 'FeatureCollection',
+  features: locations.value
+    .map((location) => {
+      const latitude = Number(location.latitude)
+      const longitude = Number(location.longitude)
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+
+      return {
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [longitude, latitude],
+        },
+        properties: {
+          id: location.id,
+          slug: location.id,
+          label: location.name,
+          category: location.category,
+          markerColor: location.color,
+          primaryImage: location.imageUrl,
+          locationType: location.locationType,
+          description: location.description,
+        },
+      }
+    })
+    .filter(Boolean),
+}))
 
 function productImageKey(product) {
   return product.apiId || product.id || product.slug || product.name
@@ -84,27 +118,109 @@ function markProductImageFailed(product) {
   failedProductImages.value = new Set([...failedProductImages.value, productImageKey(product)])
 }
 
+function carouselElement(key) {
+  if (key === 'destinations') return destinationCarousel.value
+  if (key === 'products') return productCarousel.value
+  if (key === 'packages') return packageCarousel.value
+  return null
+}
+
+function carouselPages(totalItems) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / carouselCardsPerPage.value))
+  return Array.from({ length: totalPages }, (_, index) => index)
+}
+
+function activeCarouselPage(key) {
+  return activeCarouselPages.value[key] || 0
+}
+
+function setActiveCarouselPage(key, page) {
+  activeCarouselPages.value = {
+    ...activeCarouselPages.value,
+    [key]: page,
+  }
+}
+
+function scrollCarousel(key, direction, totalItems) {
+  const currentPage = activeCarouselPage(key)
+  scrollToCarouselPage(key, currentPage + direction, totalItems)
+}
+
+function scrollToCarouselPage(key, page, totalItems) {
+  const carousel = carouselElement(key)
+  if (!carousel) return
+
+  const lastPage = Math.max(0, carouselPages(totalItems).length - 1)
+  const nextPage = Math.min(Math.max(page, 0), lastPage)
+
+  carousel.scrollTo({
+    left: carousel.clientWidth * nextPage,
+    behavior: 'smooth',
+  })
+  setActiveCarouselPage(key, nextPage)
+}
+
+function syncCarouselPage(key) {
+  const carousel = carouselElement(key)
+  if (!carousel?.clientWidth) return
+
+  setActiveCarouselPage(key, Math.round(carousel.scrollLeft / carousel.clientWidth))
+}
+
+function updateCardsPerPage() {
+  const width = window.innerWidth
+  carouselCardsPerPage.value = width >= 1024 ? 4 : width >= 760 ? 2 : 1
+
+  nextTick(() => {
+    syncCarouselPage('destinations')
+    syncCarouselPage('products')
+    syncCarouselPage('packages')
+  })
+}
+
+function selectMapLocation(id) {
+  selectedMapLocationId.value = id
+}
+
+function openMapLocationDetails(id = selectedMapLocationId.value) {
+  router.push({
+    path: '/destinations',
+    query: id ? { location: id } : {},
+  })
+}
+
+function toggleMapCollapsed() {
+  const nextCollapsed = !isMapCollapsed.value
+  isMapCollapsed.value = nextCollapsed
+  if (nextCollapsed) isMapExpanded.value = false
+}
+
+function expandMiniMap() {
+  isMapCollapsed.value = false
+  isMapExpanded.value = true
+}
+
 async function loadHomeData() {
   isLoading.value = true
   errorMessage.value = ''
 
   try {
-    const [productData, eventData, assetData, locationData, museumData, packageData] =
+    const [productData, eventData, assetData, locationData, packageData] =
       await Promise.all([
         getPromotionalProducts({ limit: 8, sort: 'featured' }),
         getEvents({ featured: true, limit: 4 }),
-        getTourismAssets({ limit: 3, sort: '-updatedAt' }),
+        getTourismAssets({ limit: 8, sort: '-updatedAt' }),
         getMapLocations({ format: 'list' }),
-        getMuseumItems({ featured: true, limit: 3 }),
         getPromotionalPackages(),
       ])
 
     products.value = productData
     events.value = eventData
-    destinations.value = assetData.slice(0, 3)
-    locations.value = locationData.slice(0, 5)
-    museumItems.value = museumData.slice(0, 3)
-    packages.value = packageData.slice(0, 3)
+    destinations.value = assetData.slice(0, 8)
+    locations.value = locationData
+    museumItems.value = []
+    packages.value = packageData.slice(0, 8)
+    selectedMapLocationId.value = locationData[0]?.id || ''
   } catch (error) {
     errorMessage.value = error.message || 'Unable to load public tourism content.'
   } finally {
@@ -112,7 +228,15 @@ async function loadHomeData() {
   }
 }
 
-onMounted(loadHomeData)
+onMounted(() => {
+  updateCardsPerPage()
+  window.addEventListener('resize', updateCardsPerPage)
+  loadHomeData()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateCardsPerPage)
+})
 </script>
 
 <template>
@@ -196,7 +320,7 @@ onMounted(loadHomeData)
         <p v-else>{{ errorMessage }}</p>
       </section>
 
-      <section class="content-section content-section--white">
+      <section class="content-section content-section--white content-section--featured">
         <div class="page-shell">
           <div class="section-heading">
             <div>
@@ -206,99 +330,196 @@ onMounted(loadHomeData)
                 stops, and nature routes.
               </p>
             </div>
-            <RouterLink to="/destinations">Explore destinations -></RouterLink>
+            <div class="section-heading__actions">
+              <RouterLink to="/destinations">Explore destinations -></RouterLink>
+            </div>
           </div>
 
-          <div class="feature-grid feature-grid--three">
-            <p v-if="!isLoading && destinations.length === 0" class="empty-copy">
-              No featured destinations are available yet.
-            </p>
-            <RouterLink
-              v-for="destination in destinations"
-              :key="destination.id"
-              :to="`/destinations?location=${destination.id}`"
-              class="destination-card"
+          <div
+            class="feature-carousel-shell"
+            :class="{ 'feature-carousel-shell--static': carouselPages(destinations.length).length <= 1 }"
+          >
+            <button
+              v-if="carouselPages(destinations.length).length > 1"
+              type="button"
+              class="carousel-edge carousel-edge--prev"
+              aria-label="Previous featured destinations"
+              :disabled="activeCarouselPage('destinations') === 0"
+              @click="scrollCarousel('destinations', -1, destinations.length)"
             >
-              <span
-                class="destination-card__media"
-                :style="{
-                  '--card-accent': destination.accent || destination.color || '#1b4332',
-                  backgroundImage: destination.imageUrl
-                    ? `url(${destination.imageUrl})`
-                    : undefined,
-                }"
-              ></span>
-              <span class="destination-card__body">
-                <strong>{{ destination.name }}</strong>
-                <span>{{
-                  destination.location || destination.distance || 'Calabanga, Camarines Sur'
-                }}</span>
-                <p>{{ destination.description || destination.desc }}</p>
-                <span class="card-link">View destination -></span>
-              </span>
-            </RouterLink>
+              &lt;
+            </button>
+            <div
+              ref="destinationCarousel"
+              class="feature-grid feature-grid--three feature-carousel"
+              @scroll.passive="syncCarouselPage('destinations')"
+            >
+              <p v-if="!isLoading && destinations.length === 0" class="empty-copy">
+                No featured destinations are available yet.
+              </p>
+              <RouterLink
+                v-for="destination in destinations"
+                :key="destination.id"
+                :to="`/destinations?location=${destination.id}`"
+                class="destination-card"
+              >
+                <span
+                  class="destination-card__media"
+                  :style="{
+                    '--card-accent': destination.accent || destination.color || '#1b4332',
+                    backgroundImage: destination.imageUrl
+                      ? `url(${destination.imageUrl})`
+                      : undefined,
+                  }"
+                ></span>
+                <span class="destination-card__body">
+                  <strong>{{ destination.name }}</strong>
+                  <span>{{
+                    destination.location || destination.distance || 'Calabanga, Camarines Sur'
+                  }}</span>
+                  <p>{{ destination.description || destination.desc }}</p>
+                  <span class="card-link">View destination -></span>
+                </span>
+              </RouterLink>
+            </div>
+            <button
+              v-if="carouselPages(destinations.length).length > 1"
+              type="button"
+              class="carousel-edge carousel-edge--next"
+              aria-label="Next featured destinations"
+              :disabled="
+                activeCarouselPage('destinations') ===
+                carouselPages(destinations.length).length - 1
+              "
+              @click="scrollCarousel('destinations', 1, destinations.length)"
+            >
+              &gt;
+            </button>
+          </div>
+
+          <div
+            v-if="carouselPages(destinations.length).length > 1"
+            class="carousel-dots"
+            aria-label="Featured destinations carousel pagination"
+          >
+            <button
+              v-for="page in carouselPages(destinations.length)"
+              :key="`destination-page-${page}`"
+              type="button"
+              :class="{ 'carousel-dot--active': activeCarouselPage('destinations') === page }"
+              :aria-label="`Go to featured destinations page ${page + 1}`"
+              @click="scrollToCarouselPage('destinations', page, destinations.length)"
+            ></button>
           </div>
         </div>
       </section>
 
-      <section class="content-section content-section--white">
+      <section class="content-section content-section--white content-section--featured">
         <div class="page-shell">
           <div class="section-heading">
             <div>
               <h2>Featured Local Products</h2>
               <p>Discover food, crafts, and local products from accredited Calabanga producers.</p>
             </div>
-            <RouterLink to="/products">Shop local products -></RouterLink>
+            <div class="section-heading__actions">
+              <RouterLink to="/products">Shop local products -></RouterLink>
+            </div>
           </div>
 
-          <div class="product-grid product-grid--three">
-            <p v-if="!isLoading && products.length === 0" class="empty-copy">
-              No published products are available yet.
-            </p>
-            <RouterLink
-              v-for="product in products.slice(0, 3)"
-              :key="product.id"
-              :to="`/products/${product.id}`"
-              class="product-card product-card--home product-card--featured"
+          <div
+            class="feature-carousel-shell"
+            :class="{ 'feature-carousel-shell--static': carouselPages(products.length).length <= 1 }"
+          >
+            <button
+              v-if="carouselPages(products.length).length > 1"
+              type="button"
+              class="carousel-edge carousel-edge--prev"
+              aria-label="Previous featured products"
+              :disabled="activeCarouselPage('products') === 0"
+              @click="scrollCarousel('products', -1, products.length)"
             >
-              <span
-                class="product-card__image"
-                :style="{ '--card-accent': product.accent || '#1b4332' }"
+              &lt;
+            </button>
+            <div
+              ref="productCarousel"
+              class="product-grid product-grid--three feature-carousel"
+              @scroll.passive="syncCarouselPage('products')"
+            >
+              <p v-if="!isLoading && products.length === 0" class="empty-copy">
+                No published products are available yet.
+              </p>
+              <RouterLink
+                v-for="product in products"
+                :key="product.id"
+                :to="`/products/${product.id}`"
+                class="product-card product-card--home product-card--featured"
               >
-                <img
-                  v-if="hasProductImage(product)"
-                  :src="product.imageUrl"
-                  :alt="`${product.name} product photo`"
-                  loading="lazy"
-                  @error="markProductImageFailed(product)"
-                />
-                <span v-else class="product-card__placeholder" aria-hidden="true">
-                  <svg viewBox="0 0 48 48">
-                    <path d="M12 17h24l-2 22H14L12 17Z" />
-                    <path d="M18 17a6 6 0 0 1 12 0" />
-                    <path d="M18 28h12" />
-                  </svg>
+                <span
+                  class="product-card__image"
+                  :style="{ '--card-accent': product.accent || '#1b4332' }"
+                >
+                  <img
+                    v-if="hasProductImage(product)"
+                    :src="product.imageUrl"
+                    :alt="`${product.name} product photo`"
+                    loading="lazy"
+                    @error="markProductImageFailed(product)"
+                  />
+                  <span v-else class="product-card__placeholder" aria-hidden="true">
+                    <svg viewBox="0 0 48 48">
+                      <path d="M12 17h24l-2 22H14L12 17Z" />
+                      <path d="M18 17a6 6 0 0 1 12 0" />
+                      <path d="M18 28h12" />
+                    </svg>
+                  </span>
+                  <AccreditationBadge v-if="product.accredited" floating />
                 </span>
-                <AccreditationBadge v-if="product.accredited" floating />
-              </span>
-              <span class="product-card__body">
-                <span class="category-badge">{{ product.category }}</span>
-                <strong>{{ product.name }}</strong>
-                <span class="producer-line">
-                  {{ product.producer }}
-                  <span class="verified-dot">âœ“</span>
+                <span class="product-card__body">
+                  <span class="category-badge">{{ product.category }}</span>
+                  <strong>{{ product.name }}</strong>
+                  <span class="producer-line">
+                    {{ product.producer }}
+                    <span class="verified-dot">âœ“</span>
+                  </span>
+                  <span class="product-card__footer">
+                    <span>{{ product.price }}</span>
+                    <span>View product -></span>
+                  </span>
                 </span>
-                <span class="product-card__footer">
-                  <span>{{ product.price }}</span>
-                  <span>View product -></span>
-                </span>
-              </span>
-            </RouterLink>
+              </RouterLink>
+            </div>
+            <button
+              v-if="carouselPages(products.length).length > 1"
+              type="button"
+              class="carousel-edge carousel-edge--next"
+              aria-label="Next featured products"
+              :disabled="
+                activeCarouselPage('products') === carouselPages(products.length).length - 1
+              "
+              @click="scrollCarousel('products', 1, products.length)"
+            >
+              &gt;
+            </button>
+          </div>
+
+          <div
+            v-if="carouselPages(products.length).length > 1"
+            class="carousel-dots"
+            aria-label="Featured products carousel pagination"
+          >
+            <button
+              v-for="page in carouselPages(products.length)"
+              :key="`product-page-${page}`"
+              type="button"
+              :class="{ 'carousel-dot--active': activeCarouselPage('products') === page }"
+              :aria-label="`Go to featured products page ${page + 1}`"
+              @click="scrollToCarouselPage('products', page, products.length)"
+            ></button>
           </div>
         </div>
       </section>
 
-      <section class="content-section content-section--white">
+      <section class="content-section content-section--white content-section--featured">
         <div class="page-shell">
           <div class="section-heading">
             <div>
@@ -308,104 +529,84 @@ onMounted(loadHomeData)
                 promotion.
               </p>
             </div>
-            <RouterLink to="/packages">Browse packages -></RouterLink>
-          </div>
-
-          <div class="feature-grid feature-grid--three">
-            <p v-if="!isLoading && packages.length === 0" class="empty-copy">
-              No tourism packages are available yet.
-            </p>
-            <RouterLink
-              v-for="tourismPackage in packages"
-              :key="tourismPackage.id"
-              :to="`/packages/${tourismPackage.slug || tourismPackage.id}`"
-              class="destination-card"
-            >
-              <span
-                class="destination-card__media"
-                :style="{
-                  '--card-accent': tourismPackage.accent || '#1b4332',
-                  backgroundImage: tourismPackage.imageUrl
-                    ? `url(${tourismPackage.imageUrl})`
-                    : undefined,
-                }"
-              ></span>
-              <span class="destination-card__body">
-                <strong>{{ tourismPackage.name }}</strong>
-                <span>{{ tourismPackage.estimatedDuration || 'Duration to be confirmed' }}</span>
-                <p v-if="tourismPackage.remarks">{{ tourismPackage.remarks }}</p>
-                <span class="card-link">View package -></span>
-              </span>
-            </RouterLink>
-          </div>
-        </div>
-      </section>
-
-      <section class="content-section content-section--warm">
-        <div class="page-shell">
-          <div class="section-heading">
-            <div>
-              <h2>Explore Calabanga</h2>
-              <p>Curated locations from the public tourism records and map database.</p>
+            <div class="section-heading__actions">
+              <RouterLink to="/packages">Browse packages -></RouterLink>
             </div>
-            <RouterLink to="/destinations">Explore map -></RouterLink>
           </div>
 
-          <div class="map-preview">
-            <aside class="map-preview__panel">
-              <p class="eyebrow">Filter</p>
-              <h3>Find your way</h3>
-              <div class="filter-list">
-                <label v-for="filter in filters" :key="filter.label" class="filter-row">
-                  <span class="fake-check" :class="{ 'fake-check--active': filter.active }">
-                    <span v-if="filter.active">âœ“</span>
-                  </span>
-                  <span class="filter-dot" :style="{ backgroundColor: filter.color }"></span>
-                  <span>{{ filter.label }}</span>
-                  <small>{{ filter.count }}</small>
-                </label>
-              </div>
-
-              <div class="map-preview__results">
-                <p>
-                  Showing {{ locations.length }} highlight{{ locations.length === 1 ? '' : 's' }}
-                </p>
-                <div
-                  v-for="location in locations.slice(0, 3)"
-                  :key="location.id"
-                  class="result-row"
-                >
-                  <span :style="{ backgroundColor: location.color }"></span>
-                  <strong>{{ location.name }}</strong>
-                  <small>{{ location.distance }}</small>
-                </div>
-              </div>
-            </aside>
-
-            <div class="map-preview__canvas">
-              <span
-                v-for="(location, index) in locations"
-                :key="location.id"
-                class="map-pin"
-                :class="{ 'map-pin--selected': index === 1 }"
-                :style="{
-                  left: `${location.x}%`,
-                  top: `${location.y}%`,
-                  '--pin-color': location.color,
-                }"
+          <div
+            class="feature-carousel-shell"
+            :class="{ 'feature-carousel-shell--static': carouselPages(packages.length).length <= 1 }"
+          >
+            <button
+              v-if="carouselPages(packages.length).length > 1"
+              type="button"
+              class="carousel-edge carousel-edge--prev"
+              aria-label="Previous featured packages"
+              :disabled="activeCarouselPage('packages') === 0"
+              @click="scrollCarousel('packages', -1, packages.length)"
+            >
+              &lt;
+            </button>
+            <div
+              ref="packageCarousel"
+              class="feature-grid feature-grid--three feature-carousel"
+              @scroll.passive="syncCarouselPage('packages')"
+            >
+              <p v-if="!isLoading && packages.length === 0" class="empty-copy">
+                No tourism packages are available yet.
+              </p>
+              <RouterLink
+                v-for="tourismPackage in packages"
+                :key="tourismPackage.id"
+                :to="`/packages/${tourismPackage.slug || tourismPackage.id}`"
+                class="destination-card"
               >
-                <svg viewBox="0 0 28 36" aria-hidden="true">
-                  <path
-                    d="M14 0C6.27 0 0 6.27 0 14c0 9.5 14 22 14 22s14-12.5 14-22C28 6.27 21.73 0 14 0z"
-                  />
-                  <circle cx="14" cy="14" r="5" />
-                </svg>
-              </span>
-              <RouterLink to="/destinations" class="map-preview__button">
-                <span>-></span>
-                Explore map
+                <span
+                  class="destination-card__media"
+                  :style="{
+                    '--card-accent': tourismPackage.accent || '#1b4332',
+                    backgroundImage: tourismPackage.imageUrl
+                      ? `url(${tourismPackage.imageUrl})`
+                      : undefined,
+                  }"
+                ></span>
+                <span class="destination-card__body">
+                  <strong>{{ tourismPackage.name }}</strong>
+                  <span>{{ tourismPackage.estimatedDuration || 'Duration to be confirmed' }}</span>
+                  <span class="package-price">{{ tourismPackage.price }}</span>
+                  <p v-if="tourismPackage.remarks">{{ tourismPackage.remarks }}</p>
+                  <span class="card-link">View package -></span>
+                </span>
               </RouterLink>
             </div>
+            <button
+              v-if="carouselPages(packages.length).length > 1"
+              type="button"
+              class="carousel-edge carousel-edge--next"
+              aria-label="Next featured packages"
+              :disabled="
+                activeCarouselPage('packages') === carouselPages(packages.length).length - 1
+              "
+              @click="scrollCarousel('packages', 1, packages.length)"
+            >
+              &gt;
+            </button>
+          </div>
+
+          <div
+            v-if="carouselPages(packages.length).length > 1"
+            class="carousel-dots"
+            aria-label="Featured packages carousel pagination"
+          >
+            <button
+              v-for="page in carouselPages(packages.length)"
+              :key="`package-page-${page}`"
+              type="button"
+              :class="{ 'carousel-dot--active': activeCarouselPage('packages') === page }"
+              :aria-label="`Go to featured packages page ${page + 1}`"
+              @click="scrollToCarouselPage('packages', page, packages.length)"
+            ></button>
           </div>
         </div>
       </section>
@@ -457,7 +658,7 @@ onMounted(loadHomeData)
         </div>
       </section>
 
-      <section class="content-section content-section--white">
+      <section v-if="SHOW_MUSEUM_MODULE" class="content-section content-section--white">
         <div class="page-shell">
           <div class="section-heading">
             <div>
@@ -508,6 +709,65 @@ onMounted(loadHomeData)
       </section>
     </main>
 
+    <aside
+      class="floating-mini-map"
+      :class="{
+        'floating-mini-map--collapsed': isMapCollapsed,
+        'floating-mini-map--expanded': isMapExpanded,
+      }"
+      aria-label="Sticky Calabanga mini map"
+    >
+      <div class="floating-mini-map__controls">
+        <button
+          type="button"
+          class="floating-mini-map__control"
+          :aria-label="isMapCollapsed ? 'Expand mini map' : 'Minimize mini map'"
+          @click="toggleMapCollapsed"
+        >
+          {{ isMapCollapsed ? '+' : '-' }}
+        </button>
+        <button
+          v-if="!isMapCollapsed"
+          type="button"
+          class="floating-mini-map__control"
+          aria-label="Make mini map larger"
+          :disabled="isMapExpanded"
+          @click="expandMiniMap"
+        >
+          +
+        </button>
+      </div>
+
+      <template v-if="!isMapCollapsed">
+        <div class="floating-mini-map__frame">
+          <TouristMapBox
+            :access-token="mapboxToken"
+            :feature-collection="mapFeatureCollection"
+            :selected-id="selectedMapLocationId"
+            :loading="isLoading"
+            :error="errorMessage"
+            empty-title="No map-ready locations yet"
+            empty-text="Published Calabanga establishments and landmarks will appear here once coordinates are set."
+            @select="selectMapLocation"
+            @request-details="openMapLocationDetails"
+            @map-error="mapRuntimeError = $event"
+          />
+        </div>
+
+        <div class="floating-mini-map__label">
+          <strong>Calabanga</strong>
+          <span>{{ mapFeatureCollection.features.length }} map points</span>
+        </div>
+
+        <p v-if="mapRuntimeError" class="floating-mini-map__warning">{{ mapRuntimeError }}</p>
+
+        <button type="button" class="floating-mini-map__details" @click="openMapLocationDetails()">
+          Explore map
+          <span aria-hidden="true">-&gt;</span>
+        </button>
+      </template>
+    </aside>
+
     <PromotionFooter />
   </div>
 </template>
@@ -516,6 +776,7 @@ onMounted(loadHomeData)
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 .twbis-home {
+  --home-card-gap: 16px;
   min-height: 100vh;
   background: #f2f0eb;
   color: #1a1a1a;
@@ -704,7 +965,7 @@ h1 {
 .category-explore__grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 20px;
+  gap: var(--home-card-gap);
 }
 
 .category-tile {
@@ -875,6 +1136,14 @@ h1 {
   padding: 80px 0;
 }
 
+.content-section--featured {
+  padding: 44px 0 0;
+}
+
+.content-section--featured + .content-section--featured {
+  padding-top: 40px;
+}
+
 .api-status,
 .empty-copy {
   color: #5c5c5c;
@@ -915,11 +1184,6 @@ h1 {
 
 /* justify-content pushes the "Explore ->" link to the right edge on desktop;
    keep it from shrinking or wrapping. */
-.section-heading > a {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
 .section-heading h2 {
   font-size: 32px;
   font-weight: 600;
@@ -932,16 +1196,119 @@ h1 {
   font-size: 16px;
 }
 
-.section-heading a {
+.section-heading a,
+.section-heading__actions a {
   flex: 0 0 auto;
   color: #1b4332;
   font-size: 13px;
   font-weight: 500;
 }
 
+.section-heading__actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.section-heading__actions a {
+  white-space: nowrap;
+}
+
+.feature-carousel-shell {
+  position: relative;
+  padding: 0 52px;
+}
+
+.feature-carousel-shell--static {
+  padding-inline: 0;
+}
+
+.carousel-edge {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d6d0c6;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1b4332;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(27, 67, 50, 0.12);
+  transform: translateY(-50%);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.carousel-edge--prev {
+  left: 0;
+}
+
+.carousel-edge--next {
+  right: 0;
+}
+
+.carousel-edge:hover {
+  border-color: #1b4332;
+  background: #f2f0eb;
+}
+
+.carousel-edge:disabled {
+  cursor: default;
+  opacity: 0.36;
+}
+
+.carousel-edge:disabled:hover {
+  border-color: #d6d0c6;
+  background: #ffffff;
+}
+
+.carousel-edge:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.carousel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.carousel-dots button {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #b8e7f0;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    transform 160ms ease,
+    width 160ms ease;
+}
+
+.carousel-dots button:hover,
+.carousel-dots button:focus-visible {
+  background: #63c7df;
+}
+
+.carousel-dots .carousel-dot--active {
+  width: 22px;
+  background: #1b4332;
+}
+
 .product-grid {
   display: grid;
-  gap: 24px;
+  gap: var(--home-card-gap);
   align-items: stretch;
 }
 
@@ -950,9 +1317,10 @@ h1 {
 .culture-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
+  gap: var(--home-card-gap);
   align-items: stretch;
   width: 100%;
+  margin-bottom: 0;
   overflow: visible;
 }
 
@@ -962,6 +1330,30 @@ h1 {
 
 .product-grid--four {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.feature-carousel {
+  display: flex;
+  grid-template-columns: none;
+  gap: var(--home-card-gap);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-padding-inline: 2px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.feature-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.feature-carousel > * {
+  flex: 0 0 calc((100% - (var(--home-card-gap) * 3)) / 4);
+  scroll-snap-align: start;
+}
+
+.feature-carousel > .empty-copy {
+  flex-basis: 100%;
 }
 
 .product-card,
@@ -1244,6 +1636,12 @@ h1 {
   font-size: 13px;
 }
 
+.destination-card__body .package-price {
+  color: #1a1a1a;
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .destination-card__body p,
 .promotion-card__body p,
 .culture-card__body p {
@@ -1261,154 +1659,129 @@ h1 {
   font-weight: 700;
 }
 
-.map-preview {
-  height: 480px;
-  display: grid;
-  grid-template-columns: 320px 1fr;
+.floating-mini-map {
+  position: fixed;
+  right: 24px;
+  bottom: 88px;
+  z-index: 135;
+  width: min(340px, calc(100vw - 32px));
+  height: 238px;
   overflow: hidden;
-  border: 1px solid #e8e4dc;
-  border-radius: 16px;
+  border: 1px solid rgba(27, 67, 50, 0.2);
+  border-radius: 14px;
   background: #1b4332;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.24);
+  transition:
+    width 180ms ease,
+    height 180ms ease,
+    border-radius 180ms ease;
 }
 
-.map-preview__panel {
-  padding: 32px 24px;
-  background: rgba(255, 255, 255, 0.96);
-  border-right: 1px solid #e8e4dc;
+.floating-mini-map--collapsed {
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
 }
 
-.map-preview__panel h3 {
-  margin-top: 8px;
-  font-size: 22px;
-  font-weight: 600;
+.floating-mini-map--expanded {
+  width: min(520px, calc(100vw - 48px));
+  height: min(360px, calc(100vh - 140px));
 }
 
-.filter-list {
-  display: grid;
-  gap: 12px;
-  margin-top: 22px;
+.floating-mini-map__frame {
+  position: absolute;
+  inset: 0;
 }
 
-.filter-row {
-  display: grid;
-  grid-template-columns: 16px 8px 1fr auto;
-  align-items: center;
-  gap: 10px;
-  color: #1a1a1a;
-  font-size: 14px;
-  cursor: pointer;
+.floating-mini-map__controls {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 4;
+  display: flex;
+  gap: 8px;
 }
 
-.fake-check {
-  width: 16px;
-  height: 16px;
+.floating-mini-map__control {
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
-  border: 1.5px solid #5c5c5c;
-  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 8px;
+  background: rgba(27, 67, 50, 0.92);
   color: #ffffff;
-  font-size: 10px;
+  font-size: 22px;
+  font-weight: 800;
   line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
 }
 
-.fake-check--active {
-  border-color: #1b4332;
-  background: #1b4332;
+.floating-mini-map__control:disabled {
+  cursor: default;
+  opacity: 0.48;
 }
 
-.filter-dot,
-.result-row > span {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
+.floating-mini-map--collapsed .floating-mini-map__controls {
+  inset: 10px;
 }
 
-.filter-row small,
-.result-row small {
-  color: #5c5c5c;
-  font-size: 12px;
+.floating-mini-map__label,
+.floating-mini-map__warning {
+  position: absolute;
+  left: 12px;
+  z-index: 3;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 24px rgba(27, 67, 50, 0.16);
 }
 
-.map-preview__results {
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px solid #e8e4dc;
-}
-
-.map-preview__results p {
-  margin: 0 0 14px;
-  color: #5c5c5c;
-  font-size: 12px;
-}
-
-.result-row {
+.floating-mini-map__label {
+  top: 56px;
   display: grid;
-  grid-template-columns: 8px 1fr auto;
-  align-items: center;
-  gap: 12px;
-  margin-top: 10px;
+  gap: 1px;
+  padding: 9px 11px;
 }
 
-.result-row strong {
-  overflow: hidden;
+.floating-mini-map__label strong {
   color: #1a1a1a;
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 13px;
+  line-height: 1.2;
 }
 
-.map-preview__canvas {
-  position: relative;
-  overflow: hidden;
-  background-color: #1b4332;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 40px 40px;
+.floating-mini-map__label span {
+  color: #5c5c5c;
+  font-size: 11px;
 }
 
-.map-pin {
+.floating-mini-map__warning {
+  right: 12px;
+  bottom: 48px;
+  margin: 0;
+  padding: 9px 11px;
+  color: #7a2d0e;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.floating-mini-map__details {
   position: absolute;
-  width: 28px;
-  transform: translate(-50%, -100%);
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-}
-
-.map-pin svg {
-  width: 28px;
-  height: 36px;
-}
-
-.map-pin path {
-  fill: var(--pin-color);
-}
-
-.map-pin circle {
-  fill: #ffffff;
-}
-
-.map-pin--selected {
-  transform: translate(-50%, -100%) scale(1.25);
-}
-
-.map-pin--selected path {
-  fill: #b5451b;
-}
-
-.map-preview__button {
-  position: absolute;
-  right: 28px;
-  bottom: 28px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  min-height: 34px;
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  color: #ffffff;
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.map-preview__button span {
-  font-size: 24px;
+  gap: 8px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1b4332;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .chip-row {
@@ -1438,7 +1811,7 @@ h1 {
 .event-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
+  gap: var(--home-card-gap);
 }
 
 .event-card {
@@ -1553,7 +1926,7 @@ h1 {
   font-weight: 500;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1023px) {
   .site-nav__links {
     display: none;
   }
@@ -1571,8 +1944,22 @@ h1 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .map-preview {
-    grid-template-columns: 280px 1fr;
+  .feature-carousel {
+    display: flex;
+  }
+
+  .feature-carousel > * {
+    flex-basis: calc((100% - var(--home-card-gap)) / 2);
+  }
+
+  .floating-mini-map {
+    width: min(300px, calc(100vw - 32px));
+    height: 208px;
+  }
+
+  .floating-mini-map--expanded {
+    width: min(440px, calc(100vw - 32px));
+    height: min(320px, calc(100vh - 120px));
   }
 
   .site-footer__main {
@@ -1605,6 +1992,7 @@ h1 {
   }
 
   .section-heading,
+  .section-heading__actions,
   .trust-strip__inner,
   .trust-strip__inner > div {
     align-items: flex-start;
@@ -1620,18 +2008,47 @@ h1 {
     grid-template-columns: 1fr;
   }
 
-  .map-preview {
-    height: auto;
-    grid-template-columns: 1fr;
+  .feature-carousel {
+    display: flex;
   }
 
-  .map-preview__panel {
-    border-right: 0;
-    border-bottom: 1px solid #e8e4dc;
+  .feature-carousel-shell {
+    padding: 0 42px;
   }
 
-  .map-preview__canvas {
-    min-height: 360px;
+  .feature-carousel-shell--static {
+    padding-inline: 0;
+  }
+
+  .carousel-edge {
+    width: 32px;
+    height: 36px;
+    font-size: 22px;
+  }
+
+  .feature-carousel > * {
+    flex-basis: 100%;
+  }
+
+  .floating-mini-map {
+    right: 16px;
+    bottom: 76px;
+    width: min(280px, calc(100vw - 32px));
+    height: 190px;
+  }
+
+  .floating-mini-map--collapsed {
+    width: 54px;
+    height: 54px;
+  }
+
+  .floating-mini-map--expanded {
+    width: calc(100vw - 32px);
+    height: min(300px, calc(100vh - 112px));
+  }
+
+  .floating-mini-map__label {
+    top: 52px;
   }
 
   .site-footer__main {

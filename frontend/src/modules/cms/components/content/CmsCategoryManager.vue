@@ -8,6 +8,7 @@ import CmsStatusBadge from './CmsStatusBadge.vue'
 import { useCmsAuthStore } from '../../stores/authStore'
 import { cmsContentApi } from '../../services/cmsContentApi'
 import { friendlyContentError, useCmsList } from '../../composables/useCmsList'
+import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
 
 const props = defineProps({
   kind: { type: String, required: true },
@@ -125,7 +126,7 @@ function formatDate(value) {
       <RouterLink to="/cms/categories/events">Event categories</RouterLink>
       <RouterLink to="/cms/categories/products">Product categories</RouterLink>
       <RouterLink to="/cms/categories/destinations">Destination categories</RouterLink>
-      <RouterLink to="/cms/categories/museum">Museum categories</RouterLink>
+      <RouterLink v-if="SHOW_MUSEUM_MODULE" to="/cms/categories/museum">Museum categories</RouterLink>
     </nav>
 
     <div v-if="notice" class="cms-content-page__notice" role="status">{{ notice }}</div>

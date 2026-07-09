@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
+const path = require("path");
 const model = require("./accreditation.model");
 const { getJwtSecret } = require("../../config/authConfig");
 
@@ -521,6 +522,52 @@ async function addDocument(applicationId, file, body, userId) {
   });
 }
 
+async function deleteDraftApplication(ownerId, applicationId) {
+  const application = await model.getApplicationById(applicationId);
+  if (!application) {
+    const error = new Error("Draft application not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (application.owner_id !== ownerId) {
+    const error = new Error("You do not have permission to delete this application.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (application.status !== "draft") {
+    const error = new Error("Only draft applications can be deleted.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const documents = await model.listDocuments(application.id);
+  const deleted = await model.deleteDraftApplication(application.id, ownerId);
+  if (!deleted) {
+    const error = new Error("Draft application not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  await removeApplicationDocumentFiles(documents);
+  return deleted;
+}
+
+async function removeApplicationDocumentFiles(documents) {
+  const uploadsRoot = path.resolve("uploads");
+  await Promise.allSettled(
+    documents
+      .map((document) => document.file_path)
+      .filter(Boolean)
+      .map(async (filePath) => {
+        const resolvedPath = path.resolve(filePath);
+        if (!resolvedPath.startsWith(uploadsRoot)) return;
+        await fs.promises.unlink(resolvedPath);
+      })
+  );
+}
+
 async function submitApplication(ownerId, applicationId) {
   const application = await model.getApplicationById(applicationId);
   if (!application) {
@@ -746,6 +793,7 @@ module.exports = {
   changePassword,
   createManagedUser,
   createApplication,
+  deleteDraftApplication,
   getCurrentUser,
   login,
   registerBusinessOwner,

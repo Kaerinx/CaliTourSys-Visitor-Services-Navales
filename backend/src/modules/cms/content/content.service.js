@@ -91,7 +91,14 @@ async function listEvents(filters) {
 }
 
 async function createEvent(data, req) {
-  const event = await repository.createEvent(data, req.user.id)
+  const [image] = uploadedAssetImages(req)
+  const event = await repository.createEvent(
+    {
+      ...data,
+      ...(image?.imageUrl ? { primaryImageUrl: image.imageUrl } : {}),
+    },
+    req.user.id,
+  )
   await logCmsContentAudit({
     req,
     action: 'create',
@@ -110,7 +117,15 @@ async function getEvent(id) {
 }
 
 async function updateEvent(id, data, req) {
-  const result = await repository.updateEvent(id, data, req.user.id)
+  const [image] = uploadedAssetImages(req)
+  const result = await repository.updateEvent(
+    id,
+    {
+      ...data,
+      ...(image?.imageUrl ? { primaryImageUrl: image.imageUrl } : {}),
+    },
+    req.user.id,
+  )
   await logCmsContentAudit({
     req,
     action: 'update',

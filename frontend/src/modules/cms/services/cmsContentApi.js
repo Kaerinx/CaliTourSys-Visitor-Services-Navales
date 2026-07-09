@@ -1,5 +1,18 @@
 import { http } from '@/services/http'
 
+function eventToFormData(payload) {
+  if (!payload?.imageFile) return payload
+
+  const formData = new FormData()
+  Object.entries(payload).forEach(([key, value]) => {
+    if (key === 'imageFile') return
+    if (value === undefined || value === null) return
+    formData.set(key, Array.isArray(value) ? JSON.stringify(value) : value)
+  })
+  formData.set('image', payload.imageFile)
+  return formData
+}
+
 export const cmsContentApi = {
   getPromotions(params) {
     return http.getAuth('/cms/promotions', params)
@@ -27,10 +40,10 @@ export const cmsContentApi = {
     return http.getAuth(`/cms/events/${id}`)
   },
   createEvent(payload) {
-    return http.postAuth('/cms/events', payload)
+    return http.postAuth('/cms/events', eventToFormData(payload))
   },
   updateEvent(id, payload) {
-    return http.patchAuth(`/cms/events/${id}`, payload)
+    return http.patchAuth(`/cms/events/${id}`, eventToFormData(payload))
   },
   publishEvent(id) {
     return http.patchAuth(`/cms/events/${id}/publish`, {})

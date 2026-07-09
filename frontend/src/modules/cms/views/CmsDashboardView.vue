@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { isAuthFailureError } from '@/services/http'
+import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
 import CmsIcon from '../components/CmsIcon.vue'
 import CmsQuickActionCard from '../components/CmsQuickActionCard.vue'
 import CmsRecentActivity from '../components/CmsRecentActivity.vue'
@@ -217,7 +218,7 @@ function formatLastUpdated(value) {
         <div class="cms-dashboard__overview-metrics">
           <span><strong>{{ dashboard?.totalBusinesses || 0 }}</strong> businesses</span>
           <span><strong>{{ dashboard?.activeBusinesses || 0 }}</strong> active</span>
-          <span><strong>{{ dashboard?.totalMuseumArtifacts || 0 }}</strong> artifacts</span>
+          <span v-if="SHOW_MUSEUM_MODULE"><strong>{{ dashboard?.totalMuseumArtifacts || 0 }}</strong> artifacts</span>
           <span><strong>{{ dashboard?.newsletterSubscribers || 0 }}</strong> visitor subscribers</span>
         </div>
       </section>

@@ -1,5 +1,6 @@
 const service = require('./public.service')
 const validators = require('./public.validators')
+const { uploadedPaymentProof } = require('./paymentProofUploads')
 const { successResponse, paginatedResponse } = require('../../utils/apiResponse')
 const {
   setMapCache,
@@ -122,6 +123,46 @@ async function createInquiry(req, res, next) {
   }
 }
 
+async function createPackageBookingRequest(req, res, next) {
+  try {
+    const body = parse(validators.createPackageBookingRequestBodySchema, req.body || {})
+    setNoStore(res)
+    return successResponse(
+      req,
+      res,
+      await service.createPackageBookingRequest(body, { touristAccountId: req.tourist?.id || null }),
+      201,
+    )
+  } catch (error) {
+    return next(error)
+  }
+}
+
+async function lookupPackageBookingRequest(req, res, next) {
+  try {
+    const body = parse(validators.lookupPackageBookingRequestBodySchema, req.body || {})
+    setNoStore(res)
+    return successResponse(req, res, await service.lookupPackageBookingRequest(body))
+  } catch (error) {
+    return next(error)
+  }
+}
+
+async function uploadPackageBookingPaymentProof(req, res, next) {
+  try {
+    const { requestId } = parse(validators.packageBookingRequestParamsSchema, req.params)
+    const proof = uploadedPaymentProof(req)
+    setNoStore(res)
+    return successResponse(
+      req,
+      res,
+      await service.uploadPackageBookingPaymentProof(requestId, proof, req.body || {}),
+    )
+  } catch (error) {
+    return next(error)
+  }
+}
+
 async function createNewsletterSubscription(req, res, next) {
   try {
     const body = parse(validators.createNewsletterSubscriptionBodySchema, req.body || {})
@@ -145,6 +186,9 @@ module.exports = {
   getProductBySlug: detailHandler(service.getProductBySlug),
   listPackages: paginatedHandler(validators.packageListQuerySchema, service.listPackages, setNoStore),
   getPackageBySlug: detailHandler(service.getPackageBySlug, setNoStore),
+  createPackageBookingRequest,
+  lookupPackageBookingRequest,
+  uploadPackageBookingPaymentProof,
   listTourismAssets: paginatedHandler(validators.tourismAssetListQuerySchema, service.listTourismAssets),
   listProductCategories: categoryHandler(service.listProductCategories),
   listAccreditedBusinesses: paginatedHandler(

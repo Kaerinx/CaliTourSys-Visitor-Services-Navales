@@ -10,6 +10,11 @@ const promotionRoutes = [
     redirect: '/',
   },
   {
+    path: '/login',
+    name: 'unified-login',
+    component: () => import('./views/UnifiedLoginPortalView.vue'),
+  },
+  {
     path: '/events',
     name: 'promotion-events',
     component: () => import('./views/EventsPromotions.vue'),
@@ -43,14 +48,87 @@ const promotionRoutes = [
     component: () => import('./views/PackagePromotionView.vue'),
   },
   {
+    path: '/packages/:slug/booking-info',
+    name: 'promotion-package-booking-info',
+    component: () => import('./views/PackageBookingInfoView.vue'),
+    props: true,
+    meta: { touristRequiresAuth: true },
+  },
+  {
+    path: '/packages/:slug/payment',
+    name: 'promotion-package-booking-payment',
+    component: () => import('./views/PackageBookingPaymentView.vue'),
+    props: true,
+    meta: { touristRequiresAuth: true },
+  },
+  {
     path: '/packages/:slug',
     name: 'promotion-package-detail',
     component: () => import('./views/PackageDetailView.vue'),
     props: true,
   },
   {
+    path: '/package-booking-status',
+    name: 'promotion-package-booking-status',
+    component: () => import('./views/PackageBookingLookupView.vue'),
+  },
+  {
+    path: '/tourist/login',
+    name: 'tourist-login',
+    redirect: (to) => ({
+      path: '/login',
+      query: {
+        ...to.query,
+        as: 'tourist',
+      },
+    }),
+  },
+  {
+    path: '/tourist/register',
+    name: 'tourist-register',
+    redirect: (to) => ({
+      path: '/login',
+      query: {
+        ...to.query,
+        as: 'tourist',
+        mode: 'register',
+      },
+    }),
+  },
+  {
+    path: '/tourist/dashboard',
+    name: 'tourist-dashboard',
+    component: () => import('./views/TouristDashboardView.vue'),
+    meta: { touristRequiresAuth: true },
+  },
+  {
+    path: '/tourist/bookings/:requestId',
+    name: 'tourist-booking-detail',
+    component: () => import('./views/TouristBookingDetailView.vue'),
+    props: true,
+    meta: { touristRequiresAuth: true },
+  },
+  {
     path: '/promotion/packages',
     redirect: '/packages',
+  },
+  {
+    path: '/promotion/packages/:slug/booking-info',
+    redirect: (to) => ({
+      path: `/packages/${to.params.slug}/booking-info`,
+      query: to.query,
+    }),
+  },
+  {
+    path: '/promotion/packages/:slug/payment',
+    redirect: (to) => ({
+      path: `/packages/${to.params.slug}/payment`,
+      query: to.query,
+    }),
+  },
+  {
+    path: '/promotion/package-booking-status',
+    redirect: '/package-booking-status',
   },
   {
     path: '/promotion/packages/:slug',

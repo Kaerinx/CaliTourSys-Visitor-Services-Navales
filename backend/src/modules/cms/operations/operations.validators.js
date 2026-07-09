@@ -11,6 +11,8 @@ const pageLimit = {
 
 const mediaStatusSchema = z.enum(['active', 'archived'])
 const inquiryStatusSchema = z.enum(['new', 'read', 'responded', 'archived'])
+const packageBookingStatusSchema = z.enum(['pending', 'reviewed', 'approved', 'declined', 'cancelled'])
+const packagePaymentStatusSchema = z.enum(['unpaid', 'proof_submitted', 'verified', 'rejected', 'not_required', 'pending_inquiry'])
 const inquiryResponseStatusSchema = z.enum(['draft', 'sent'])
 const subscriptionStatusSchema = z.enum(['subscribed', 'unsubscribed', 'bounced'])
 const userStatusSchema = z.enum(['active', 'inactive', 'locked', 'pending'])
@@ -44,6 +46,7 @@ const cmsEntityTypeSchema = z.enum([
   'user',
   'role',
   'permission',
+  'package_booking_request',
 ])
 
 const sortSchema = z
@@ -66,6 +69,16 @@ const inquiryListQuerySchema = z.object({
   from: z.string().datetime({ offset: true }).optional(),
   to: z.string().datetime({ offset: true }).optional(),
   sort: sortSchema,
+})
+
+const packageBookingRequestListQuerySchema = z.object({
+  ...pageLimit,
+  search: z.string().trim().max(120).optional(),
+  bookingStatus: packageBookingStatusSchema.optional(),
+  paymentStatus: packagePaymentStatusSchema.optional(),
+  from: z.string().datetime({ offset: true }).optional(),
+  to: z.string().datetime({ offset: true }).optional(),
+  sort: z.enum(['createdAt', '-createdAt', 'preferredDate', '-preferredDate', 'packageName', '-packageName']).default('-createdAt'),
 })
 
 const newsletterListQuerySchema = z.object({
@@ -124,6 +137,28 @@ const inquiryResponseBodySchema = z
   })
   .strict()
 
+const packageBookingStatusBodySchema = z
+  .object({
+    status: packageBookingStatusSchema,
+    reason: z.string().trim().max(2000).optional(),
+    notes: z.string().trim().max(5000).optional(),
+  })
+  .strict()
+
+const packageBookingNotesBodySchema = z
+  .object({
+    bookingReviewNotes: z.string().trim().max(5000).optional().nullable(),
+    paymentNotes: z.string().trim().max(5000).optional().nullable(),
+  })
+  .strict()
+
+const packageBookingPaymentRejectBodySchema = z
+  .object({
+    reason: z.string().trim().min(1).max(2000),
+    notes: z.string().trim().max(5000).optional(),
+  })
+  .strict()
+
 const newsletterStatusBodySchema = z
   .object({
     status: subscriptionStatusSchema,
@@ -152,6 +187,10 @@ module.exports = {
   mediaPatchSchema: mediaBaseSchema.partial(),
   newsletterListQuerySchema,
   newsletterStatusBodySchema,
+  packageBookingNotesBodySchema,
+  packageBookingPaymentRejectBodySchema,
+  packageBookingRequestListQuerySchema,
+  packageBookingStatusBodySchema,
   userListQuerySchema,
   userRolesBodySchema,
   userStatusBodySchema,

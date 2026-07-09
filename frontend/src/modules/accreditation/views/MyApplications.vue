@@ -59,7 +59,20 @@
                 <span v-if="app.status === 'for_revision'">Needs your action</span>
               </div>
             </td>
-            <td><button class="btn ghost" @click="openApplication(app)">View Details</button></td>
+            <td>
+              <div class="application-actions">
+                <button class="btn ghost" type="button" @click="openApplication(app)">View Details</button>
+                <button
+                  v-if="app.status === 'draft'"
+                  class="btn danger"
+                  type="button"
+                  :disabled="deletingApplicationId === app.id"
+                  @click="deleteApplication(app)"
+                >
+                  {{ deletingApplicationId === app.id ? "Deleting..." : "Delete Draft" }}
+                </button>
+              </div>
+            </td>
           </tr>
           <tr v-if="filteredApplications.length === 0">
             <td colspan="8" class="empty-state">No applications found.</td>
@@ -142,7 +155,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Eye } from "@lucide/vue";
 import { demoApplications, getRequiredDocumentsForBusinessType } from "@/modules/accreditation/data/mockData";
-import { getApplications, openApplicationDocument } from "@/modules/accreditation/services/accreditationApi";
+import { deleteDraftApplication, getApplications, openApplicationDocument } from "@/modules/accreditation/services/accreditationApi";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -153,6 +166,7 @@ const search = ref(String(route.query.q || ""));
 const statusFilter = ref("all");
 const selectedApplication = ref(null);
 const applications = ref([]);
+const deletingApplicationId = ref("");
 
 onMounted(async () => {
   await auth.connectDemoToBackend();
@@ -278,7 +292,45 @@ async function viewDocument(doc) {
   else if (doc.id) await openApplicationDocument(doc.id);
 }
 
+async function deleteApplication(app) {
+  if (app.status !== "draft") return;
+  const confirmed = window.confirm(`Delete draft application ${app.id}? This cannot be undone.`);
+  if (!confirmed) return;
+
+  deletingApplicationId.value = app.id;
+  try {
+    if (isDemoSession()) {
+      applications.value = applications.value.filter((item) => item.id !== app.id);
+    } else {
+      await deleteDraftApplication(app.application_number || app.id);
+      applications.value = applications.value.filter(
+        (item) => item.id !== app.id && item.application_number !== app.application_number
+      );
+    }
+
+    if (selectedApplication.value?.id === app.id) {
+      closeApplication();
+    }
+  } catch (error) {
+    window.alert(error.response?.data?.message || "Unable to delete this draft application.");
+  } finally {
+    deletingApplicationId.value = "";
+  }
+}
+
 function isDemoSession() {
   return (auth.token || "").startsWith("demo-token");
 }
 </script>
+
+<style scoped>
+.application-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.application-actions .btn {
+  white-space: nowrap;
+}
+</style>

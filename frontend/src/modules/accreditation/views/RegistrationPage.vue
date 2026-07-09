@@ -12,10 +12,10 @@
         </p>
 
         <div class="registration-notice">
-          <strong>This step creates an account only.</strong>
+          <strong>Account access activates after verification.</strong>
           <p>
-            After email verification, sign in to complete and submit the accreditation
-            application and required documents.
+            Submit the business information first. After Tourism Office verification, use the
+            email verification link to activate sign-in access.
           </p>
         </div>
 
@@ -34,7 +34,7 @@
       <form class="registration-form" aria-label="Business account registration form" @submit.prevent="submit">
         <div class="registration-form__heading">
           <span>Account registration</span>
-          <h2>Business owner details</h2>
+          <h2>Business accreditation account</h2>
           <p>Required fields are marked with an asterisk (*).</p>
         </div>
 
@@ -45,12 +45,38 @@
         </div>
         <p v-if="error" class="form-message form-message--error" role="alert">{{ error }}</p>
 
-        <section class="registration-section" aria-labelledby="personal-title">
+        <section class="registration-section" aria-labelledby="structure-title">
           <div class="registration-section__heading">
             <span>1</span>
             <div>
-              <h3 id="personal-title">Personal information</h3>
-              <p>Provide the details of the owner or authorized representative.</p>
+              <h3 id="structure-title">Business type</h3>
+              <p>Select how the business is legally registered.</p>
+            </div>
+          </div>
+          <div class="business-structure-options">
+            <label
+              v-for="type in businessLegalTypes"
+              :key="type.value"
+              :class="{ selected: form.business.legalStructure === type.value }"
+            >
+              <input v-model="form.business.legalStructure" type="radio" :value="type.value" required />
+              <span>
+                <strong>{{ type.title }}</strong>
+                <small>{{ type.summary }}</small>
+              </span>
+            </label>
+          </div>
+          <div class="information-note">
+            {{ selectedLegalProfile.validation }}
+          </div>
+        </section>
+
+        <section class="registration-section" aria-labelledby="personal-title">
+          <div class="registration-section__heading">
+            <span>2</span>
+            <div>
+              <h3 id="personal-title">Applicant information</h3>
+              <p>Provide the details of the owner, partner, or authorized representative.</p>
             </div>
           </div>
           <div class="form-grid form-grid--three">
@@ -69,10 +95,10 @@
 
         <section class="registration-section" aria-labelledby="business-title">
           <div class="registration-section__heading">
-            <span>2</span>
+            <span>3</span>
             <div>
               <h3 id="business-title">Business information</h3>
-              <p>Use the registered business name and operating address.</p>
+              <p>Use the registered business name, tourism category, and operating address.</p>
             </div>
           </div>
           <label>
@@ -80,6 +106,23 @@
             <small>Use the name reflected on the business permit.</small>
             <input v-model="form.business.businessName" autocomplete="organization" required />
           </label>
+          <div class="form-grid form-grid--two">
+            <label>Tourism business category *
+              <select v-model="form.business.businessType" required>
+                <option value="" disabled>Select category</option>
+                <optgroup
+                  v-for="group in businessTypeGroups"
+                  :key="group.label"
+                  :label="group.label"
+                >
+                  <option v-for="type in group.options" :key="type" :value="type">
+                    {{ type }}
+                  </option>
+                </optgroup>
+              </select>
+            </label>
+            <label>Business permit number<input v-model="form.business.businessPermitNumber" /></label>
+          </div>
           <div class="form-grid form-grid--two">
             <label>Region *
               <input :value="calabangaLocation.region" readonly />
@@ -116,7 +159,7 @@
 
         <section class="registration-section" aria-labelledby="account-title">
           <div class="registration-section__heading">
-            <span>3</span>
+            <span>4</span>
             <div>
               <h3 id="account-title">Account information</h3>
               <p>Create the sign-in details used to manage the application.</p>
@@ -136,7 +179,7 @@
 
         <section class="registration-section" aria-labelledby="contact-title">
           <div class="registration-section__heading">
-            <span>4</span>
+            <span>5</span>
             <div>
               <h3 id="contact-title">Contact information</h3>
               <p>Provide a number the Tourism Office can use for application concerns.</p>
@@ -150,7 +193,7 @@
 
         <section class="registration-section registration-section--certification" aria-labelledby="certification-title">
           <div class="registration-section__heading">
-            <span>5</span>
+            <span>6</span>
             <div>
               <h3 id="certification-title">Certification and privacy</h3>
               <p>Confirm your authority and review the data privacy notice.</p>
@@ -185,12 +228,17 @@
 </template>
 
 <script setup>
-import { reactive, ref } from "vue";
+import { computed, reactive, ref } from "vue";
 import DataPrivacyModal from "@/modules/accreditation/components/modals/DataPrivacyModal.vue";
 import EstablishmentLocationPicker from "@/modules/accreditation/components/EstablishmentLocationPicker.vue";
 import PublicServiceFooter from "@/modules/accreditation/components/PublicServiceFooter.vue";
 import PublicServiceHeader from "@/modules/accreditation/components/PublicServiceHeader.vue";
-import { calabangaBarangays, calabangaLocation } from "@/modules/accreditation/data/mockData";
+import {
+  businessTypeGroups,
+  calabangaBarangays,
+  calabangaLocation,
+} from "@/modules/accreditation/data/mockData";
+import { businessLegalTypes } from "@/modules/accreditation/data/publicServiceContent";
 import { registerBusinessOwner } from "@/modules/accreditation/services/accreditationApi";
 
 const error = ref("");
@@ -210,6 +258,7 @@ const form = reactive({
   phone: "",
   telephone: "",
   business: {
+    legalStructure: businessLegalTypes[0]?.value || "",
     businessName: "",
     businessType: "",
     businessPermitNumber: "",
@@ -223,6 +272,10 @@ const form = reactive({
     longitude: "",
   },
 });
+
+const selectedLegalProfile = computed(
+  () => businessLegalTypes.find((type) => type.value === form.business.legalStructure) || businessLegalTypes[0],
+);
 
 function applyCalabangaLocation() {
   form.business.region = calabangaLocation.region;
@@ -254,6 +307,12 @@ async function submit() {
 
   if (!certified.value) {
     error.value = "Please certify the information before registering.";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+
+  if (!form.business.legalStructure || !form.business.businessType) {
+    error.value = "Please select the business type and tourism business category.";
     window.scrollTo({ top: 0, behavior: "smooth" });
     return;
   }
@@ -461,6 +520,55 @@ h3 {
   font-weight: 500;
 }
 
+.business-structure-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.business-structure-options label {
+  min-height: 150px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px !important;
+  padding: 16px;
+  border: 1px solid #cddbd4;
+  border-radius: 8px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.business-structure-options label.selected {
+  border-color: #176249;
+  background: #edf7f2;
+  box-shadow: inset 0 0 0 2px rgba(23, 98, 73, 0.14);
+}
+
+.business-structure-options input {
+  width: 17px;
+  height: 17px;
+  margin-top: 3px;
+  accent-color: #176249;
+}
+
+.business-structure-options strong,
+.business-structure-options small {
+  display: block;
+}
+
+.business-structure-options strong {
+  color: #173f32;
+  font-size: 14px;
+}
+
+.business-structure-options small {
+  margin-top: 6px;
+  color: #62736c;
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .registration-form input:not([type="radio"]):not([type="checkbox"]),
 .registration-form select {
   width: 100%;
@@ -655,6 +763,14 @@ h3 {
   .form-grid--two,
   .form-grid--address {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .business-structure-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .business-structure-options label {
+    min-height: auto;
   }
 
   .registration-actions {

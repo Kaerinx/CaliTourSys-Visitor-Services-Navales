@@ -540,6 +540,18 @@ async function submitApplication(id, ownerId) {
   return result.rows[0];
 }
 
+async function deleteDraftApplication(id, ownerId) {
+  const result = await db.query(
+    `DELETE FROM accreditation_applications
+     WHERE (id::text = $1 OR application_number = $1)
+       AND owner_id = $2
+       AND status = 'draft'
+     RETURNING *`,
+    [id, ownerId]
+  );
+  return result.rows[0];
+}
+
 async function addApplicationDocument(applicationId, document) {
   const result = await db.query(
     `INSERT INTO application_documents (
@@ -900,6 +912,7 @@ module.exports = {
   createBusinessOwnerWithProfile,
   createNotification,
   createUser,
+  deleteDraftApplication,
   findUserByEmail,
   findUserById,
   findUserByVerificationToken,

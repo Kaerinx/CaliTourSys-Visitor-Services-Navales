@@ -4,6 +4,7 @@ import PromotionFooter from '../components/PromotionFooter.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
+  getEventCategories,
   getEvents,
   loadItinerary,
   removeFromItinerary,
@@ -17,9 +18,12 @@ const route = useRoute()
 const router = useRouter()
 
 const events = ref([])
+const eventCategories = ref([])
+const activePeriod = ref('upcoming')
+const activeCategory = ref('all')
 
-const featuredEvent = computed(() => events.value[0] || null)
-const eventCards = computed(() => events.value.slice(1))
+const featuredEvent = computed(() => (activePeriod.value === 'upcoming' ? events.value[0] || null : null))
+const eventCards = computed(() => (featuredEvent.value ? events.value.slice(1) : events.value))
 const viewMode = ref('list')
 const selectedEvent = ref(null)
 const savedEventIds = ref(new Set())
@@ -30,8 +34,17 @@ const errorMessage = ref('')
 const isVisitorAuthenticated = ref(hasVisitorSession())
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const calendarFocusDate = computed(() => {
+  const firstEventDate = events.value.find((event) => event.startsAt)?.startsAt
+  const date = firstEventDate ? new Date(firstEventDate) : new Date()
+  return Number.isNaN(date.getTime()) ? new Date() : date
+})
+const calendarTitle = computed(() =>
+  new Intl.DateTimeFormat('en-PH', { month: 'long', year: 'numeric' }).format(calendarFocusDate.value),
+)
 const calendarEvents = computed(() =>
   events.value.map((event) => ({
+    id: event.id,
     day: Number(event.day),
     title: event.title,
     highlighted: Boolean(event.featured),
@@ -39,12 +52,16 @@ const calendarEvents = computed(() =>
 )
 
 const calendarCells = computed(() => {
-  const leadingCells = Array.from({ length: 5 }, (_, index) => ({
+  const year = calendarFocusDate.value.getFullYear()
+  const month = calendarFocusDate.value.getMonth()
+  const firstDay = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const leadingCells = Array.from({ length: firstDay }, (_, index) => ({
     key: `blank-${index}`,
     blank: true,
   }))
 
-  const dayCells = Array.from({ length: 30 }, (_, index) => {
+  const dayCells = Array.from({ length: daysInMonth }, (_, index) => {
     const day = index + 1
     const event = calendarEvents.value.find((item) => item.day === day)
 
@@ -61,7 +78,7 @@ const calendarCells = computed(() => {
 function openCalendarEvent(cell) {
   if (!cell.event) return
 
-  const event = events.value.find((item) => item.title === cell.event.title)
+  const event = events.value.find((item) => item.id === cell.event.id)
   if (event) selectedEvent.value = event
 }
 
@@ -70,13 +87,35 @@ async function loadEvents() {
   errorMessage.value = ''
 
   try {
-    events.value = await getEvents({ limit: 12, sort: 'startsAt' })
+    const params = {
+      limit: activePeriod.value === 'past' ? 24 : 12,
+      sort: activePeriod.value === 'past' ? '-startsAt' : 'startsAt',
+      period: activePeriod.value,
+    }
+    if (activeCategory.value !== 'all') params.category = activeCategory.value
+    events.value = await getEvents(params)
     await refreshSavedEvents()
   } catch (error) {
     errorMessage.value = error.message || 'Unable to load public events.'
   } finally {
     isLoading.value = false
   }
+}
+
+async function loadEventCategories() {
+  eventCategories.value = await getEventCategories()
+}
+
+async function selectPeriod(period) {
+  if (activePeriod.value === period) return
+  activePeriod.value = period
+  await loadEvents()
+}
+
+async function selectCategory(category) {
+  if (activeCategory.value === category) return
+  activeCategory.value = category
+  await loadEvents()
 }
 
 async function toggleEventItinerary(event) {
@@ -169,7 +208,7 @@ async function shareEvent(event) {
 }
 
 onMounted(() => {
-  loadEvents()
+  Promise.all([loadEventCategories(), loadEvents()])
   window.addEventListener('calitoursys:visitor-authenticated', resumePendingSave)
 })
 
@@ -222,97 +261,139 @@ onBeforeUnmount(() => {
 
       <section class="events-content">
         <div class="page-shell">
+          <div class="event-filters" aria-label="Event filters">
+            <div class="period-tabs">
+              <button
+                type="button"
+                :class="{ 'period-tabs__active': activePeriod === 'upcoming' }"
+                @click="selectPeriod('upcoming')"
+              >
+                Upcoming Events
+              </button>
+              <button
+                type="button"
+                :class="{ 'period-tabs__active': activePeriod === 'past' }"
+                @click="selectPeriod('past')"
+              >
+                Past Events
+              </button>
+            </div>
+
+            <div class="category-tabs" aria-label="Event categories">
+              <button
+                type="button"
+                :class="{ 'category-tabs__active': activeCategory === 'all' }"
+                @click="selectCategory('all')"
+              >
+                All
+              </button>
+              <button
+                v-for="category in eventCategories"
+                :key="category.slug"
+                type="button"
+                :class="{ 'category-tabs__active': activeCategory === category.slug }"
+                @click="selectCategory(category.slug)"
+              >
+                {{ category.name }}
+              </button>
+            </div>
+          </div>
+
           <div v-if="isLoading" class="event-state">Loading public events...</div>
           <div v-else-if="errorMessage" class="event-state">{{ errorMessage }}</div>
           <div v-else-if="events.length === 0" class="event-state">
-            No public events are available yet.
+            No {{ activePeriod }} public events are available yet.
           </div>
 
-          <article
-            v-else
-            class="featured-event"
-            :style="{ '--event-accent': featuredEvent.accent }"
-          >
-            <div class="featured-event__copy">
-              <span class="featured-badge"><i></i>Featured</span>
-              <h2>{{ featuredEvent.title }}</h2>
-              <p class="featured-event__meta">
-                <span>{{ featuredEvent.date }}</span>
-                <span>&middot;</span>
-                <span>
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 21s7-6.3 7-12A7 7 0 0 0 5 9c0 5.7 7 12 7 12Z" />
-                    <circle cx="12" cy="9" r="2.3" />
-                  </svg>
-                  {{ featuredEvent.location }}
-                </span>
-              </p>
-              <p class="featured-event__desc">{{ featuredEvent.desc }}</p>
-              <div class="featured-event__actions">
+          <template v-else>
+            <article
+              v-if="featuredEvent"
+              class="featured-event"
+              :style="{
+                '--event-accent': featuredEvent.accent,
+                '--event-image': featuredEvent.imageUrl ? `url(${featuredEvent.imageUrl})` : 'none',
+              }"
+            >
+              <div class="featured-event__copy">
+                <span class="featured-badge"><i></i>Featured</span>
+                <h2>{{ featuredEvent.title }}</h2>
+                <p class="featured-event__meta">
+                  <span>{{ featuredEvent.date }}</span>
+                  <span>&middot;</span>
+                  <span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 21s7-6.3 7-12A7 7 0 0 0 5 9c0 5.7 7 12 7 12Z" />
+                      <circle cx="12" cy="9" r="2.3" />
+                    </svg>
+                    {{ featuredEvent.location }}
+                  </span>
+                </p>
+                <p class="featured-event__desc">{{ featuredEvent.desc }}</p>
+                <div class="featured-event__actions">
+                  <button
+                    class="button button--white"
+                    type="button"
+                    @click="selectedEvent = featuredEvent"
+                  >
+                    View event details
+                  </button>
+                  <button
+                    class="button button--ghost-white"
+                    type="button"
+                    :disabled="isSaving"
+                    @click="toggleEventItinerary(featuredEvent)"
+                  >
+                    {{ savedEventIds.has(featuredEvent.id) ? 'Saved' : 'Add to itinerary' }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="featured-date">
+                <span>{{ featuredEvent.month }}</span>
+                <strong>{{ featuredEvent.day }}</strong>
+                <small>{{ featuredEvent.year }}</small>
+              </div>
+            </article>
+
+            <section
+              v-if="viewMode === 'calendar'"
+              class="calendar-panel"
+              :aria-label="`${calendarTitle} events calendar`"
+            >
+              <header class="calendar-panel__header">
+                <h2>{{ calendarTitle }}</h2>
+                <div class="calendar-panel__nav" aria-label="Calendar navigation">
+                  <button type="button" aria-label="Previous month">&lsaquo;</button>
+                  <button type="button" aria-label="Next month">&rsaquo;</button>
+                </div>
+              </header>
+
+              <div class="calendar-weekdays" aria-hidden="true">
+                <span v-for="weekday in weekdays" :key="weekday">{{ weekday }}</span>
+              </div>
+
+              <div class="calendar-grid">
                 <button
-                  class="button button--white"
+                  v-for="cell in calendarCells"
+                  :key="cell.key"
+                  class="calendar-cell"
+                  :class="{
+                    'calendar-cell--blank': cell.blank,
+                    'calendar-cell--event': cell.event,
+                    'calendar-cell--highlight': cell.event?.highlighted,
+                  }"
                   type="button"
-                  @click="selectedEvent = featuredEvent"
+                  :disabled="cell.blank"
+                  @click="openCalendarEvent(cell)"
                 >
-                  View event details
-                </button>
-                <button
-                  class="button button--ghost-white"
-                  type="button"
-                  :disabled="isSaving"
-                  @click="toggleEventItinerary(featuredEvent)"
-                >
-                  {{ savedEventIds.has(featuredEvent.id) ? 'Saved' : 'Add to itinerary' }}
+                  <span v-if="!cell.blank" class="calendar-cell__day">{{ cell.day }}</span>
+                  <strong v-if="cell.event">{{ cell.event.title }}</strong>
                 </button>
               </div>
-            </div>
+            </section>
 
-            <div class="featured-date">
-              <span>{{ featuredEvent.month }}</span>
-              <strong>{{ featuredEvent.day }}</strong>
-              <small>2026</small>
-            </div>
-          </article>
-
-          <section
-            v-if="viewMode === 'calendar'"
-            class="calendar-panel"
-            aria-label="May 2026 events calendar"
-          >
-            <header class="calendar-panel__header">
-              <h2>May 2026</h2>
-              <div class="calendar-panel__nav" aria-label="Calendar navigation">
-                <button type="button" aria-label="Previous month">&lsaquo;</button>
-                <button type="button" aria-label="Next month">&rsaquo;</button>
-              </div>
-            </header>
-
-            <div class="calendar-weekdays" aria-hidden="true">
-              <span v-for="weekday in weekdays" :key="weekday">{{ weekday }}</span>
-            </div>
-
-            <div class="calendar-grid">
-              <button
-                v-for="cell in calendarCells"
-                :key="cell.key"
-                class="calendar-cell"
-                :class="{
-                  'calendar-cell--blank': cell.blank,
-                  'calendar-cell--event': cell.event,
-                  'calendar-cell--highlight': cell.event?.highlighted,
-                }"
-                type="button"
-                :disabled="cell.blank"
-                @click="openCalendarEvent(cell)"
-              >
-                <span v-if="!cell.blank" class="calendar-cell__day">{{ cell.day }}</span>
-                <strong v-if="cell.event">{{ cell.event.title }}</strong>
-              </button>
-            </div>
-          </section>
-
-          <div v-else class="event-grid">
-            <article v-for="event in eventCards" :key="event.id" class="event-card">
+            <div v-else class="event-grid">
+              <article v-for="event in eventCards" :key="event.id" class="event-card">
               <div
                 class="event-card__image"
                 :style="{
@@ -326,7 +407,11 @@ onBeforeUnmount(() => {
                 </span>
               </div>
               <div class="event-card__body">
-                <span class="category-badge">{{ event.category }}</span>
+                <span class="event-category-list">
+                  <span v-for="category in event.categories" :key="category" class="category-badge">
+                    {{ category }}
+                  </span>
+                </span>
                 <h3>{{ event.title }}</h3>
                 <p class="event-location">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -344,15 +429,22 @@ onBeforeUnmount(() => {
                   <button type="button" @click="shareEvent(event)">Share</button>
                 </div>
               </div>
-            </article>
-          </div>
+              </article>
+            </div>
+          </template>
         </div>
       </section>
     </main>
 
     <div v-if="selectedEvent" class="event-modal" @click.self="selectedEvent = null">
       <article class="event-modal__panel">
-        <div class="event-modal__image" :style="{ '--modal-accent': selectedEvent.accent }">
+        <div
+          class="event-modal__image"
+          :style="{
+            '--modal-accent': selectedEvent.accent,
+            '--modal-image': selectedEvent.imageUrl ? `url(${selectedEvent.imageUrl})` : 'none',
+          }"
+        >
           <button type="button" aria-label="Close" @click="selectedEvent = null">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6 6 18" />
@@ -360,14 +452,18 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <div class="event-modal__body">
-          <span class="category-badge">{{ selectedEvent.category }}</span>
+          <span class="event-category-list">
+            <span v-for="category in selectedEvent.categories" :key="category" class="category-badge">
+              {{ category }}
+            </span>
+          </span>
           <h2>{{ selectedEvent.title }}</h2>
           <div class="event-modal__meta">
             <span>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M7 3v4M17 3v4M4 8h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2Z" />
               </svg>
-              {{ selectedEvent.month }} {{ selectedEvent.day }}, 2026
+              {{ selectedEvent.month }} {{ selectedEvent.day }}, {{ selectedEvent.year }}
             </span>
             <span>
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -543,6 +639,38 @@ h1 {
   background: #f2f0eb;
 }
 
+.event-filters {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.period-tabs,
+.category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.period-tabs button,
+.category-tabs button {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #e7f3ee;
+  color: #12372a;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.period-tabs__active,
+.category-tabs__active {
+  background: #1b4332 !important;
+  color: #ffffff !important;
+}
+
 .event-state {
   padding: 28px 24px;
   border: 1px solid #e8e4dc;
@@ -560,6 +688,8 @@ h1 {
   overflow: hidden;
   border-radius: 16px;
   background:
+    linear-gradient(105deg, rgba(27, 67, 50, 0.82), rgba(27, 67, 50, 0.44)),
+    var(--event-image),
     radial-gradient(circle at 74% 47%, rgba(255, 255, 255, 0.14), transparent 44%),
     linear-gradient(
       105deg,
@@ -567,6 +697,8 @@ h1 {
       color-mix(in srgb, var(--event-accent) 85%, #1b4332) 52%,
       #1b4332 100%
     );
+  background-position: center;
+  background-size: cover;
 }
 
 .featured-event__copy {
@@ -898,6 +1030,12 @@ h1 {
   font-weight: 500;
 }
 
+.event-category-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .event-card h3 {
   margin-top: 12px;
   color: #1a1a1a;
@@ -968,8 +1106,12 @@ h1 {
   height: 240px;
   overflow: hidden;
   background:
+    linear-gradient(135deg, rgba(27, 67, 50, 0.5), rgba(27, 67, 50, 0.12)),
+    var(--modal-image),
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.3), transparent 50%),
     linear-gradient(135deg, var(--modal-accent), color-mix(in srgb, var(--modal-accent) 65%, white));
+  background-position: center;
+  background-size: cover;
 }
 
 .event-modal__image button {

@@ -54,6 +54,7 @@ const columns = [
   { key: 'package', label: 'Package' },
   { key: 'category', label: 'Category' },
   { key: 'targetMarket', label: 'Target market' },
+  { key: 'pricing', label: 'Pricing' },
   { key: 'items', label: 'Items' },
   { key: 'readiness', label: 'Readiness' },
   { key: 'actions', label: 'Actions' },
@@ -88,6 +89,32 @@ const reviewReadinessIssues = computed(() =>
 )
 
 onMounted(loadPageData)
+
+function formatCurrency(value) {
+  if (value === null || value === undefined || value === '') return 'Price upon inquiry'
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    maximumFractionDigits: Number(value) % 1 === 0 ? 0 : 2,
+  }).format(Number(value))
+}
+
+function packagePricingLabel(tourismPackage) {
+  if (tourismPackage.basePrice === null || tourismPackage.basePrice === undefined) {
+    return 'Price upon inquiry'
+  }
+
+  if (tourismPackage.basePax) {
+    return `${formatCurrency(tourismPackage.basePrice)} good for ${tourismPackage.basePax} pax`
+  }
+
+  return formatCurrency(tourismPackage.basePrice)
+}
+
+function packageExtraPaxLabel(tourismPackage) {
+  if (tourismPackage.extraPaxPrice === null || tourismPackage.extraPaxPrice === undefined) return ''
+  return `${formatCurrency(tourismPackage.extraPaxPrice)} per extra person`
+}
 
 function canEditPackage(tourismPackage) {
   return (
@@ -372,6 +399,15 @@ function getReadinessIssues(packageDetail) {
             </span>
           </td>
           <td>
+            <span class="package-pricing">
+              <strong>{{ packagePricingLabel(tourismPackage) }}</strong>
+              <span v-if="packageExtraPaxLabel(tourismPackage)">
+                {{ packageExtraPaxLabel(tourismPackage) }}
+              </span>
+              <span v-if="tourismPackage.paymentRequired">Payment required</span>
+            </span>
+          </td>
+          <td>
             <span class="package-items">
               <strong>{{ tourismPackage.itemCount }} item(s)</strong>
               <span>{{ tourismPackage.planCount || 0 }} plan(s)</span>
@@ -418,6 +454,7 @@ function getReadinessIssues(packageDetail) {
           </div>
           <span>{{ tourismPackage.targetMarket }}</span>
           <span>{{ tourismPackage.estimatedDuration }}</span>
+          <span>{{ packagePricingLabel(tourismPackage) }}</span>
           <span>{{ tourismPackage.itemCount }} item(s)</span>
           <div class="cms-mobile-card__actions cms-table-actions product-table-actions">
             <button v-if="canReviewPackage(tourismPackage)" type="button" @click="openReadinessReview(tourismPackage)">
@@ -603,16 +640,23 @@ function getReadinessIssues(packageDetail) {
 }
 
 .package-market,
+.package-pricing,
 .package-items {
   display: grid;
   gap: 3px;
 }
 
 .package-market strong,
+.package-pricing span,
 .package-items span {
   color: #64748b;
   font-size: 0.8rem;
   font-weight: 800;
+}
+
+.package-pricing strong {
+  color: #0f172a;
+  font-size: 0.86rem;
 }
 
 .package-readiness {
