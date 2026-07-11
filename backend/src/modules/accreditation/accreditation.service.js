@@ -3,15 +3,177 @@ const crypto = require("crypto");
 const fs = require("fs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
+const path = require("path");
 const model = require("./accreditation.model");
 const { getJwtSecret } = require("../../config/authConfig");
 
-const REQUIRED_DOCUMENTS = ["Business Permit", "DTI/SEC Registration"];
+const COMMON_PERMIT_DOCUMENTS = [
+  "Business Permit",
+  "DTI/SEC Registration",
+  "Barangay Clearance",
+  "Zoning/Location Clearance",
+  "BIR Certificate of Registration",
+  "Fire Safety Inspection Certificate",
+  "Sanitary Permit",
+];
+const PERMIT_DOCUMENTS_BY_BUSINESS_TYPE = {
+  "Travel and Tour Agency": [
+    "DOT Travel Agency Accreditation / Application Proof",
+    "DOT Tour Operator Accreditation / Application Proof",
+    "Destination / Environmental Permit Matrix",
+  ],
+  "Travel Agency": [
+    "DOT Travel Agency Accreditation / Application Proof",
+  ],
+  "Tour Operator": [
+    "DOT Tour Operator Accreditation / Application Proof",
+    "Destination / Environmental Permit Matrix",
+  ],
+  "Online Travel Agency": [
+    "DOT Online Travel Agency Accreditation / Application Proof",
+    "Privacy Notice / Data Protection Policy",
+  ],
+  "Tourist Land Transport Operator": [
+    "DOT Tourist Transport Operator Accreditation / Application Proof",
+    "LTFRB Franchise / Certificate of Public Convenience",
+    "Vehicle OR/CR and Insurance",
+  ],
+  "Tourist Water Transport Operator": [
+    "DOT Tourist Transport Operator Accreditation / Application Proof",
+    "MARINA Registration / Safety Compliance",
+    "Philippine Coast Guard Clearance",
+    "Passenger Insurance",
+  ],
+  "Tourist Air Transport Operator": [
+    "DOT Tourist Transport Operator Accreditation / Application Proof",
+    "CAAP Operator Approval",
+    "Passenger Insurance",
+  ],
+  "Motorized Banca": [
+    "DOT Tourist Transport Operator Accreditation / Application Proof",
+    "MARINA Registration / Safety Compliance",
+    "Philippine Coast Guard Clearance",
+    "Passenger Insurance",
+  ],
+  "MICE Organizer": [
+    "DOT MICE Organizer Accreditation / Application Proof",
+  ],
+  "MICE Facility/ Venue": [
+    "DOT MICE Facility Accreditation / Application Proof",
+    "Occupancy Permit",
+  ],
+  "Adventure/ Sports and Ecotourism Facility": [
+    "DOT Adventure / Ecotourism Accreditation / Application Proof",
+    "Environmental / Protected Area Permit",
+    "Public Liability Insurance",
+  ],
+  Restaurant: [
+    "Food Establishment Permit",
+  ],
+  "Food / Local Cuisine": [
+    "Food Establishment Permit",
+    "Sanitary Permit",
+  ],
+  "Tourism Training Center": [
+    "Training Program / Instructor Credentials",
+  ],
+  "Target Shooting Range": [
+    "Range Operation Permit",
+    "Public Liability Insurance",
+  ],
+  "Department Store/ Shopping Mall/ Tourist Shop/ Specialty Shop": [
+    "Signage Permit",
+  ],
+  "Farm Tourism Camp": [
+    "DOT Farm Tourism Accreditation / Application Proof",
+    "Environmental / Protected Area Permit",
+  ],
+  "Gallery/ Museum": [
+    "Occupancy Permit",
+  ],
+  "Tourism Entertainment Complex": [
+    "Occupancy Permit",
+    "Public Liability Insurance",
+  ],
+  "Tourism Recreation Center": [
+    "Occupancy Permit",
+    "Public Liability Insurance",
+  ],
+  Zoo: [
+    "Wildlife Farm / Zoo Permit",
+    "Public Liability Insurance",
+  ],
+  "Rest Area/ Restroom": [
+    "Occupancy Permit",
+  ],
+  "Surfing Camp": [
+    "DOT Adventure / Ecotourism Accreditation / Application Proof",
+    "Public Liability Insurance",
+  ],
+  "Ambulatory Clinic": [
+    "Health Facility License / Permit",
+  ],
+  Spa: [
+    "Health and Wellness Service Permit",
+  ],
+  "Tertiary Hospital": [
+    "DOH Hospital License",
+  ],
+  Hotel: [
+    "DOT Accommodation Accreditation / Application Proof",
+    "Occupancy Permit",
+  ],
+  Resort: [
+    "DOT Accommodation Accreditation / Application Proof",
+    "Occupancy Permit",
+  ],
+  "Apartment Hotel": [
+    "DOT Accommodation Accreditation / Application Proof",
+    "Occupancy Permit",
+  ],
+  "Mabuhay Accommodation": [
+    "DOT Accommodation Accreditation / Application Proof",
+    "Occupancy Permit",
+  ],
+  Homestay: [
+    "DOT Homestay Accreditation / Application Proof",
+  ],
+};
 const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
   "application/pdf",
   "image/jpeg",
   "image/png",
 ]);
+
+function getRequiredDocumentsForBusinessType(businessType) {
+  const selectedTypes = Array.isArray(businessType)
+    ? businessType
+    : String(businessType || "")
+        .split(",")
+        .map((type) => type.trim())
+        .filter(Boolean);
+  const documents = new Set(COMMON_PERMIT_DOCUMENTS);
+
+  for (const type of selectedTypes) {
+    for (const document of PERMIT_DOCUMENTS_BY_BUSINESS_TYPE[type] || []) {
+      documents.add(document);
+    }
+  }
+
+  return Array.from(documents);
+}
+
+function normalizeDocumentLabel(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function resolveRequiredDocumentType(value, requiredDocuments) {
+  const normalized = normalizeDocumentLabel(value);
+  return requiredDocuments.find((document) => normalizeDocumentLabel(document) === normalized);
+}
 
 function publicUser(user) {
   return {
@@ -81,6 +243,8 @@ async function registerBusinessOwner(payload) {
     ["cityMunicipality", "City / Municipality"],
     ["barangay", "Barangay"],
     ["streetAddress", "Business address"],
+    ["latitude", "Establishment latitude"],
+    ["longitude", "Establishment longitude"],
   ];
 
   const missing = requiredFields
@@ -100,6 +264,21 @@ async function registerBusinessOwner(payload) {
 
   if (payload.password.length < 8) {
     const error = new Error("Password must be at least 8 characters.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const latitude = Number(business.latitude);
+  const longitude = Number(business.longitude);
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    const error = new Error("Please provide valid establishment coordinates.");
     error.statusCode = 400;
     throw error;
   }
@@ -193,21 +372,87 @@ async function createApplication(ownerId, payload) {
   return saveApplicationDraft(ownerId, payload);
 }
 
+function businessProfileFromPayload(payload, fallback = {}) {
+  return {
+    businessName: payload.businessName || fallback.business_name,
+    businessType: payload.businessType || fallback.business_type,
+    businessPermitNumber: payload.businessPermitNumber || fallback.business_permit_number,
+    dtiSecRegistrationNumber:
+      payload.dtiSecRegistrationNumber || fallback.dti_sec_registration_number,
+    region: payload.region || fallback.region,
+    province: payload.province || fallback.province,
+    cityMunicipality: payload.cityMunicipality || fallback.city_municipality,
+    barangay: payload.barangay || fallback.barangay,
+    streetAddress: payload.streetAddress || fallback.street_address,
+    zipCode: payload.zipCode || fallback.zip_code,
+    latitude: payload.latitude ?? fallback.latitude,
+    longitude: payload.longitude ?? fallback.longitude,
+  };
+}
+
+function validateApplicationBusinessProfile(profile) {
+  const required = [
+    ["businessName", "Business name"],
+    ["businessType", "Business type"],
+    ["region", "Region"],
+    ["province", "Province"],
+    ["cityMunicipality", "City / Municipality"],
+    ["barangay", "Barangay"],
+    ["streetAddress", "Business address"],
+  ];
+  const missing = required.filter(([key]) => !profile[key]).map(([, label]) => label);
+
+  if (missing.length) {
+    const error = new Error(`Please complete business details: ${missing.join(", ")}.`);
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
 async function saveApplicationDraft(ownerId, payload) {
-  const profile = await model.getBusinessProfile(ownerId);
-  if (!profile) {
+  const existingApplication = payload.applicationId
+    ? await model.getApplicationById(payload.applicationId)
+    : null;
+
+  if (payload.applicationId && !existingApplication) {
+    const error = new Error("Draft application not found or already submitted.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (existingApplication && existingApplication.owner_id !== ownerId) {
+    const error = new Error("Draft application not found or already submitted.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (existingApplication && !["draft", "for_revision"].includes(existingApplication.status)) {
+    const error = new Error("Draft application not found or already submitted.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const defaultProfile = await model.getBusinessProfile(ownerId);
+  const profile = businessProfileFromPayload(payload, existingApplication || defaultProfile || {});
+  validateApplicationBusinessProfile(profile);
+
+  const businessProfile = existingApplication
+    ? await model.updateBusinessProfileById(existingApplication.business_profile_id, ownerId, profile)
+    : await model.createBusinessProfile(ownerId, profile);
+
+  if (!businessProfile) {
     const error = new Error("Business profile is required before applying for accreditation.");
     error.statusCode = 400;
     throw error;
   }
 
   const draft = {
-    businessProfileId: profile.id,
+    businessProfileId: businessProfile.id,
     accreditationType: payload.accreditationType || "New Accreditation",
-    businessType: payload.businessType || profile.business_type,
-    businessPermitNumber: payload.businessPermitNumber || profile.business_permit_number,
+    businessType: profile.businessType,
+    businessPermitNumber: profile.businessPermitNumber,
     dtiSecRegistrationNumber:
-      payload.dtiSecRegistrationNumber || profile.dti_sec_registration_number,
+      profile.dtiSecRegistrationNumber,
     remarks: payload.remarks,
     status: "draft",
   };
@@ -249,8 +494,13 @@ async function addDocument(applicationId, file, body, userId) {
     throw error;
   }
 
-  if (!REQUIRED_DOCUMENTS.includes(body.documentType)) {
-    const error = new Error("Invalid document type.");
+  const requiredDocuments = getRequiredDocumentsForBusinessType(application.business_type);
+  const requestedDocumentType = body.documentType || body.document_type || body.type || body.name;
+  const documentType = resolveRequiredDocumentType(requestedDocumentType, requiredDocuments);
+  if (!documentType) {
+    const error = new Error(
+      `Invalid document type "${requestedDocumentType || "not provided"}" for ${application.business_type || "this business type"}.`,
+    );
     error.statusCode = 400;
     throw error;
   }
@@ -262,7 +512,7 @@ async function addDocument(applicationId, file, body, userId) {
   }
 
   return model.addApplicationDocument(application.id, {
-    documentType: body.documentType,
+    documentType,
     originalName: file.originalname,
     filePath: file.path,
     mimeType: file.mimetype,
@@ -270,6 +520,52 @@ async function addDocument(applicationId, file, body, userId) {
     fileChecksum: crypto.createHash("sha256").update(fs.readFileSync(file.path)).digest("hex"),
     uploadedBy: userId,
   });
+}
+
+async function deleteDraftApplication(ownerId, applicationId) {
+  const application = await model.getApplicationById(applicationId);
+  if (!application) {
+    const error = new Error("Draft application not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (application.owner_id !== ownerId) {
+    const error = new Error("You do not have permission to delete this application.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (application.status !== "draft") {
+    const error = new Error("Only draft applications can be deleted.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const documents = await model.listDocuments(application.id);
+  const deleted = await model.deleteDraftApplication(application.id, ownerId);
+  if (!deleted) {
+    const error = new Error("Draft application not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  await removeApplicationDocumentFiles(documents);
+  return deleted;
+}
+
+async function removeApplicationDocumentFiles(documents) {
+  const uploadsRoot = path.resolve("uploads");
+  await Promise.allSettled(
+    documents
+      .map((document) => document.file_path)
+      .filter(Boolean)
+      .map(async (filePath) => {
+        const resolvedPath = path.resolve(filePath);
+        if (!resolvedPath.startsWith(uploadsRoot)) return;
+        await fs.promises.unlink(resolvedPath);
+      })
+  );
 }
 
 async function submitApplication(ownerId, applicationId) {
@@ -294,7 +590,8 @@ async function submitApplication(ownerId, applicationId) {
 
   const documents = await model.listDocuments(application.id);
   const uploadedTypes = new Set(documents.map((document) => document.document_type));
-  const missing = REQUIRED_DOCUMENTS.filter((document) => !uploadedTypes.has(document));
+  const requiredDocuments = getRequiredDocumentsForBusinessType(application.business_type);
+  const missing = requiredDocuments.filter((document) => !uploadedTypes.has(document));
 
   if (missing.length) {
     const error = new Error(`Please upload required documents: ${missing.join(", ")}.`);
@@ -310,7 +607,7 @@ async function submitApplication(ownerId, applicationId) {
     message: `${submitted.application_number} is ready for review.`,
     type: "action_needed",
     referenceId: submitted.application_number,
-    actionPath: `/accreditation/app/review?application=${submitted.application_number}`,
+    actionPath: `/cms/businesses/review?application=${submitted.application_number}`,
     details: "A business owner submitted an accreditation application with required documents.",
   });
   return submitted;
@@ -496,6 +793,7 @@ module.exports = {
   changePassword,
   createManagedUser,
   createApplication,
+  deleteDraftApplication,
   getCurrentUser,
   login,
   registerBusinessOwner,

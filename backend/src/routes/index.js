@@ -1,6 +1,24 @@
-const router = require("express").Router();
-const accreditationRoutes = require("../modules/accreditation/accreditation.route");
+const express = require('express')
+const healthRoutes = require('./health.routes')
+const publicRoutes = require('../modules/public/public.routes')
+const authRoutes = require('../modules/auth/auth.routes')
+const touristAuthRoutes = require('../modules/touristAuth/touristAuth.routes')
+const touristRoutes = require('../modules/tourist/tourist.routes')
+const cmsRoutes = require('../modules/cms/cms.routes')
+const accreditationRoutes = require('../modules/accreditation/accreditation.route')
+const productDevelopmentRoutes = require('../modules/productDevelopment/routes')
+const visitorRoutes = require('../modules/visitor/visitor.route')
 
-router.use("/accreditation", accreditationRoutes);
+const router = express.Router()
 
-module.exports = router;
+router.use('/health', healthRoutes)
+router.use('/public', publicRoutes)
+router.use('/auth', authRoutes)
+router.use('/tourist-auth', touristAuthRoutes)
+router.use('/tourist', touristRoutes)
+router.use('/cms', cmsRoutes)
+router.use('/accreditation', accreditationRoutes)
+router.use('/visitor', visitorRoutes)
+router.use('/', productDevelopmentRoutes)
+
+module.exports = router

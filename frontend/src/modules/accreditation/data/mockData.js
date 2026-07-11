@@ -16,6 +16,7 @@ export const businessTypes = [
   "MICE Facility/ Venue",
   "Adventure/ Sports and Ecotourism Facility",
   "Restaurant",
+  "Food / Local Cuisine",
   "Tourism Training Center",
   "Target Shooting Range",
   "Department Store/ Shopping Mall/ Tourist Shop/ Specialty Shop",
@@ -72,6 +73,7 @@ export const businessTypeGroups = [
     label: "Tourism-related Enterprises",
     options: [
       "Restaurant",
+      "Food / Local Cuisine",
       "Tourism Training Center",
       "Target Shooting Range",
       "Department Store/ Shopping Mall/ Tourist Shop/ Specialty Shop",
@@ -90,10 +92,159 @@ export const businessTypeGroups = [
   },
 ];
 
-export const requiredDocuments = [
+export const commonPermitDocuments = [
   "Business Permit",
   "DTI/SEC Registration",
+  "Barangay Clearance",
+  "Zoning/Location Clearance",
+  "BIR Certificate of Registration",
+  "Fire Safety Inspection Certificate",
+  "Sanitary Permit",
 ];
+
+export const permitDocumentsByBusinessType = {
+  "Travel and Tour Agency": [
+    "DOT Travel Agency Accreditation / Application Proof",
+    "DOT Tour Operator Accreditation / Application Proof",
+    "Destination / Environmental Permit Matrix",
+  ],
+  "Travel Agency": [
+    "DOT Travel Agency Accreditation / Application Proof",
+  ],
+  "Tour Operator": [
+    "DOT Tour Operator Accreditation / Application Proof",
+    "Destination / Environmental Permit Matrix",
+  ],
+  "Online Travel Agency": [
+    "DOT Online Travel Agency Accreditation / Application Proof",
+    "Privacy Notice / Data Protection Policy",
+  ],
+  "Tourist Land Transport Operator": [
+    "DOT Tourist Transport Operator Accreditation / Application Proof",
+    "LTFRB Franchise / Certificate of Public Convenience",
+    "Vehicle OR/CR and Insurance",
+  ],
+  "Tourist Water Transport Operator": [
+    "DOT Tourist Transport Operator Accreditation / Application Proof",
+    "MARINA Registration / Safety Compliance",
+    "Philippine Coast Guard Clearance",
+    "Passenger Insurance",
+  ],
+  "Tourist Air Transport Operator": [
+    "DOT Tourist Transport Operator Accreditation / Application Proof",
+    "CAAP Operator Approval",
+    "Passenger Insurance",
+  ],
+  "Motorized Banca": [
+    "DOT Tourist Transport Operator Accreditation / Application Proof",
+    "MARINA Registration / Safety Compliance",
+    "Philippine Coast Guard Clearance",
+    "Passenger Insurance",
+  ],
+  "MICE Organizer": [
+    "DOT MICE Organizer Accreditation / Application Proof",
+  ],
+  "MICE Facility/ Venue": [
+    "DOT MICE Facility Accreditation / Application Proof",
+    "Occupancy Permit",
+  ],
+  "Adventure/ Sports and Ecotourism Facility": [
+    "DOT Adventure / Ecotourism Accreditation / Application Proof",
+    "Environmental / Protected Area Permit",
+    "Public Liability Insurance",
+  ],
+  Restaurant: [
+    "Food Establishment Permit",
+  ],
+  "Food / Local Cuisine": [
+    "Food Establishment Permit",
+    "Sanitary Permit",
+  ],
+  "Tourism Training Center": [
+    "Training Program / Instructor Credentials",
+  ],
+  "Target Shooting Range": [
+    "Range Operation Permit",
+    "Public Liability Insurance",
+  ],
+  "Department Store/ Shopping Mall/ Tourist Shop/ Specialty Shop": [
+    "Signage Permit",
+  ],
+  "Farm Tourism Camp": [
+    "DOT Farm Tourism Accreditation / Application Proof",
+    "Environmental / Protected Area Permit",
+  ],
+  "Gallery/ Museum": [
+    "Occupancy Permit",
+  ],
+  "Tourism Entertainment Complex": [
+    "Occupancy Permit",
+    "Public Liability Insurance",
+  ],
+  "Tourism Recreation Center": [
+    "Occupancy Permit",
+    "Public Liability Insurance",
+  ],
+  Zoo: [
+    "Wildlife Farm / Zoo Permit",
+    "Public Liability Insurance",
+  ],
+  "Rest Area/ Restroom": [
+    "Occupancy Permit",
+  ],
+  "Surfing Camp": [
+    "DOT Adventure / Ecotourism Accreditation / Application Proof",
+    "Public Liability Insurance",
+  ],
+  "Ambulatory Clinic": [
+    "Health Facility License / Permit",
+  ],
+  Spa: [
+    "Health and Wellness Service Permit",
+  ],
+  "Tertiary Hospital": [
+    "DOH Hospital License",
+  ],
+  Hotel: [
+    "DOT Accommodation Accreditation / Application Proof",
+    "Occupancy Permit",
+  ],
+  Resort: [
+    "DOT Accommodation Accreditation / Application Proof",
+    "Occupancy Permit",
+  ],
+  "Apartment Hotel": [
+    "DOT Accommodation Accreditation / Application Proof",
+    "Occupancy Permit",
+  ],
+  "Mabuhay Accommodation": [
+    "DOT Accommodation Accreditation / Application Proof",
+    "Occupancy Permit",
+  ],
+  Homestay: [
+    "DOT Homestay Accreditation / Application Proof",
+  ],
+};
+
+export function getRequiredDocumentsForBusinessType(businessType) {
+  const selectedTypes = Array.isArray(businessType)
+    ? businessType
+    : String(businessType || "")
+        .split(",")
+        .map((type) => type.trim())
+        .filter(Boolean);
+  const documents = new Set(commonPermitDocuments);
+
+  for (const type of selectedTypes) {
+    for (const document of permitDocumentsByBusinessType[type] || []) {
+      documents.add(document);
+    }
+  }
+
+  return Array.from(documents);
+}
+
+export const requiredDocuments = getRequiredDocumentsForBusinessType("");
 
 const defaultBarangays = ["Poblacion", "San Isidro", "San Jose", "Santa Cruz"];
 
@@ -320,6 +471,25 @@ export const philippineLocations = [
     ],
   },
 ];
+
+export const calabangaLocation = {
+  region: "Region V - Bicol Region",
+  province: "Camarines Sur",
+  cityMunicipality: "Calabanga",
+  zipCode: "4405",
+};
+
+const bicolRegion = philippineLocations.find(
+  (location) => location.name === calabangaLocation.region
+);
+const camarinesSur = bicolRegion?.provinces.find(
+  (location) => location.name === calabangaLocation.province
+);
+const calabangaCity = camarinesSur?.cities.find(
+  (location) => location.name === calabangaLocation.cityMunicipality
+);
+
+export const calabangaBarangays = calabangaCity?.barangays || [];
 
 export const demoApplications = [
   {

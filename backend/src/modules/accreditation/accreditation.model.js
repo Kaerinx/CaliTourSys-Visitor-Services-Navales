@@ -32,14 +32,22 @@ function auditEventNumber() {
   return `AUD-${new Date().getFullYear()}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
+function coordinate(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 async function createUser(user) {
+  const displayName = `${user.firstName} ${user.lastName}`.trim();
   const result = await db.query(
     `INSERT INTO users (
-      first_name, middle_name, last_name, sex, email, password_hash, phone,
+      display_name, first_name, middle_name, last_name, sex, email, password_hash, phone,
       telephone, role, status, verification_token
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
     RETURNING id, first_name, middle_name, last_name, sex, email, phone, telephone, role, status, created_at`,
     [
+      displayName,
       user.firstName,
       user.middleName || null,
       user.lastName,
@@ -62,13 +70,15 @@ async function createBusinessOwnerWithProfile(user, profile) {
 
   try {
     await client.query("BEGIN");
+    const displayName = `${user.firstName} ${user.lastName}`.trim();
     const userResult = await client.query(
       `INSERT INTO users (
-        first_name, middle_name, last_name, sex, email, password_hash, phone,
+        display_name, first_name, middle_name, last_name, sex, email, password_hash, phone,
         telephone, role, status, verification_token
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       RETURNING id, first_name, middle_name, last_name, sex, email, phone, telephone, role, status, created_at`,
       [
+        displayName,
         user.firstName,
         user.middleName || null,
         user.lastName,
@@ -89,8 +99,8 @@ async function createBusinessOwnerWithProfile(user, profile) {
       `INSERT INTO business_profiles (
         owner_id, business_name, business_type, business_permit_number,
         dti_sec_registration_number, region, province, city_municipality,
-        barangay, street_address, zip_code
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        barangay, street_address, zip_code, latitude, longitude
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
         createdUser.id,
         profile.businessName,
@@ -103,6 +113,8 @@ async function createBusinessOwnerWithProfile(user, profile) {
         profile.barangay,
         profile.streetAddress,
         profile.zipCode || null,
+        coordinate(profile.latitude),
+        coordinate(profile.longitude),
       ]
     );
 
@@ -189,8 +201,8 @@ async function createBusinessProfile(ownerId, profile) {
     `INSERT INTO business_profiles (
       owner_id, business_name, business_type, business_permit_number,
       dti_sec_registration_number, region, province, city_municipality,
-      barangay, street_address, zip_code
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      barangay, street_address, zip_code, latitude, longitude
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
     RETURNING *`,
     [
       ownerId,
@@ -204,6 +216,8 @@ async function createBusinessProfile(ownerId, profile) {
       profile.barangay,
       profile.streetAddress,
       profile.zipCode || null,
+      coordinate(profile.latitude),
+      coordinate(profile.longitude),
     ]
   );
   return result.rows[0];
@@ -235,6 +249,8 @@ async function updateBusinessProfile(ownerId, profile) {
        barangay = $9,
        street_address = $10,
        zip_code = $11,
+       latitude = $12,
+       longitude = $13,
        updated_at = NOW()
      WHERE id = (
        SELECT id FROM business_profiles
@@ -255,6 +271,8 @@ async function updateBusinessProfile(ownerId, profile) {
       profile.barangay,
       profile.streetAddress,
       profile.zipCode || null,
+      coordinate(profile.latitude),
+      coordinate(profile.longitude),
     ]
   );
 
@@ -264,6 +282,46 @@ async function updateBusinessProfile(ownerId, profile) {
       profile.phone || null,
     ]);
   }
+
+  return result.rows[0];
+}
+
+async function updateBusinessProfileById(id, ownerId, profile) {
+  const result = await db.query(
+    `UPDATE business_profiles
+     SET business_name = $3,
+       business_type = $4,
+       business_permit_number = $5,
+       dti_sec_registration_number = $6,
+       region = $7,
+       province = $8,
+       city_municipality = $9,
+       barangay = $10,
+       street_address = $11,
+       zip_code = $12,
+       latitude = $13,
+       longitude = $14,
+       updated_at = NOW()
+     WHERE id = $1
+       AND owner_id = $2
+     RETURNING *`,
+    [
+      id,
+      ownerId,
+      profile.businessName,
+      profile.businessType || null,
+      profile.businessPermitNumber || null,
+      profile.dtiSecRegistrationNumber || null,
+      profile.region,
+      profile.province,
+      profile.cityMunicipality,
+      profile.barangay,
+      profile.streetAddress,
+      profile.zipCode || null,
+      coordinate(profile.latitude),
+      coordinate(profile.longitude),
+    ]
+  );
 
   return result.rows[0];
 }
@@ -389,6 +447,8 @@ async function listApplications(filters = {}) {
        b.barangay,
        b.street_address,
        b.zip_code,
+       b.latitude,
+       b.longitude,
        u.first_name,
        u.last_name,
        reviewer.first_name AS reviewer_first_name,
@@ -436,7 +496,11 @@ async function getApplicationById(id) {
         a.review_remarks,
         CASE WHEN a.status IN ('under_review', 'for_revision', 'approved', 'rejected') THEN a.remarks END
       ) AS review_remarks,
-      b.*, a.id AS id, b.id AS business_profile_id,
+      b.*,
+      a.id AS id,
+      a.business_type AS business_type,
+      b.business_type AS profile_business_type,
+      b.id AS business_profile_id,
       u.first_name, u.last_name, u.email, u.phone
      FROM accreditation_applications a
      JOIN business_profiles b ON b.id = a.business_profile_id
@@ -470,6 +534,18 @@ async function submitApplication(id, ownerId) {
      WHERE (id::text = $1 OR application_number = $1)
        AND owner_id = $2
        AND status IN ('draft', 'for_revision')
+     RETURNING *`,
+    [id, ownerId]
+  );
+  return result.rows[0];
+}
+
+async function deleteDraftApplication(id, ownerId) {
+  const result = await db.query(
+    `DELETE FROM accreditation_applications
+     WHERE (id::text = $1 OR application_number = $1)
+       AND owner_id = $2
+       AND status = 'draft'
      RETURNING *`,
     [id, ownerId]
   );
@@ -611,6 +687,8 @@ async function listAccreditationRecords(filters = {}) {
        b.city_municipality,
        b.barangay,
        b.street_address,
+       b.latitude,
+       b.longitude,
        u.first_name,
        u.last_name,
        issuer.first_name AS issuer_first_name,
@@ -834,6 +912,7 @@ module.exports = {
   createBusinessOwnerWithProfile,
   createNotification,
   createUser,
+  deleteDraftApplication,
   findUserByEmail,
   findUserById,
   findUserByVerificationToken,
@@ -852,6 +931,7 @@ module.exports = {
   updateApplicationReview,
   updateApplicationDraft,
   updateBusinessProfile,
+  updateBusinessProfileById,
   updateLastLogin,
   updatePasswordHash,
   updateUserStatus,

@@ -3,7 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const router = require("express").Router();
 const controller = require("./accreditation.controller");
-const { authenticate, authorize } = require("../../middleware/auth");
+const { authenticate, authorize } = require("./accreditation.auth");
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -51,7 +51,10 @@ router
   .get(authenticate, controller.listApplications)
   .post(authenticate, authorize("business_owner"), controller.createApplication);
 
-router.get("/applications/:id", authenticate, controller.getApplication);
+router
+  .route("/applications/:id")
+  .get(authenticate, controller.getApplication)
+  .delete(authenticate, authorize("business_owner"), controller.deleteDraftApplication);
 router.patch(
   "/applications/:id/draft",
   authenticate,

@@ -137,7 +137,7 @@ function mockNotifications() {
         message: "APP-2026-006 is ready for review.",
         level: "action_needed",
         read: false,
-        actionPath: "/accreditation/app/review?application=APP-2026-006",
+        actionPath: "/cms/businesses/review?application=APP-2026-006",
         destinationLabel: "Application Review",
       },
       {
@@ -146,7 +146,7 @@ function mockNotifications() {
         message: "A revised document was uploaded.",
         level: "action_needed",
         read: false,
-        actionPath: "/accreditation/app/review?application=APP-2026-003",
+        actionPath: "/cms/businesses/review?application=APP-2026-003",
         destinationLabel: "Application Review",
       },
     ];
@@ -185,7 +185,7 @@ function mockNotifications() {
 
 function destinationForRole(role) {
   if (role === "admin") return "/accreditation/app/dashboard";
-  if (role === "tourism_staff") return "/accreditation/app/staff-dashboard";
+  if (role === "tourism_staff") return "/cms/businesses/applications";
   return "/accreditation/app/applications";
 }
 

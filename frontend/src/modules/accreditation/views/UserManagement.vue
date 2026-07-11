@@ -262,7 +262,6 @@ function roleLabel(role) {
 
 function demoUsers() {
   return [
-    { id: "demo-staff", name: "Maria Santos", email: "maria.santos@tourism.gov.ph", role: "tourism_staff", status: "active", phone: "+63 911 111 1111", sex: "Female" },
     { id: "demo-system-admin", name: "System Administrator", email: "system.admin@tourism.gov.ph", role: "admin", status: "active", phone: "+63 900 000 0000", sex: "Male" },
     { id: "demo-owner", name: "John Martinez", email: "john@sunsetresort.com", role: "business_owner", status: "active", phone: "+63 912 345 6789", sex: "Male" },
   ];

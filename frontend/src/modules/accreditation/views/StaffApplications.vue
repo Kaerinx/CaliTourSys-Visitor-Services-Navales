@@ -47,7 +47,7 @@
             <td><StatusBadge :status="app.status" /></td>
             <td>{{ formatDate(app.submitted_at) }}</td>
             <td>
-              <RouterLink class="btn ghost" :to="`/accreditation/app/review?application=${app.id}`">
+              <RouterLink class="btn ghost" :to="{ path: reviewPath, query: { application: app.id } }">
                 {{ app.status === "submitted" ? "Review" : "View" }}
               </RouterLink>
             </td>
@@ -65,7 +65,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
-import { demoApplications, requiredDocuments } from "@/modules/accreditation/data/mockData";
+import { demoApplications, getRequiredDocumentsForBusinessType } from "@/modules/accreditation/data/mockData";
 import { getApplications } from "@/modules/accreditation/services/accreditationApi";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -74,6 +74,7 @@ const route = useRoute();
 const search = ref(String(route.query.q || ""));
 const statusFilter = ref("all");
 const applications = ref([]);
+const reviewPath = computed(() => "/cms/businesses/review");
 
 onMounted(async () => {
   await auth.connectDemoToBackend();
@@ -126,6 +127,7 @@ function normalizeApplication(app) {
 }
 
 function documentProgress(app) {
+  const requiredDocuments = getRequiredDocumentsForBusinessType(app.business_type);
   const uploaded = requiredDocuments.filter((name) =>
     app.documents.some((doc) => doc.document_type === name || doc.name === name)
   ).length;

@@ -1,5 +1,5 @@
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="portalClass">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">
@@ -98,6 +98,9 @@ const displayName = computed(() =>
 );
 
 const notificationCount = computed(() => unreadNotifications.value);
+const portalClass = computed(() => ({
+  "business-owner-portal": auth.role === "business_owner",
+}));
 
 onMounted(async () => {
   await auth.connectDemoToBackend();
@@ -126,10 +129,10 @@ const menu = computed(() => {
 
   if (auth.role === "tourism_staff") {
     return [
-      { label: "Dashboard", path: "/accreditation/app/dashboard", icon: LayoutDashboard },
-      { label: "Applications", path: "/accreditation/app/staff-dashboard", icon: FileText },
-      { label: "Records", path: "/accreditation/app/records", icon: Building2 },
-      { label: "Reports", path: "/accreditation/app/reports", icon: BarChart3 },
+      { label: "Dashboard", path: "/cms/businesses", icon: LayoutDashboard },
+      { label: "Applications", path: "/cms/businesses/applications", icon: FileText },
+      { label: "Records", path: "/cms/businesses/records", icon: Building2 },
+      { label: "Reports", path: "/cms/businesses/reports", icon: BarChart3 },
       { label: "Notifications", path: "/accreditation/app/notifications", icon: Bell },
       { label: "Settings", path: "/accreditation/app/settings", icon: Settings },
     ];
@@ -138,7 +141,7 @@ const menu = computed(() => {
   return [
     { label: "Dashboard", path: "/accreditation/app/dashboard", icon: LayoutDashboard },
     { label: "Business Profile", path: "/accreditation/app/business-profile", icon: Building2 },
-    { label: "Apply for Accreditation", path: "/accreditation/app/apply?type=new", icon: FileText },
+    { label: "Apply for Accreditation", path: "/accreditation/app/apply?type=new&start=1", icon: FileText },
     { label: "My Applications", path: "/accreditation/app/applications", icon: FileCheck },
     { label: "Notifications", path: "/accreditation/app/notifications", icon: Bell },
     { label: "Settings", path: "/accreditation/app/settings", icon: Settings },
@@ -160,7 +163,7 @@ function submitSearch() {
   }
 
   if (auth.role === "tourism_staff") {
-    router.push({ path: "/accreditation/app/staff-dashboard", query: { q } });
+    router.push({ path: "/cms/businesses/applications", query: { q } });
     return;
   }
 

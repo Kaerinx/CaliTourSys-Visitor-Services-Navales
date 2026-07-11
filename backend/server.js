@@ -1,36 +1,58 @@
-require("dotenv").config();
+const app = require('./src/app')
+const { env } = require('./src/config/env')
+const { testDatabaseConnection, closeDatabasePool } = require('./src/config/db')
 
-const app = require("./src/app");
-const { assertProductionConfig } = require("./src/config/authConfig");
+let server
 
-const port = Number(process.env.PORT || 5000);
+async function startServer() {
+  try {
+    if (process.env.REQUIRE_POSTGRES_ON_START === 'true') {
+      const database = await testDatabaseConnection()
+      console.log(`PostgreSQL connection ready (${database.latencyMs}ms)`)
+    } else {
+      console.warn('Skipping PostgreSQL startup check; starting API for legacy/local modules.')
+    }
 
-try {
-  assertProductionConfig();
-} catch (error) {
-  console.error(error.message);
-  process.exit(1);
+    server = app.listen(env.PORT, () => {
+      console.log(`CaliTourSys API listening on port ${env.PORT}`)
+      console.log(`Health: http://localhost:${env.PORT}/api/v1/health`)
+    })
+  } catch (error) {
+    console.error('Failed to start CaliTourSys API', error)
+    process.exit(1)
+  }
 }
 
-const server = app.listen(port, () => {
-  console.log(`CaliTourSys backend running on port ${port}`);
-});
+async function shutdown(signal) {
+  console.log(`${signal} received. Shutting down gracefully...`)
 
-server.on("error", (error) => {
-  if (error.code === "EADDRINUSE") {
-    console.error(`Port ${port} is already in use. Set a different PORT in your environment or stop the process using that port.`);
-    process.exit(1);
+  if (server) {
+    server.close(async (error) => {
+      if (error) {
+        console.error('Error while closing HTTP server', error)
+        process.exitCode = 1
+      }
+
+      try {
+        await closeDatabasePool()
+        console.log('Database pools closed')
+      } catch (poolError) {
+        console.error('Error while closing database pools', poolError)
+        process.exitCode = 1
+      } finally {
+        process.exit()
+      }
+    })
+  } else {
+    try {
+      await closeDatabasePool()
+    } finally {
+      process.exit()
+    }
   }
-  console.error("Server error:", error);
-  process.exit(1);
-});
+}
 
-process.on("unhandledRejection", (reason) => {
-  console.error("Unhandled Rejection:", reason);
-  process.exit(1);
-});
+process.on('SIGINT', () => shutdown('SIGINT'))
+process.on('SIGTERM', () => shutdown('SIGTERM'))
 
-process.on("uncaughtException", (error) => {
-  console.error("Uncaught Exception:", error);
-  process.exit(1);
-});
+startServer()

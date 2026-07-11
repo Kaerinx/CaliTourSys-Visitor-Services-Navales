@@ -47,7 +47,7 @@ const demoAccounts = {
   },
 };
 
-export const useAuthStore = defineStore("auth", {
+export const useAuthStore = defineStore("accreditationAuth", {
   state: () => ({
     token: localStorage.getItem("auth_token"),
     user: JSON.parse(localStorage.getItem("auth_user") || "null"),

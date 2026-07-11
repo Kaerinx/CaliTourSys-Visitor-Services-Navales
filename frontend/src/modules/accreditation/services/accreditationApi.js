@@ -1,4 +1,37 @@
-import http from "@/services/http";
+import axios from "axios";
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1").replace(/\/+$/, "");
+
+const http = axios.create({
+  baseURL: API_BASE_URL,
+});
+
+http.interceptors.request.use((config) => {
+  const token = localStorage.getItem("auth_token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const backendMessage = error.response?.data?.error?.message;
+    if (backendMessage && !error.response.data.message) {
+      error.response.data.message = backendMessage;
+    }
+
+    if (error.response?.status === 401) {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      if (window.location.pathname.startsWith("/accreditation/app")) {
+        window.location.assign("/accreditation/login");
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 export async function registerBusinessOwner(payload) {
   const { data } = await http.post("/accreditation/auth/register", payload);
@@ -77,15 +110,18 @@ export async function submitApplication(id) {
   return data;
 }
 
+export async function deleteDraftApplication(id) {
+  const { data } = await http.delete(`/accreditation/applications/${id}`);
+  return data;
+}
+
 export async function reviewApplication(id, payload) {
   const { data } = await http.patch(`/accreditation/applications/${id}/review`, payload);
   return data;
 }
 
 export async function uploadApplicationDocument(id, formData) {
-  const { data } = await http.post(`/accreditation/applications/${id}/documents`, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  const { data } = await http.post(`/accreditation/applications/${id}/documents`, formData);
   return data;
 }
 

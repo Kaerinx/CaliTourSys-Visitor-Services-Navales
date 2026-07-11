@@ -32,39 +32,30 @@
           <label>Business Permit Number<input v-model="form.businessPermitNumber" /></label>
           <label>DTI/SEC Registration Number<input v-model="form.dtiSecRegistrationNumber" /></label>
           <label>Region
-            <select v-model="form.region" required>
-              <option value="">Select region</option>
-              <option v-for="location in philippineLocations" :key="location.name" :value="location.name">
-                {{ location.name }}
-              </option>
-            </select>
+            <input :value="calabangaLocation.region" readonly />
           </label>
           <label>Province
-            <select v-model="form.province" required>
-              <option value="">Select province</option>
-              <option v-for="location in provinceOptions" :key="location.name" :value="location.name">
-                {{ location.name }}
-              </option>
-            </select>
+            <input :value="calabangaLocation.province" readonly />
           </label>
           <label>City / Municipality
-            <select v-model="form.cityMunicipality" required>
-              <option value="">Select city or municipality</option>
-              <option v-for="location in cityOptions" :key="location.name" :value="location.name">
-                {{ location.name }}
-              </option>
-            </select>
+            <input :value="calabangaLocation.cityMunicipality" readonly />
           </label>
           <label>Barangay
             <select v-model="form.barangay" required>
               <option value="">Select barangay</option>
-              <option v-for="location in barangayOptions" :key="location" :value="location">
+              <option v-for="location in calabangaBarangays" :key="location" :value="location">
                 {{ location }}
               </option>
             </select>
           </label>
           <label class="span-2">Business Address<input v-model="form.streetAddress" required /></label>
-          <label>Zip Code<input v-model="form.zipCode" /></label>
+          <label>Zip Code<input :value="calabangaLocation.zipCode" readonly /></label>
+          <EstablishmentLocationPicker
+            class="span-2"
+            v-model:address="form.streetAddress"
+            v-model:latitude="form.latitude"
+            v-model:longitude="form.longitude"
+          />
         </div>
       </section>
 
@@ -84,10 +75,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { onMounted, reactive, ref } from "vue";
+import EstablishmentLocationPicker from "@/modules/accreditation/components/EstablishmentLocationPicker.vue";
 import {
   businessTypeGroups,
-  philippineLocations,
+  calabangaBarangays,
+  calabangaLocation,
 } from "@/modules/accreditation/data/mockData";
 import {
   getBusinessProfile,
@@ -105,12 +98,14 @@ const emptyProfile = {
   businessType: "",
   businessPermitNumber: "",
   dtiSecRegistrationNumber: "",
-  region: "",
-  province: "",
-  cityMunicipality: "",
-  barangay: "",
+  region: calabangaLocation.region,
+  province: calabangaLocation.province,
+  cityMunicipality: calabangaLocation.cityMunicipality,
+  barangay: calabangaBarangays[0] || "",
   streetAddress: "",
-  zipCode: "",
+  zipCode: calabangaLocation.zipCode,
+  latitude: "",
+  longitude: "",
   phone: auth.user?.phone || "",
   email: auth.user?.email || "",
 };
@@ -120,30 +115,19 @@ const demoProfile = {
   businessType: "Resort",
   businessPermitNumber: "BP-2026-00124",
   dtiSecRegistrationNumber: "DTI-2026-7712",
-  region: "Region V - Bicol Region",
-  province: "Camarines Sur",
-  cityMunicipality: "Calabanga",
+  region: calabangaLocation.region,
+  province: calabangaLocation.province,
+  cityMunicipality: calabangaLocation.cityMunicipality,
   barangay: "San Francisco",
   streetAddress: "Zone 2, Coastal Road",
-  zipCode: "4405",
+  zipCode: calabangaLocation.zipCode,
+  latitude: "13.706900",
+  longitude: "123.246900",
   phone: "+63 912 345 6789",
   email: auth.user?.email || "john@sunsetresort.com",
 };
 
 const form = reactive({ ...emptyProfile });
-
-const selectedRegion = computed(() =>
-  philippineLocations.find((location) => location.name === form.region)
-);
-const provinceOptions = computed(() => selectedRegion.value?.provinces || []);
-const selectedProvince = computed(() =>
-  provinceOptions.value.find((location) => location.name === form.province)
-);
-const cityOptions = computed(() => selectedProvince.value?.cities || []);
-const selectedCity = computed(() =>
-  cityOptions.value.find((location) => location.name === form.cityMunicipality)
-);
-const barangayOptions = computed(() => selectedCity.value?.barangays || []);
 
 onMounted(async () => {
   await auth.connectDemoToBackend();
@@ -165,36 +149,11 @@ onMounted(async () => {
   }
 });
 
-watch(
-  () => form.region,
-  () => {
-    const firstProvince = provinceOptions.value[0];
-    form.province = firstProvince?.name || "";
-    form.cityMunicipality = firstProvince?.cities?.[0]?.name || "";
-    form.barangay = firstProvince?.cities?.[0]?.barangays?.[0] || "";
-  }
-);
-
-watch(
-  () => form.province,
-  () => {
-    const firstCity = cityOptions.value[0];
-    form.cityMunicipality = firstCity?.name || "";
-    form.barangay = firstCity?.barangays?.[0] || "";
-  }
-);
-
-watch(
-  () => form.cityMunicipality,
-  () => {
-    form.barangay = barangayOptions.value[0] || "";
-  }
-);
-
 async function saveProfile() {
   message.value = "";
   error.value = "";
   saving.value = true;
+  normalizeLocationSelection();
 
   try {
     if (!isDemoSession()) {
@@ -209,6 +168,8 @@ async function saveProfile() {
         barangay: form.barangay,
         streetAddress: form.streetAddress,
         zipCode: form.zipCode,
+        latitude: form.latitude,
+        longitude: form.longitude,
         phone: form.phone,
       });
     } else {
@@ -235,6 +196,8 @@ function fillForm(profile) {
     barangay: profile.barangay || "",
     streetAddress: profile.street_address || "",
     zipCode: profile.zip_code || "",
+    latitude: profile.latitude ?? "",
+    longitude: profile.longitude ?? "",
     phone: profile.phone || "",
     email: profile.email || auth.user?.email || "",
   });
@@ -253,23 +216,16 @@ function fillEmptyProfile() {
     phone: auth.user?.phone || "",
     email: auth.user?.email || "",
   });
+  normalizeLocationSelection();
 }
 
 function normalizeLocationSelection() {
-  if (form.region === "Bicol Region") {
-    form.region = "Region V - Bicol Region";
-  }
-  if (!selectedRegion.value) {
-    form.region = demoProfile.region;
-  }
-  if (!provinceOptions.value.some((location) => location.name === form.province)) {
-    form.province = provinceOptions.value[0]?.name || "";
-  }
-  if (!cityOptions.value.some((location) => location.name === form.cityMunicipality)) {
-    form.cityMunicipality = cityOptions.value[0]?.name || "";
-  }
-  if (!barangayOptions.value.includes(form.barangay)) {
-    form.barangay = barangayOptions.value[0] || "";
+  form.region = calabangaLocation.region;
+  form.province = calabangaLocation.province;
+  form.cityMunicipality = calabangaLocation.cityMunicipality;
+  form.zipCode = calabangaLocation.zipCode;
+  if (!calabangaBarangays.includes(form.barangay)) {
+    form.barangay = calabangaBarangays[0] || "";
   }
 }
 

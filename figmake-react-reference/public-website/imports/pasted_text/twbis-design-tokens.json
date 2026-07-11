@@ -1,0 +1,301 @@
+You are designing high-fidelity mockups for TWBIS (Tourism Web-Based 
+Information System), the official tourism website of Calabanga, 
+Camarines Sur, Philippines.
+
+This is a PUBLIC-FACING tourist website only. Do not include any admin 
+panels, CMS dashboards, or staff-facing screens.
+
+---
+
+BRAND IDENTITY & DESIGN LANGUAGE:
+
+This website should feel like a premium Philippine regional tourism brand — 
+warm, welcoming, culturally rooted, and trustworthy as an LGU platform. 
+It should NOT feel like a generic government portal. Think DOT Philippines 
+quality but localized to Calabanga's identity: coastal, river, agricultural, 
+with a strong OTOP craft culture.
+
+COLOR SYSTEM:
+Primary: #1B4332 (deep Bicol forest green — evokes Mayon's slopes and rice fields)
+Primary light: #D8F3DC (soft mint — hover states, section backgrounds)
+Accent: #B5451B (terra cotta/burnt sienna — evokes Bicolano pottery, volcanic earth)
+Accent light: #FFE8DE (warm peach — badge backgrounds, tag fills)
+Gold highlight: #D4AC0D (used sparingly — accreditation badges, star ratings only)
+Neutral dark: #1A1A1A
+Neutral mid: #5C5C5C
+Neutral light: #F2F0EB (warm off-white — page background, NOT pure white)
+White: #FFFFFF (card surfaces only)
+Danger: #C0392B
+Success: #1B7A4A
+
+TYPOGRAPHY:
+- Display headings (H1): "Plus Jakarta Sans" Bold 700 — for hero titles and page H1
+- Section headings (H2, H3): "Plus Jakarta Sans" SemiBold 600
+- Body text: "Inter" Regular 400 — clean readability for descriptions
+- Captions, badges, labels: "Inter" Medium 500, uppercase tracking 0.05em
+- Fallback stack: system-ui, sans-serif
+- Minimum body font size: 16px
+- Line height: 1.6 for body, 1.2 for headings
+
+SPACING SYSTEM: 8px base grid
+4px | 8px | 12px | 16px | 24px | 32px | 48px | 64px | 96px | 128px
+
+BORDER RADIUS:
+- Buttons: 8px
+- Cards: 12px
+- Badges/pills: 999px (full round)
+- Map info cards: 12px
+- Modal: 16px
+
+ELEVATION (flat design — use borders not shadows):
+- Default card: 1px border #E8E4DC
+- Hover card: 1px border #1B4332 (primary)
+- Active/selected: 2px border #1B4332
+- No box-shadow anywhere except 0 2px 8px rgba(0,0,0,0.08) on the fixed navbar
+
+---
+
+COMPONENT LIBRARY (define these first, use everywhere):
+
+1. Primary button
+- Background: #1B4332 | Text: #FFFFFF | Height: 48px | Padding: 0 24px | Radius: 8px
+- Hover: #14532D | Active: scale(0.98) | Disabled: 40% opacity
+- Icon-left variant: 20px icon + 8px gap + label
+
+2. Ghost button  
+- Border: 1.5px solid #1B4332 | Text: #1B4332 | Same sizing as primary
+- Hover: background #D8F3DC
+
+3. Accreditation badge
+- Shape: pill with left gold dot (6px circle #D4AC0D) + "LGU Accredited" text
+- Background: #FFF9E6 | Text: #7D5A00 | Border: 1px solid #D4AC0D
+- Size: 12px text, 24px height
+
+4. Category badge/pill
+- Background: accent light #FFE8DE | Text: #7A2D0E | Border: none
+- Size: 12px text, 22px height, 999px radius
+
+5. Product card
+- White card, 12px radius, 1px border #E8E4DC
+- Image: 4:3 ratio, 12px top radius (clipped to card), overflow hidden
+- Accreditation badge: top-right absolute, 8px from edges
+- Product name: H3 16px Plus Jakarta Sans SemiBold, 2-line clamp
+- Producer name: 13px Inter, color #5C5C5C, with verified check icon in #1B7A4A
+- Price: 15px Inter Medium, #1A1A1A
+- Bottom: "View product →" in #1B4332, 13px
+- Hover state: border becomes #1B4332, card lifts (translate Y -2px)
+
+6. Map pin markers
+- Default: teardrop shape, fill #1B4332, white icon inside (matching category)
+- Selected: larger scale (1.3x), fill #B5451B
+- Cluster: circle, fill #1B4332, white number inside, 44px diameter
+- Category-coded: Nature = #1B7A4A | Beach = #1565C0 | Food = #B5451B | Cultural = #7B341E
+
+7. Location info card (map popup)
+- White card 280px wide, 12px radius, 1px border #E8E4DC
+- Thumbnail: 280×140px, 12px top radius
+- Name: 15px SemiBold | Category badge | Distance text | Stars | "View details →" CTA
+- Subtle entrance animation: fade + translateY(8px)
+
+8. Skeleton loading state
+- Use #E8E4DC fills for image placeholders
+- Use #F2F0EB for text line placeholders (varying widths: 100%, 80%, 60%)
+- Pulse animation: opacity 1 → 0.5 → 1, 1.4s ease-in-out infinite
+- Apply to: product cards, event cards, location info cards
+
+9. Empty state
+- Centered illustration area: 160×160px placeholder box with dashed #BDBDBD border
+- H3 "No results found" | Body "Try adjusting your search or filters" | "Clear filters" ghost button
+
+10. Toast notification
+- Fixed bottom-right, 320px wide, 12px radius
+- Success: left 4px border #1B7A4A, background white, green check icon
+- Error: left 4px border #C0392B, background white, red X icon
+- Auto-dismiss: 4 seconds
+
+---
+
+NAVIGATION (apply to all pages):
+
+Desktop navbar (64px height, white background, bottom border 1px #E8E4DC):
+- Left: Logo — text "TWBIS" in Plus Jakarta Sans Bold 20px #1B4332 + tagline "Calabanga Tourism" in 12px #5C5C5C
+- Center: Nav links — Home | Discover | Map | OTOP | Events | Museum (15px Inter Medium, #1A1A1A, active = #1B4332 + 2px underline)
+- Right: Search icon (20px) | "Login" ghost button (small, 36px height)
+- Scrolled state: add box-shadow 0 2px 8px rgba(0,0,0,0.08)
+
+Mobile navbar (56px height):
+- Left: Logo | Right: Search icon + Hamburger icon
+- Drawer: full-screen overlay, white, all nav links stacked vertically with 48px touch targets
+
+---
+
+APPLY HIGH-FI DESIGN TO ALL 6 PAGES:
+
+PAGE 1 — HOME
+
+Hero (full viewport):
+- Background: real Calabanga landscape photography treatment — show as richly colored placeholder (use a gradient: #1B4332 → #2D6A4F to simulate forest/mountain photography with overlay)
+- Overlay: left-aligned content block, max-width 560px, padding-left 80px, centered vertically
+- "Discover the Heart of Bicol" — H1, white, Plus Jakarta Sans Bold
+- "Explore Calabanga's natural wonders, cultural heritage, and local treasures." — body, white 90% opacity
+- Primary CTA button (white fill, #1B4332 text — inverted on dark background)
+- Ghost button (white border, white text)
+- Bottom: 4 quick-category icon tiles visible at 20% height from bottom (creates depth)
+
+Quick discovery strip (96px, background #F2F0EB):
+- 4 tiles: Nature (leaf icon) | Culture (building icon) | Food (fork icon) | Events (calendar icon)
+- Each: icon in #1B4332 circle (40px) + label 13px Inter Medium
+- Active/hover: circle fill #1B4332, icon white
+
+Featured promotions:
+- Section background: white
+- Section header: "What's On" H2 left + "View all promotions →" right (#1B4332 13px)
+- 3 promotion cards using product card component
+
+Interactive map preview (480px height):
+- Background: #1B4332 with diagonal grid pattern overlay (simulates map tiles)
+- White left panel (320px) with semi-transparent overlay: filter checkboxes + results list
+- 5 white marker pins on the map
+- "Open full map" — primary button, bottom-right of map, with arrow-right icon
+
+OTOP highlights:
+- Section background: #F2F0EB (warm off-white)
+- Section header: "Calabanga's Finest" H2 + category filter tabs
+- Horizontal scroll product row
+
+Events strip:
+- White background
+- Landscape event cards with date badge: date block background #1B4332, date number white 28px Bold
+
+Footer:
+- Background: #1B4332 (dark green)
+- All text: white or white 70% opacity
+- Logo inverted (white text)
+- Divider: white 20% opacity
+- Bottom bar: #14532D, 13px caption text
+
+---
+
+PAGE 2 — MAP & DISCOVERY
+
+Full viewport layout — no page scroll (everything fits in viewport):
+
+Left panel (360px, white, right border 1px #E8E4DC):
+- Search bar: full width, 44px, gray background #F2F0EB, search icon left
+- "Filter results" label H3 16px
+- Category filter: custom styled checkboxes (square, 16px, border #1B4332, checked = filled #1B4332)
+- Accredited toggle: custom pill toggle, on = #1B4332 fill
+- Results count: "Showing 12 locations" — 13px #5C5C5C
+- Result list items: name (15px SemiBold) + category badge + distance (13px #5C5C5C) + divider
+- Selected result: left 3px solid #1B4332 border, background #D8F3DC
+
+Map area (fills viewport, no border):
+- Simulate map tiles: #E8E3DA base + #F2EDE3 lighter road lines + #C8D6C0 green areas
+- Pins using map pin marker component (category-coded colors)
+- One selected pin showing location info card (popup above pin)
+
+Mobile layout:
+- Map fills 100% viewport
+- Bottom sheet: white, 16px top radius, handle bar 40px wide 4px height #BDBDBD
+- Two states shown as separate mobile frames: Collapsed (peek 120px) | Expanded (80vh)
+
+---
+
+PAGE 3 — OTOP PRODUCTS
+
+Header: white, below navbar, 80px height
+- "OTOP Products" H1 + subtitle "Explore locally-made products from Calabanga's producers"
+- Right: search bar + sort dropdown
+
+Filter chip row (sticky below header):
+- White background, bottom border, horizontal scroll
+- Pill chips using category badge component
+- Active chip: background #1B4332, text white
+
+Product grid:
+- Page background #F2F0EB
+- Grid padding 24px, gap 20px
+- 3 columns of product cards
+
+Show TWO states below each other:
+State 1: Grid with 9 products (3×3)
+State 2: Empty state component (no results found)
+
+---
+
+PAGE 4 — PRODUCT DETAIL
+
+Breadcrumb: 13px, #5C5C5C, "Home / OTOP Products / Pili Candy"
+
+Two-column layout (60/40 split, 24px gap, padding 48px):
+
+Left:
+- Hero image (16:9, 12px radius, 1px border #E8E4DC)
+- Thumbnail strip: 4 smaller images (80×60px each, 8px radius, 4px gap, selected = 2px border #1B4332)
+
+Right:
+- Breadcrumb
+- Category badge + Accreditation badge (row)
+- Product name H1
+- Price: "₱ 250.00" — 24px Inter Medium #1A1A1A
+- Description body text (3–4 lines)
+- Divider
+- Producer card: outlined box 1px border, 12px radius, padding 16px
+  - Avatar: 40px circle #D8F3DC with initials in #1B4332
+  - "By [Producer Name]" 14px SemiBold | "Accredited since 2022" 12px #5C5C5C
+  - Accreditation badge
+  - "View producer profile →" 13px #1B4332
+- Divider
+- Share row: "Share this product" 13px + 3 icon buttons (Facebook, Messenger, copy link)
+- "Save to itinerary" ghost button (full width, 48px)
+- Primary button: "Contact producer" (full width, 48px)
+
+---
+
+PAGE 5 — EVENTS & PROMOTIONS
+
+Featured event: full-width 400px banner
+- Rich colored placeholder (#1B4332 base) + left content block (white text)
+- "Featured" pill badge top-left (gold background #FFF9E6, gold text #7D5A00)
+
+Events grid: 2-column card grid below
+Each event card:
+- Image 16:9, date badge absolute top-left: #1B4332 bg, white text (day large + month small)
+- Category pill, event name H3, location row (map-pin icon + location text), description 2-line clamp
+- "View event →" link in #1B4332
+
+---
+
+PAGE 6 — VIRTUAL MUSEUM
+
+Hero banner: wide cinematic (21:9), warm gradient placeholder #7B341E → #B5451B
+- Centered white text: "Calabanga Cultural Museum" H1 + subtitle
+
+Artifact grid: 3 columns
+Each card: square image placeholder + artifact name H3 + era badge (warm amber pill) + 2-line description + "Explore →" link
+
+Artifact detail modal (show as separate frame):
+- Dark overlay background rgba(0,0,0,0.6)
+- White modal 800px wide, 90vh, 16px radius
+- Left 50%: square image
+- Right 50%: breadcrumb | Artifact name H1 | Era badge | Full description body | "Audio guide" row (disabled state: gray play button + "Coming soon" caption)
+- Close button: top-right, 32px circle, #F2F0EB bg, × icon
+
+---
+
+ADDITIONAL FRAMES TO INCLUDE:
+
+1. Component library page — show all 10 components in all states
+2. Color palette page — show all brand colors with HEX + usage rule
+3. Typography scale page — show all type sizes and weights with sample text
+4. Icon set page — show all icons used across the site (category icons, UI icons)
+5. Mobile viewport overview — show all 6 pages at 375px width in a single row
+
+---
+
+EXPORT:
+- Desktop frames: 1280px width
+- Mobile frames: 375px width  
+- Naming convention: [PageNumber].[PageName].[Desktop/Mobile]
+  Example: 01.Home.Desktop | 01.Home.Mobile
+- Organize in Figma pages: 00.Design System | 01.Home | 02.Map | 03.OTOP | 04.Detail | 05.Events | 06.Museum

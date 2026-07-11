@@ -41,7 +41,7 @@
         <h2>Quick Actions</h2>
         <div class="quick-grid">
           <RouterLink class="btn outline" to="/accreditation/app/users">Manage Users</RouterLink>
-          <RouterLink class="btn outline" to="/accreditation/app/staff-dashboard">View Applications</RouterLink>
+          <RouterLink class="btn outline" to="/cms/businesses/applications">View Applications</RouterLink>
           <RouterLink class="btn outline" to="/accreditation/app/audit">View Audit Logs</RouterLink>
           <RouterLink class="btn outline" to="/accreditation/app/notifications">Notifications</RouterLink>
         </div>
