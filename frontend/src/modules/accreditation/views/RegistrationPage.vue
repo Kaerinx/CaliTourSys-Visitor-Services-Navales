@@ -1,8 +1,11 @@
 <template>
   <div class="registration-service-page">
-    <PublicServiceHeader />
-
     <main class="registration-shell">
+      <RouterLink class="registration-back" to="/accreditation/login">
+        <ArrowLeft :size="18" aria-hidden="true" />
+        <span>Back to sign in</span>
+      </RouterLink>
+
       <form class="registration-form" aria-label="Business account registration form" @submit.prevent="submit">
         <div class="registration-form__heading">
           <span>Account registration</span>
@@ -228,18 +231,15 @@
       </form>
     </main>
 
-    <PublicServiceFooter />
-
     <DataPrivacyModal :open="showPrivacy" @close="showPrivacy = false" />
   </div>
 </template>
 
 <script setup>
 import { computed, reactive, ref } from "vue";
+import { ArrowLeft } from "@lucide/vue";
 import DataPrivacyModal from "@/modules/accreditation/components/modals/DataPrivacyModal.vue";
 import EstablishmentLocationPicker from "@/modules/accreditation/components/EstablishmentLocationPicker.vue";
-import PublicServiceFooter from "@/modules/accreditation/components/PublicServiceFooter.vue";
-import PublicServiceHeader from "@/modules/accreditation/components/PublicServiceHeader.vue";
 import {
   businessTypeGroups,
   calabangaBarangays,
@@ -422,14 +422,32 @@ async function submit() {
 }
 
 .registration-shell {
-  width: min(880px, calc(100% - 40px));
+  width: min(1040px, calc(100% - 48px));
   margin: 0 auto;
   display: grid;
-  padding: 58px 0 76px;
+  padding: 56px 0 76px;
 }
 
 .registration-shell > * {
   min-width: 0;
+}
+
+.registration-back {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  color: #176249;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.registration-back:hover {
+  color: #104c38;
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 .registration-form__heading > span {
@@ -465,7 +483,8 @@ h1 {
 
 h2 {
   margin-bottom: 8px;
-  font-size: 30px;
+  font-family: "Plus Jakarta Sans", Inter, system-ui, sans-serif;
+  font-size: 32px;
 }
 
 h3 {
@@ -824,8 +843,8 @@ h3 {
 
 @media (max-width: 720px) {
   .registration-shell {
-    width: min(100% - 28px, 1180px);
-    padding: 42px 0 56px;
+    width: min(100% - 28px, 1040px);
+    padding: 30px 0 50px;
   }
 
   .registration-form {

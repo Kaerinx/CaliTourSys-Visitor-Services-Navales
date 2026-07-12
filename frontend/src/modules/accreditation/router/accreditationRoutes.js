@@ -1,6 +1,7 @@
 import AccreditationLayout from "@/modules/accreditation/views/AccreditationLayout.vue";
 import LandingPage from "@/modules/accreditation/views/LandingPage.vue";
 import LoginPage from "@/modules/accreditation/views/LoginPage.vue";
+import ForgotPasswordPage from "@/modules/accreditation/views/ForgotPasswordPage.vue";
 import RegistrationPage from "@/modules/accreditation/views/RegistrationPage.vue";
 import DashboardRouter from "@/modules/accreditation/views/DashboardRouter.vue";
 import BusinessProfile from "@/modules/accreditation/views/BusinessProfile.vue";
@@ -30,6 +31,11 @@ export default [
     path: "/accreditation/login",
     name: "accreditation-login",
     component: LoginPage,
+  },
+  {
+    path: "/accreditation/forgot-password",
+    name: "accreditation-forgot-password",
+    component: ForgotPasswordPage,
   },
   {
     path: "/accreditation/register",
