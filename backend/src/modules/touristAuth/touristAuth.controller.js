@@ -45,9 +45,31 @@ async function logout(req, res, next) {
   }
 }
 
+async function updateProfile(req, res, next) {
+  try {
+    const body = parse(validators.updateProfileBodySchema, req.body || {})
+    setPrivateNoStore(res)
+    return successResponse(req, res, await service.updateProfile(req.tourist.id, body))
+  } catch (error) {
+    return next(error)
+  }
+}
+
+async function changePassword(req, res, next) {
+  try {
+    const body = parse(validators.changePasswordBodySchema, req.body || {})
+    setPrivateNoStore(res)
+    return successResponse(req, res, await service.changePassword(req.tourist.id, body))
+  } catch (error) {
+    return next(error)
+  }
+}
+
 module.exports = {
+  changePassword,
   login,
   logout,
   me,
   register,
+  updateProfile,
 }

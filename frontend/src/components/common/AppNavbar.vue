@@ -11,7 +11,7 @@ const roleLabel = computed(() => auth.user?.role || 'Guest')
 
 function logout() {
   auth.logout()
-  router.push('/login')
+  router.push('/cms/login')
 }
 </script>
 

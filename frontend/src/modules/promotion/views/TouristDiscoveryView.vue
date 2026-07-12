@@ -14,18 +14,19 @@ import {
 import { formatRouteDistance, formatRouteDuration, getRoute } from '../services/mapboxDirections'
 import { useGeolocationStore } from '@/stores/geolocation'
 import { mapboxAccessToken } from '@/config/mapbox'
+import { useVisitorSession } from '../composables/useVisitorSession'
 
 const TouristMapBox = defineAsyncComponent(() => import('../components/TouristMapBox.vue'))
 const ReviewsSection = defineAsyncComponent(() => import('../components/ReviewsSection.vue'))
 const NearbySuggestions = defineAsyncComponent(() => import('../components/NearbySuggestions.vue'))
 
 const mapboxToken = mapboxAccessToken
-const VISITOR_SESSION_KEY = 'calitoursys_public_visitor'
 const PENDING_SAVE_KEY = 'calitoursys_pending_destination_save'
 
 const route = useRoute()
 const router = useRouter()
 const geo = useGeolocationStore()
+const { isAuthenticated: isVisitorAuthenticated } = useVisitorSession()
 
 const routeGeoJson = ref(null)
 const isRouting = ref(false)
@@ -74,7 +75,6 @@ const isLoading = ref(true)
 const errorMessage = ref('')
 const mapRuntimeError = ref('')
 const mapGeoJson = ref({ type: 'FeatureCollection', features: [] })
-const isVisitorAuthenticated = ref(hasVisitorSession())
 
 const visibleLocations = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -251,14 +251,6 @@ function clearCategories() {
   )
 }
 
-function hasVisitorSession() {
-  try {
-    return Boolean(window.localStorage.getItem(VISITOR_SESSION_KEY))
-  } catch {
-    return false
-  }
-}
-
 async function loadLocations() {
   isLoading.value = true
   errorMessage.value = ''
@@ -381,7 +373,6 @@ function promptForSaveAuth(location) {
 }
 
 async function resumePendingSave() {
-  isVisitorAuthenticated.value = hasVisitorSession()
   if (!isVisitorAuthenticated.value) return
 
   await refreshSavedDestinations()
@@ -1566,6 +1557,10 @@ h1 {
     flex-direction: column;
   }
 
+  .map-actions a {
+    display: none;
+  }
+
   .map-legend,
   .location-popup {
     display: none;
@@ -1592,8 +1587,9 @@ h1 {
     bottom: 0;
     left: 0;
     width: auto;
-    max-height: 40vh;
-    max-height: 40dvh;
+    max-width: 100vw;
+    max-height: 44vh;
+    max-height: 44dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1631,11 +1627,17 @@ h1 {
     min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 8px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
   }
 
   .result-card {
+    min-height: 68px;
     padding: 12px 16px;
+  }
+
+  .search-field,
+  .search-field input {
+    min-width: 0;
   }
 
   .result-card--selected {

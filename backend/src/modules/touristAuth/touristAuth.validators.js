@@ -19,7 +19,23 @@ const loginBodySchema = z
   })
   .strict()
 
+const updateProfileBodySchema = z
+  .object({
+    fullName: z.string().trim().min(1, 'Full name is required.').max(255),
+    phoneNumber: phoneSchema,
+  })
+  .strict()
+
+const changePasswordBodySchema = z
+  .object({
+    currentPassword: z.string().min(1).max(256),
+    newPassword: strongPasswordSchema,
+  })
+  .strict()
+
 module.exports = {
+  changePasswordBodySchema,
   loginBodySchema,
   registerBodySchema,
+  updateProfileBodySchema,
 }

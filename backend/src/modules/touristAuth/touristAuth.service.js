@@ -79,9 +79,33 @@ async function me(touristId) {
   return publicTourist(tourist)
 }
 
+async function updateProfile(touristId, body) {
+  const tourist = await repository.findById(touristId)
+  assertCanAuthenticate(tourist)
+
+  const updated = await repository.updateProfile(touristId, body)
+  return publicTourist(updated)
+}
+
+async function changePassword(touristId, body) {
+  const tourist = await repository.findById(touristId)
+  assertCanAuthenticate(tourist)
+
+  const passwordMatches = await verifyPassword(body.currentPassword, tourist.passwordHash)
+  if (!passwordMatches) {
+    throw createAuthError(401, 'INVALID_CURRENT_PASSWORD', 'Current password is incorrect.')
+  }
+
+  const passwordHash = await hashPassword(body.newPassword)
+  await repository.updatePasswordHash(touristId, passwordHash)
+  return { passwordChanged: true }
+}
+
 module.exports = {
+  changePassword,
   login,
   me,
   publicTourist,
   register,
+  updateProfile,
 }

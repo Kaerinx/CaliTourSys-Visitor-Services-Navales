@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
-import PublicAuthModal from './PublicAuthModal.vue'
 import { useVisitorSession } from '../composables/useVisitorSession'
 import { getReviews, submitReview } from '../services/reviewsService'
 
@@ -21,15 +21,14 @@ const props = defineProps({
   },
 })
 
-const { isAuthenticated, visitorName, sync } = useVisitorSession()
+const route = useRoute()
+const router = useRouter()
+const { isAuthenticated, visitorName } = useVisitorSession()
 
 const summary = reactive({ average: 0, count: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } })
 const reviews = ref([])
 const isLoading = ref(true)
 const loadError = ref('')
-
-const isAuthModalOpen = ref(false)
-const authMode = ref('login')
 
 const form = reactive({ rating: 0, comment: '' })
 const hoverRating = ref(0)
@@ -80,13 +79,10 @@ function setRating(value) {
 }
 
 function openAuth(mode = 'login') {
-  authMode.value = mode
-  isAuthModalOpen.value = true
-}
-
-function handleAuthenticated() {
-  isAuthModalOpen.value = false
-  sync()
+  router.replace({
+    path: route.path,
+    query: { ...route.query, auth: mode },
+  })
 }
 
 async function handleSubmit() {
@@ -286,13 +282,6 @@ onMounted(loadReviews)
       </ul>
     </div>
 
-    <PublicAuthModal
-      v-if="isAuthModalOpen"
-      :mode="authMode"
-      @authenticated="handleAuthenticated"
-      @close="isAuthModalOpen = false"
-      @change-mode="authMode = $event"
-    />
   </section>
 </template>
 

@@ -736,12 +736,19 @@ onBeforeUnmount(() => {
 }
 
 :global(.tourist-map-popup) {
+  width: min(340px, calc(100vw - 32px));
+  max-width: 100%;
   overflow: hidden;
   color: #1a1a1a;
   font-family: Inter, system-ui, sans-serif;
 }
 
 :global(.mapboxgl-popup-content) {
+  width: min(340px, calc(100vw - 32px));
+  max-width: 100%;
+  max-height: min(520px, calc(100dvh - 112px));
+  overflow-x: hidden;
+  overflow-y: auto;
   overflow: hidden;
   padding: 0;
   border-radius: 12px;
@@ -749,9 +756,9 @@ onBeforeUnmount(() => {
 }
 
 :global(.mapboxgl-popup-close-button) {
-  width: 28px;
-  height: 28px;
-  margin: 8px;
+  width: 44px;
+  height: 44px;
+  margin: 4px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
   color: #1a1a1a;
@@ -777,6 +784,7 @@ onBeforeUnmount(() => {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 18px;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 :global(.tourist-map-popup p) {
@@ -784,11 +792,12 @@ onBeforeUnmount(() => {
   color: #5c5c5c;
   font-size: 13px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 :global(.tourist-map-popup button) {
   justify-self: start;
-  min-height: 36px;
+  min-height: 44px;
   margin-top: 2px;
   padding: 0 14px;
   border: 1px solid #1b4332;
@@ -799,5 +808,26 @@ onBeforeUnmount(() => {
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  :global(.tourist-map-popup),
+  :global(.mapboxgl-popup-content) {
+    width: calc(100vw - 24px);
+  }
+
+  :global(.tourist-map-popup img) {
+    height: 110px;
+  }
+
+  :global(.tourist-map-popup__body) {
+    gap: 8px;
+    padding: 14px;
+  }
+
+  :global(.tourist-map-popup h3) {
+    padding-right: 30px;
+    font-size: 16px;
+  }
 }
 </style>

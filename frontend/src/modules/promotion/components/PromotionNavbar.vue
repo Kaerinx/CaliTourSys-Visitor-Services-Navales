@@ -1,12 +1,13 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useTouristAuthStore } from '../stores/touristAuthStore'
 import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
 
 import logo from '@/assets/brand/love-calabanga-logo.png'
 
 const route = useRoute()
+const router = useRouter()
 const touristAuth = useTouristAuthStore()
 
 const primaryLinks = [
@@ -24,11 +25,18 @@ const accreditationLinks = [
 ]
 
 const isMenuOpen = ref(false)
+const isAccountOpen = ref(false)
+const accountMenuRef = ref(null)
+const accountTriggerRef = ref(null)
 
-const loginTo = computed(() => ({
-  path: '/login',
-  query: { as: 'tourist' },
-}))
+const touristInitials = computed(() => {
+  const name = touristAuth.tourist?.fullName?.trim() || touristAuth.tourist?.email || 'Tourist'
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('')
+})
 
 function isActive(link) {
   if (link.match === 'exact') return route.path === link.to
@@ -43,9 +51,44 @@ function closeMenu() {
   isMenuOpen.value = false
 }
 
+function openTouristAuth(mode = 'login') {
+  closeMenu()
+  isAccountOpen.value = false
+  router.replace({
+    path: route.path,
+    query: { ...route.query, auth: mode },
+  })
+}
+
+function toggleAccountMenu() {
+  isAccountOpen.value = !isAccountOpen.value
+}
+
+async function logout() {
+  isAccountOpen.value = false
+  closeMenu()
+  await touristAuth.logout()
+  if (route.path.startsWith('/tourist/')) await router.push('/')
+}
+
+function handleDocumentClick(event) {
+  if (accountMenuRef.value && !accountMenuRef.value.contains(event.target)) {
+    isAccountOpen.value = false
+  }
+}
+
+function handleDocumentKeydown(event) {
+  if (event.key !== 'Escape' || !isAccountOpen.value) return
+  isAccountOpen.value = false
+  accountTriggerRef.value?.focus()
+}
+
 watch(
   () => route.fullPath,
-  () => closeMenu(),
+  () => {
+    closeMenu()
+    isAccountOpen.value = false
+  },
 )
 
 watch(isMenuOpen, (open) => {
@@ -54,6 +97,13 @@ watch(isMenuOpen, (open) => {
 
 onBeforeUnmount(() => {
   document.body.style.overflow = ''
+  document.removeEventListener('click', handleDocumentClick)
+  document.removeEventListener('keydown', handleDocumentKeydown)
+})
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick)
+  document.addEventListener('keydown', handleDocumentKeydown)
 })
 </script>
 
@@ -104,13 +154,44 @@ onBeforeUnmount(() => {
             <path d="m20 20-3.2-3.2" />
           </svg>
         </button>
-        <RouterLink
+        <button
+          v-if="!touristAuth.isAuthenticated"
           class="login-button"
-          :to="touristAuth.isAuthenticated ? '/tourist/dashboard' : loginTo"
-          aria-label="Open tourist account"
+          type="button"
+          @click="openTouristAuth('login')"
         >
-          {{ touristAuth.isAuthenticated ? 'My Trip' : 'Login' }}
-        </RouterLink>
+          Login
+        </button>
+        <div v-else ref="accountMenuRef" class="account-menu">
+          <button
+            ref="accountTriggerRef"
+            class="account-menu__trigger"
+            type="button"
+            aria-haspopup="menu"
+            :aria-expanded="isAccountOpen"
+            @click="toggleAccountMenu"
+          >
+            <span class="account-avatar" aria-hidden="true">{{ touristInitials }}</span>
+            <span class="account-menu__name">{{ touristAuth.tourist?.fullName }}</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+
+          <transition name="account-popover">
+            <div v-if="isAccountOpen" class="account-menu__popover" role="menu">
+              <div class="account-menu__identity">
+                <span class="account-avatar account-avatar--large" aria-hidden="true">{{ touristInitials }}</span>
+                <span>
+                  <strong>{{ touristAuth.tourist?.fullName }}</strong>
+                  <small>{{ touristAuth.tourist?.email }}</small>
+                </span>
+              </div>
+              <RouterLink to="/tourist/profile" role="menuitem">My Profile</RouterLink>
+              <RouterLink to="/tourist/bookings" role="menuitem">Booking History</RouterLink>
+              <RouterLink to="/tourist/settings" role="menuitem">Settings</RouterLink>
+              <button type="button" role="menuitem" @click="logout">Logout</button>
+            </div>
+          </transition>
+        </div>
         <button
           class="icon-button icon-button--menu"
           type="button"
@@ -174,13 +255,22 @@ onBeforeUnmount(() => {
           <RouterLink to="/promotion/inquiry" class="mobile-drawer__link">Inquiries</RouterLink>
         </nav>
 
-        <RouterLink
-          class="mobile-drawer__login"
-          :to="touristAuth.isAuthenticated ? '/tourist/dashboard' : loginTo"
-          @click="closeMenu"
-        >
-          {{ touristAuth.isAuthenticated ? 'My Trip' : 'Login' }}
-        </RouterLink>
+        <div v-if="touristAuth.isAuthenticated" class="mobile-account">
+          <div class="mobile-account__identity">
+            <span class="account-avatar" aria-hidden="true">{{ touristInitials }}</span>
+            <span>
+              <strong>{{ touristAuth.tourist?.fullName }}</strong>
+              <small>{{ touristAuth.tourist?.email }}</small>
+            </span>
+          </div>
+          <RouterLink to="/tourist/profile">My Profile</RouterLink>
+          <RouterLink to="/tourist/bookings">Booking History</RouterLink>
+          <RouterLink to="/tourist/settings">Settings</RouterLink>
+          <button type="button" @click="logout">Logout</button>
+        </div>
+        <button v-else class="mobile-drawer__login" type="button" @click="openTouristAuth('login')">
+          Login
+        </button>
       </div>
     </transition>
   </header>
@@ -207,6 +297,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 32px;
+  min-width: 0;
 }
 
 .brand {
@@ -317,6 +408,7 @@ onBeforeUnmount(() => {
 }
 
 .site-nav__actions {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -379,6 +471,161 @@ onBeforeUnmount(() => {
   background: #d8f3dc;
 }
 
+.account-menu {
+  position: relative;
+}
+
+.account-menu__trigger {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid #e8e4dc;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.account-menu__trigger:hover,
+.account-menu__trigger[aria-expanded='true'] {
+  background: #f2f0eb;
+  border-color: #1b4332;
+}
+
+.account-menu__trigger > svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.account-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #1b4332;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.account-avatar--large {
+  width: 44px;
+  height: 44px;
+  font-size: 14px;
+}
+
+.account-menu__name {
+  max-width: 120px;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu__popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 286px;
+  padding: 8px;
+  border: 1px solid #e8e4dc;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+}
+
+.account-menu__identity,
+.mobile-account__identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.account-menu__identity {
+  margin-bottom: 6px;
+  padding: 10px 10px 14px;
+  border-bottom: 1px solid #e8e4dc;
+}
+
+.account-menu__identity > span:last-child,
+.mobile-account__identity > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.account-menu__identity strong,
+.account-menu__identity small,
+.mobile-account__identity strong,
+.mobile-account__identity small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu__identity strong,
+.mobile-account__identity strong {
+  font-size: 14px;
+}
+
+.account-menu__identity small,
+.mobile-account__identity small {
+  color: #5c5c5c;
+  font-size: 12px;
+}
+
+.account-menu__popover > a,
+.account-menu__popover > button {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #1a1a1a;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.account-menu__popover > a:hover,
+.account-menu__popover > button:hover,
+.account-menu__popover > a:focus-visible,
+.account-menu__popover > button:focus-visible {
+  background: #d8f3dc;
+  color: #1b4332;
+}
+
+.account-menu__popover > button {
+  margin-top: 4px;
+  border-top: 1px solid #e8e4dc;
+  border-radius: 0 0 8px 8px;
+  color: #c0392b;
+}
+
+.account-popover-enter-active,
+.account-popover-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.account-popover-enter-from,
+.account-popover-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 /* Mobile drawer */
 .mobile-drawer {
   position: fixed;
@@ -387,6 +634,7 @@ onBeforeUnmount(() => {
   background: #ffffff;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
   padding: 16px 24px 32px;
 }
 
@@ -448,6 +696,48 @@ onBeforeUnmount(() => {
   font-size: 16px;
   font-weight: 500;
   text-decoration: none;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.mobile-account {
+  display: grid;
+  gap: 4px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e8e4dc;
+}
+
+.mobile-account__identity {
+  margin-bottom: 8px;
+  padding: 0 12px 12px;
+}
+
+.mobile-account > a,
+.mobile-account > button {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #1a1a1a;
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.mobile-account > a:hover,
+.mobile-account > button:hover {
+  background: #d8f3dc;
+  color: #1b4332;
+}
+
+.mobile-account > button {
+  color: #c0392b;
 }
 
 .drawer-enter-active,
@@ -479,8 +769,17 @@ onBeforeUnmount(() => {
     gap: 12px;
   }
 
+  .site-nav__actions {
+    margin-left: auto;
+  }
+
+  .site-nav__actions .icon-button--menu {
+    display: grid;
+  }
+
   /* Declutter to logo + hamburger; login lives in the drawer. */
   .site-nav__actions .login-button,
+  .site-nav__actions .account-menu,
   .site-nav__actions .icon-button:not(.icon-button--menu) {
     display: none;
   }

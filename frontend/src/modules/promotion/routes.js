@@ -1,3 +1,17 @@
+function touristAuthRedirect(to, defaultMode = 'login') {
+  const requestedMode = Array.isArray(to.query.mode) ? to.query.mode[0] : to.query.mode
+  const mode = requestedMode === 'register' ? 'register' : defaultMode
+  const redirect = Array.isArray(to.query.redirect) ? to.query.redirect[0] : to.query.redirect
+
+  return {
+    path: '/',
+    query: {
+      auth: mode,
+      ...(typeof redirect === 'string' ? { redirect } : {}),
+    },
+  }
+}
+
 const promotionRoutes = [
   {
     path: '/',
@@ -11,8 +25,8 @@ const promotionRoutes = [
   },
   {
     path: '/login',
-    name: 'unified-login',
-    component: () => import('./views/UnifiedLoginPortalView.vue'),
+    name: 'tourist-auth-entry',
+    redirect: (to) => touristAuthRedirect(to),
   },
   {
     path: '/events',
@@ -75,30 +89,34 @@ const promotionRoutes = [
   {
     path: '/tourist/login',
     name: 'tourist-login',
-    redirect: (to) => ({
-      path: '/login',
-      query: {
-        ...to.query,
-        as: 'tourist',
-      },
-    }),
+    redirect: (to) => touristAuthRedirect(to),
   },
   {
     path: '/tourist/register',
     name: 'tourist-register',
-    redirect: (to) => ({
-      path: '/login',
-      query: {
-        ...to.query,
-        as: 'tourist',
-        mode: 'register',
-      },
-    }),
+    redirect: (to) => touristAuthRedirect(to, 'register'),
   },
   {
     path: '/tourist/dashboard',
     name: 'tourist-dashboard',
+    redirect: '/tourist/bookings',
+  },
+  {
+    path: '/tourist/bookings',
+    name: 'tourist-bookings',
     component: () => import('./views/TouristDashboardView.vue'),
+    meta: { touristRequiresAuth: true },
+  },
+  {
+    path: '/tourist/profile',
+    name: 'tourist-profile',
+    component: () => import('./views/TouristProfileView.vue'),
+    meta: { touristRequiresAuth: true },
+  },
+  {
+    path: '/tourist/settings',
+    name: 'tourist-settings',
+    component: () => import('./views/TouristSettingsView.vue'),
     meta: { touristRequiresAuth: true },
   },
   {

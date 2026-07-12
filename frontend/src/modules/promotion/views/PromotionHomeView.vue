@@ -1,6 +1,7 @@
 ﻿<script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { MapPin } from '@lucide/vue'
 import {
   getEvents,
   getMapLocations,
@@ -725,7 +726,8 @@ onBeforeUnmount(() => {
           :aria-label="isMapCollapsed ? 'Expand mini map' : 'Minimize mini map'"
           @click="toggleMapCollapsed"
         >
-          {{ isMapCollapsed ? '+' : '-' }}
+          <MapPin v-if="isMapCollapsed" :size="22" :stroke-width="2" aria-hidden="true" />
+          <span v-else aria-hidden="true">-</span>
         </button>
         <button
           v-if="!isMapCollapsed"
@@ -1704,8 +1706,8 @@ h1 {
 }
 
 .floating-mini-map__control {
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.55);
@@ -1725,7 +1727,11 @@ h1 {
 }
 
 .floating-mini-map--collapsed .floating-mini-map__controls {
-  inset: 10px;
+  inset: 5px;
+}
+
+.floating-mini-map__control svg {
+  display: block;
 }
 
 .floating-mini-map__label,

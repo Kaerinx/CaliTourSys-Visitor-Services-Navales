@@ -17,3 +17,11 @@ export function me() {
 export function logout() {
   return http.post(touristAuthPath('/logout'), {})
 }
+
+export function updateProfile(payload) {
+  return http.patchAuth(touristAuthPath('/profile'), payload)
+}
+
+export function changePassword(payload) {
+  return http.patchAuth(touristAuthPath('/password'), payload)
+}

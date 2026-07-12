@@ -55,6 +55,15 @@ function closePublicAuth() {
     query: nextQuery,
   })
 }
+
+async function handlePublicAuthenticated() {
+  const redirect = Array.isArray(route.query.redirect) ? route.query.redirect[0] : route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
+    await router.replace(redirect)
+    return
+  }
+  closePublicAuth()
+}
 </script>
 
 <template>
@@ -75,7 +84,7 @@ function closePublicAuth() {
       :intent="publicAuthIntent"
       @close="closePublicAuth"
       @change-mode="setPublicAuthMode"
-      @authenticated="closePublicAuth"
+      @authenticated="handlePublicAuthenticated"
     />
   </template>
 </template>
