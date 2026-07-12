@@ -417,6 +417,8 @@ function mapAccreditedBusiness(business) {
     issuedAt: business.accreditation?.issuedAt,
     accreditedSince: formatYear(business.accreditation?.issuedAt),
     expiresAt: business.accreditation?.expiresAt,
+    ratingAverage: Number(business.ratingAverage || business.rating_average || 5),
+    reviewCount: Number(business.reviewCount || business.review_count || 0),
     contactEmail: business.contactEmail || '',
     phone: business.phone || '',
     addressLine: business.addressLine || '',

@@ -1,34 +1,59 @@
 <script setup>
-import AccreditationBadge from '../components/AccreditationBadge.vue'
-import PromotionNavbar from '../components/PromotionNavbar.vue'
 import PromotionFooter from '../components/PromotionFooter.vue'
+import PromotionNavbar from '../components/PromotionNavbar.vue'
 import { computed, onMounted, ref } from 'vue'
 import { getAccreditedBusinesses } from '../services/promotionService'
 
 const businesses = ref([])
 const searchQuery = ref('')
-const activeType = ref('All types')
+const selectedRatings = ref([])
+const selectedBarangays = ref([])
+const selectedTypes = ref([])
 const isLoading = ref(true)
 const errorMessage = ref('')
 
-const typeOptions = computed(() => [
-  'All types',
-  ...new Set(businesses.value.map((business) => business.type).filter(Boolean)),
-])
+const ratingOptions = [5, 4, 3, 2, 1]
+
+const barangayOptions = computed(() =>
+  [...new Set(businesses.value.map((business) => business.barangay).filter(Boolean))].sort(),
+)
+
+const typeOptions = computed(() =>
+  [...new Set(businesses.value.map((business) => business.type).filter(Boolean))].sort(),
+)
+
+const businessTypeLabel = computed(() => {
+  if (selectedTypes.value.length === 0) {
+    return 'Business Type'
+  }
+
+  if (selectedTypes.value.length === 1) {
+    return selectedTypes.value[0]
+  }
+
+  return `${selectedTypes.value.length} types selected`
+})
 
 const filteredBusinesses = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
 
   return businesses.value.filter((business) => {
-    const matchesType = activeType.value === 'All types' || business.type === activeType.value
+    const rating = businessRating(business)
+    const matchesRating =
+      selectedRatings.value.length === 0 ||
+      selectedRatings.value.some((minimumRating) => rating >= minimumRating)
+    const matchesBarangay =
+      selectedBarangays.value.length === 0 || selectedBarangays.value.includes(business.barangay)
+    const matchesType =
+      selectedTypes.value.length === 0 || selectedTypes.value.includes(business.type)
     const matchesQuery =
       !query ||
-      [business.name, business.type, business.owner, business.location, business.description]
+      [business.name, business.barangay, business.type]
         .join(' ')
         .toLowerCase()
         .includes(query)
 
-    return matchesType && matchesQuery
+    return matchesRating && matchesBarangay && matchesType && matchesQuery
   })
 })
 
@@ -42,20 +67,21 @@ function initials(name) {
     .toUpperCase()
 }
 
-function socialEntries(business) {
-  const links = business.socialLinks || {}
-  return [
-    { key: 'website', label: 'Website', url: links.website },
-    { key: 'facebook', label: 'Facebook', url: links.facebook },
-    { key: 'instagram', label: 'Instagram', url: links.instagram },
-    { key: 'tiktok', label: 'TikTok', url: links.tiktok },
-    { key: 'twitter', label: 'Twitter / X', url: links.twitter },
-  ].filter((item) => item.url)
+function businessRating(business) {
+  const rating = Number(business.ratingAverage)
+  return Number.isFinite(rating) ? Math.min(Math.max(rating, 0), 5) : 5
 }
 
-function clearFilters() {
-  searchQuery.value = ''
-  activeType.value = 'All types'
+function formattedRating(business) {
+  return businessRating(business).toFixed(1)
+}
+
+function ratingStars(rating) {
+  return Array.from({ length: rating }, () => '\u2605').join('')
+}
+
+function filterId(group, value) {
+  return `${group}-${String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
 }
 
 async function loadBusinesses() {
@@ -98,94 +124,133 @@ onMounted(loadBusinesses)
       </section>
 
       <section class="directory-section">
-        <div class="page-shell">
-          <div class="directory-toolbar">
-            <label class="search-field">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.2-3.2" />
-              </svg>
-              <input v-model="searchQuery" placeholder="Search accredited businesses..." />
-            </label>
-
-            <label class="select-field">
-              <span>Type</span>
-              <select v-model="activeType">
-                <option v-for="type in typeOptions" :key="type" :value="type">
-                  {{ type }}
-                </option>
-              </select>
-            </label>
-
-            <button class="clear-filters" type="button" @click="clearFilters">Reset</button>
-          </div>
-
-          <div class="result-summary">
-            <p>
-              Showing <strong>{{ filteredBusinesses.length }}</strong>
-              {{ filteredBusinesses.length === 1 ? 'establishment' : 'establishments' }}
-            </p>
-          </div>
-
-          <div v-if="isLoading" class="directory-state">Loading accredited establishments...</div>
-          <div v-else-if="errorMessage" class="directory-state">{{ errorMessage }}</div>
-          <div v-else-if="filteredBusinesses.length === 0" class="empty-state">
-            <div></div>
-            <h2>No establishments found</h2>
-            <p>Try a different search or business type.</p>
-            <button type="button" @click="clearFilters">Clear filters</button>
-          </div>
-
-          <div v-else class="business-grid">
-            <RouterLink
-              v-for="business in filteredBusinesses"
-              :key="business.id"
-              class="business-card"
-              :to="{ name: 'promotion-establishment-information', params: { slug: business.slug || business.id } }"
-            >
-              <div class="business-card__media">
-                <img
-                  v-if="business.imageUrl"
-                  :src="business.imageUrl"
-                  :alt="`${business.name} cover photo`"
+        <div class="directory-shell">
+          <aside class="filter-panel" aria-label="Accredited establishment filters">
+            <section>
+              <h2>Star Rating</h2>
+              <label
+                v-for="rating in ratingOptions"
+                :key="rating"
+                class="filter-check"
+                :for="filterId('rating', rating)"
+              >
+                <input
+                  :id="filterId('rating', rating)"
+                  v-model="selectedRatings"
+                  type="checkbox"
+                  :value="rating"
                 />
-                <span v-else>{{ initials(business.name) }}</span>
-              </div>
-              <div class="business-card__body">
-                <AccreditationBadge floating />
-                <h2>{{ business.name }}</h2>
-                <p>{{ business.description }}</p>
-                <div v-if="socialEntries(business).length" class="business-socials">
-                  <a
-                    v-for="link in socialEntries(business)"
-                    :key="link.key"
-                    :href="link.url"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                <span class="filter-stars">
+                  <span aria-hidden="true">{{ ratingStars(rating) }}</span>
+                </span>
+              </label>
+            </section>
+
+            <section>
+              <h2>Barangay</h2>
+              <label
+                v-for="barangay in barangayOptions"
+                :key="barangay"
+                class="filter-check"
+                :for="filterId('barangay', barangay)"
+              >
+                <input
+                  :id="filterId('barangay', barangay)"
+                  v-model="selectedBarangays"
+                  type="checkbox"
+                  :value="barangay"
+                />
+                <span>{{ barangay }}</span>
+              </label>
+            </section>
+          </aside>
+
+          <div class="directory-content">
+            <div class="directory-toolbar">
+              <label class="search-field">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-3.2-3.2" />
+                </svg>
+                <input v-model="searchQuery" placeholder="Search..." />
+              </label>
+
+              <details class="type-dropdown">
+                <summary>
+                  <span>{{ businessTypeLabel }}</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </summary>
+
+                <div class="type-dropdown__menu">
+                  <label
+                    v-for="type in typeOptions"
+                    :key="type"
+                    class="filter-check type-dropdown__option"
+                    :for="filterId('type', type)"
                   >
-                    {{ link.label }}
-                  </a>
+                    <input
+                      :id="filterId('type', type)"
+                      v-model="selectedTypes"
+                      type="checkbox"
+                      :value="type"
+                    />
+                    <span>{{ type }}</span>
+                  </label>
                 </div>
-                <dl>
-                  <div>
-                    <dt>Business Type</dt>
-                    <dd>{{ business.type }}</dd>
-                  </div>
-                  <div>
-                    <dt>Owner</dt>
-                    <dd>{{ business.owner }}</dd>
-                  </div>
-                  <div>
-                    <dt>Location</dt>
-                    <dd>{{ business.location }}</dd>
-                  </div>
-                  <div>
-                    <dt>Accredited Since</dt>
-                    <dd>{{ business.accreditedSince }}</dd>
-                  </div>
-                </dl>
+              </details>
+            </div>
+
+            <div class="result-summary">
+              <p>
+                Showing <strong>{{ filteredBusinesses.length }}</strong>
+                {{ filteredBusinesses.length === 1 ? 'establishment' : 'establishments' }}
+              </p>
+            </div>
+
+            <div class="establishments-container">
+              <div v-if="isLoading" class="directory-state">Loading accredited establishments...</div>
+              <div v-else-if="errorMessage" class="directory-state">{{ errorMessage }}</div>
+              <div v-else-if="filteredBusinesses.length === 0" class="empty-state">
+                <div></div>
+                <h2>No establishments found</h2>
+                <p>Try a different search, rating, barangay, or business type.</p>
               </div>
-            </RouterLink>
+
+              <div v-else class="business-grid">
+                <RouterLink
+                  v-for="business in filteredBusinesses"
+                  :key="business.id"
+                  class="business-card"
+                  :to="{ name: 'promotion-establishment-information', params: { slug: business.slug || business.id } }"
+                >
+                  <div class="business-card__media">
+                    <img
+                      v-if="business.imageUrl"
+                      :src="business.imageUrl"
+                      :alt="`${business.name} cover photo`"
+                    />
+                    <span v-else>{{ initials(business.name) }}</span>
+                  </div>
+
+                  <div class="business-card__body">
+                    <div class="business-card__heading">
+                      <h2>{{ business.name }}</h2>
+                      <p>{{ business.barangay || 'Barangay to be confirmed' }}</p>
+                    </div>
+
+                    <div class="business-card__meta-row">
+                      <span>{{ business.type }}</span>
+                      <div class="rating-pill" aria-label="Establishment rating">
+                        <span aria-hidden="true">&#9733;</span>
+                        <strong>{{ formattedRating(business) }}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </RouterLink>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -200,7 +265,7 @@ onMounted(loadBusinesses)
 
 .establishments-page {
   min-height: 100vh;
-  background: #f2f0eb;
+  background: #ffffff;
   color: #1a1a1a;
   font-family: Inter, system-ui, sans-serif;
   line-height: 1.6;
@@ -220,24 +285,13 @@ a {
 
 button,
 input,
-select {
+summary {
   font: inherit;
 }
 
 .page-shell {
-  width: min(100% - 48px, 1200px);
+  width: min(100% - 48px, 1280px);
   margin: 0 auto;
-}
-
-.icon-button svg,
-.search-field svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2;
 }
 
 .establishments-hero {
@@ -312,44 +366,106 @@ h1 {
 .directory-section {
   min-height: 60vh;
   padding: 42px 0 96px;
-  background: #f2f0eb;
+  background: #ffffff;
+}
+
+.directory-shell {
+  width: min(100% - 48px, 1680px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  align-items: start;
+  gap: 36px;
+}
+
+.filter-panel {
+  position: sticky;
+  top: 88px;
+  display: grid;
+  gap: 24px;
+  padding-top: 8px;
+  align-self: start;
+}
+
+.filter-panel h2 {
+  margin: 0 0 12px;
+  color: #0b0b0b;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.filter-check {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: #0b0b0b;
+  font-size: 14px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.filter-check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #1b4332;
+}
+
+.filter-stars {
+  display: inline-flex;
+  align-items: center;
+  min-width: 98px;
+  color: #f5a400;
+  font-size: 17px;
+  line-height: 1;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.directory-content {
+  min-width: 0;
 }
 
 .directory-toolbar {
+  position: relative;
+  width: min(980px, 100%);
   display: flex;
-  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
   gap: 10px;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
-.search-field,
-.select-field {
+.search-field {
   position: relative;
-  height: 44px;
+  flex: 1 1 auto;
+  height: 38px;
   display: flex;
   align-items: center;
-  border: 1px solid #e8e4dc;
-  border-radius: 8px;
+  border: 1px solid #cfd8d3;
+  border-radius: 4px;
   background: #ffffff;
   color: #5c5c5c;
 }
 
-.search-field {
-  width: min(420px, 100%);
-  background: #ffffff;
-}
-
 .search-field svg {
   position: absolute;
-  left: 13px;
-  width: 17px;
-  height: 17px;
+  left: 12px;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
 }
 
 .search-field input {
   width: 100%;
   height: 100%;
-  padding: 0 12px 0 40px;
+  padding: 0 12px 0 34px;
   border: 0;
   outline: 0;
   background: transparent;
@@ -357,49 +473,87 @@ h1 {
   font-size: 14px;
 }
 
-.select-field {
-  min-width: 230px;
+.type-dropdown {
+  position: relative;
+  flex: 0 0 220px;
+  color: #1a1a1a;
+  font-size: 14px;
+}
+
+.type-dropdown summary {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
   padding: 0 12px;
-}
-
-.select-field span {
-  color: #7a7771;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.select-field select {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: #1a1a1a;
-  font-size: 14px;
-}
-
-.clear-filters,
-.empty-state button {
-  height: 44px;
-  padding: 0 16px;
-  border: 1.5px solid #1b4332;
-  border-radius: 8px;
+  border: 1px solid #cfd8d3;
+  border-radius: 4px;
   background: #ffffff;
-  color: #1b4332;
-  font-size: 13px;
-  font-weight: 600;
+  color: #1a1a1a;
   cursor: pointer;
+  list-style: none;
 }
 
-.clear-filters:hover,
-.empty-state button:hover {
-  background: #d8f3dc;
+.type-dropdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.type-dropdown summary span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.type-dropdown summary svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: #1b4332;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  transition: transform 160ms ease;
+}
+
+.type-dropdown[open] summary {
+  border-color: #1b4332;
+}
+
+.type-dropdown[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.type-dropdown__menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(300px, 80vw);
+  max-height: 280px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid #cfd8d3;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 16px 30px rgba(27, 67, 50, 0.12);
+}
+
+.type-dropdown__option {
+  margin-top: 0;
+  padding: 7px 6px;
+  border-radius: 4px;
+}
+
+.type-dropdown__option:hover {
+  background: #f2f7f4;
 }
 
 .result-summary {
-  margin-bottom: 24px;
+  width: 100%;
+  margin: 0 auto 22px;
 }
 
 .result-summary p {
@@ -413,10 +567,16 @@ h1 {
   font-weight: 600;
 }
 
+.establishments-container {
+  width: 100%;
+  margin: 0 auto;
+  overflow: visible;
+}
+
 .directory-state,
 .empty-state {
   border: 1px solid #e8e4dc;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #ffffff;
   color: #5c5c5c;
 }
@@ -454,24 +614,18 @@ h1 {
   font-size: 14px;
 }
 
-.empty-state button {
-  margin-top: 24px;
-}
-
 .business-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 22px;
 }
 
 .business-card {
   min-width: 0;
-  display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
-  gap: 18px;
-  padding: 22px;
-  border: 1px solid #e8e4dc;
-  border-radius: 12px;
+  display: block;
+  overflow: hidden;
+  border: 1px solid #d7ded9;
+  border-radius: 8px;
   background: #ffffff;
   transition:
     border-color 160ms ease,
@@ -481,17 +635,18 @@ h1 {
 
 .business-card:hover {
   border-color: #1b4332;
-  box-shadow: 0 18px 36px rgba(27, 67, 50, 0.1);
+  box-shadow: 0 16px 30px rgba(27, 67, 50, 0.1);
   transform: translateY(-2px);
 }
 
 .business-card__media {
-  width: 180px;
-  aspect-ratio: 4 / 3;
+  width: calc(100% - 16px);
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  margin: 8px;
+  border-radius: 6px;
   background:
     radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.28), transparent 45%),
     linear-gradient(135deg, #1b4332, #1b7a4a);
@@ -508,86 +663,65 @@ h1 {
   object-fit: cover;
 }
 
-.business-card__media span {
-  display: grid;
-  place-items: center;
-}
-
 .business-card__body {
   min-width: 0;
+  padding: 0 12px 14px;
 }
 
 .business-card h2 {
-  margin-top: 12px;
-  color: #1a1a1a;
-  font-size: 22px;
-  font-weight: 700;
+  margin: 0;
+  color: #0b0b0b;
+  font-size: 18px;
+  font-weight: 800;
 }
 
 .business-card p {
-  margin: 8px 0 0;
-  color: #5c5c5c;
-  font-size: 14px;
-}
-
-.business-socials {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.business-socials a {
-  min-height: 28px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 10px;
-  border: 1px solid #d7e5dd;
-  border-radius: 999px;
-  color: #1b4332;
+  margin: 0;
+  color: #4f5d58;
   font-size: 12px;
-  font-weight: 700;
-}
-
-.business-socials a:hover {
-  background: #d8f3dc;
-}
-
-dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 18px;
-  margin: 18px 0 0;
-}
-
-dt {
-  color: #7a7771;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-dd {
-  margin: 3px 0 0;
-  color: #1a1a1a;
-  font-size: 14px;
   line-height: 1.35;
 }
 
+.business-card__meta-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  color: #0b0b0b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rating-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #0b0b0b;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.rating-pill span {
+  color: #f5a400;
+  font-size: 15px;
+  line-height: 1;
+}
+
 @media (max-width: 1024px) {
-  .site-nav__links {
-    display: none;
-  }
-
-  .icon-button--menu {
-    display: grid;
-  }
-
   .establishments-hero__inner,
-  .business-grid,
-  .site-footer__main {
+  .directory-shell {
     grid-template-columns: 1fr;
+  }
+
+  .filter-panel {
+    position: static;
+    padding-top: 0;
+  }
+
+  .business-grid {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
   }
 
   .hero-stat {
@@ -597,50 +731,33 @@ dd {
 
 @media (max-width: 760px) {
   .page-shell,
-  .site-nav__inner {
-    width: min(100% - 32px, 1200px);
-  }
-
-  .brand__copy,
-  .login-button {
-    display: none;
+  .directory-shell {
+    width: min(100% - 32px, 1280px);
   }
 
   h1 {
     font-size: 38px;
   }
 
-  .directory-toolbar,
-  .search-field,
-  .select-field,
-  .clear-filters {
+  .directory-toolbar {
     width: 100%;
-  }
-
-  .business-card {
-    grid-template-columns: 1fr;
-  }
-
-  .business-card__media {
-    width: 100%;
-  }
-
-  dl {
-    grid-template-columns: 1fr;
-  }
-
-  .site-footer__main {
-    gap: 32px;
-  }
-
-  .site-footer__bottom .page-shell {
-    align-items: flex-start;
     flex-direction: column;
-    padding: 18px 0;
   }
 
-  .site-footer__bottom a {
-    margin: 0 18px 0 0;
+  .search-field,
+  .type-dropdown {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .type-dropdown__menu {
+    left: 0;
+    right: auto;
+    width: 100%;
+  }
+
+  .business-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

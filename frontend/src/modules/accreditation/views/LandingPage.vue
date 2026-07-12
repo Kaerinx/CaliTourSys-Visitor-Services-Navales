@@ -287,8 +287,8 @@ const requiredDocuments = certificateRegistrationDetails.requirements;
 .service-hero {
   min-height: 620px;
   background:
-    linear-gradient(90deg, rgba(12, 43, 33, 0.92), rgba(12, 43, 33, 0.68) 58%, rgba(12, 43, 33, 0.28)),
-    url("@/assets/hero-banner.jpg") center / cover no-repeat;
+    linear-gradient(90deg, rgba(12, 43, 33, 0.88), rgba(12, 43, 33, 0.76) 58%, rgba(12, 43, 33, 0.62)),
+    url("@/assets/accreditation-quipayo-church-banner.jpg") center / cover no-repeat;
   color: #ffffff;
 }
 
@@ -300,7 +300,7 @@ const requiredDocuments = certificateRegistrationDetails.requirements;
 }
 
 .service-hero__content {
-  max-width: 790px;
+  max-width: none;
 }
 
 h1,
@@ -441,7 +441,7 @@ h3 {
 
 .services-section .service-shell,
 .requirements-section .service-shell {
-  width: min(100% - 48px, 1080px);
+  width: min(100% - 48px, 1200px);
 }
 
 .services-section h2,
@@ -739,7 +739,9 @@ dd {
 }
 
 @media (max-width: 820px) {
-  .service-shell {
+  .service-shell,
+  .services-section .service-shell,
+  .requirements-section .service-shell {
     width: min(100% - 32px, 1200px);
   }
 
