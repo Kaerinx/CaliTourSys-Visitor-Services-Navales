@@ -38,6 +38,44 @@ function coordinate(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function textOrNull(value) {
+  const text = String(value || "").trim();
+  return text || null;
+}
+
+function normalizePartners(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((partner) => String(partner || "").trim()).filter(Boolean);
+}
+
+function organizationFields(profile = {}, user = {}) {
+  const legalStructure = textOrNull(profile.legalStructure || profile.legal_structure);
+  const company = profile.company || {};
+  const representativeName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+
+  return {
+    legalStructure,
+    partners: normalizePartners(profile.partners),
+    authorizedRepresentativeName: textOrNull(
+      profile.authorizedRepresentativeName ||
+        profile.authorized_representative_name ||
+        company.representativeName ||
+        representativeName
+    ),
+    authorizedRepresentativePosition: textOrNull(
+      profile.authorizedRepresentativePosition ||
+        profile.authorized_representative_position ||
+        company.representativePosition
+    ),
+    companyRegistrationNumber: textOrNull(
+      profile.companyRegistrationNumber ||
+        profile.company_registration_number ||
+        company.registrationNumber ||
+        profile.dtiSecRegistrationNumber
+    ),
+  };
+}
+
 async function createUser(user) {
   const displayName = `${user.firstName} ${user.lastName}`.trim();
   const result = await db.query(
@@ -95,18 +133,23 @@ async function createBusinessOwnerWithProfile(user, profile) {
 
     const createdUser = userResult.rows[0];
 
+    const organization = organizationFields(profile, user);
+
     await client.query(
       `INSERT INTO business_profiles (
         owner_id, business_name, business_type, business_permit_number,
         dti_sec_registration_number, region, province, city_municipality,
-        barangay, street_address, zip_code, latitude, longitude
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        barangay, street_address, zip_code, latitude, longitude,
+        description, facebook_url, instagram_url, tiktok_url, twitter_url, website_url,
+        legal_structure, partners, authorized_representative_name,
+        authorized_representative_position, company_registration_number
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
       [
         createdUser.id,
         profile.businessName,
         profile.businessType || null,
         profile.businessPermitNumber || null,
-        profile.dtiSecRegistrationNumber || null,
+        profile.dtiSecRegistrationNumber || profile.company?.registrationNumber || null,
         profile.region,
         profile.province,
         profile.cityMunicipality,
@@ -115,6 +158,17 @@ async function createBusinessOwnerWithProfile(user, profile) {
         profile.zipCode || null,
         coordinate(profile.latitude),
         coordinate(profile.longitude),
+        textOrNull(profile.description),
+        textOrNull(profile.facebookUrl),
+        textOrNull(profile.instagramUrl),
+        textOrNull(profile.tiktokUrl),
+        textOrNull(profile.twitterUrl),
+        textOrNull(profile.websiteUrl),
+        organization.legalStructure,
+        JSON.stringify(organization.partners),
+        organization.authorizedRepresentativeName,
+        organization.authorizedRepresentativePosition,
+        organization.companyRegistrationNumber,
       ]
     );
 
@@ -197,19 +251,23 @@ async function updatePasswordHash(userId, passwordHash) {
 }
 
 async function createBusinessProfile(ownerId, profile) {
+  const organization = organizationFields(profile);
   const result = await db.query(
     `INSERT INTO business_profiles (
       owner_id, business_name, business_type, business_permit_number,
       dti_sec_registration_number, region, province, city_municipality,
-      barangay, street_address, zip_code, latitude, longitude
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      barangay, street_address, zip_code, latitude, longitude,
+      description, facebook_url, instagram_url, tiktok_url, twitter_url, website_url,
+      legal_structure, partners, authorized_representative_name,
+      authorized_representative_position, company_registration_number
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
     RETURNING *`,
     [
       ownerId,
       profile.businessName,
       profile.businessType || null,
       profile.businessPermitNumber || null,
-      profile.dtiSecRegistrationNumber || null,
+      profile.dtiSecRegistrationNumber || profile.company?.registrationNumber || null,
       profile.region,
       profile.province,
       profile.cityMunicipality,
@@ -218,6 +276,17 @@ async function createBusinessProfile(ownerId, profile) {
       profile.zipCode || null,
       coordinate(profile.latitude),
       coordinate(profile.longitude),
+      textOrNull(profile.description),
+      textOrNull(profile.facebookUrl),
+      textOrNull(profile.instagramUrl),
+      textOrNull(profile.tiktokUrl),
+      textOrNull(profile.twitterUrl),
+      textOrNull(profile.websiteUrl),
+      organization.legalStructure,
+      JSON.stringify(organization.partners),
+      organization.authorizedRepresentativeName,
+      organization.authorizedRepresentativePosition,
+      organization.companyRegistrationNumber,
     ]
   );
   return result.rows[0];
@@ -251,6 +320,12 @@ async function updateBusinessProfile(ownerId, profile) {
        zip_code = $11,
        latitude = $12,
        longitude = $13,
+       description = $14,
+       facebook_url = $15,
+       instagram_url = $16,
+       tiktok_url = $17,
+       twitter_url = $18,
+       website_url = $19,
        updated_at = NOW()
      WHERE id = (
        SELECT id FROM business_profiles
@@ -273,6 +348,12 @@ async function updateBusinessProfile(ownerId, profile) {
       profile.zipCode || null,
       coordinate(profile.latitude),
       coordinate(profile.longitude),
+      textOrNull(profile.description),
+      textOrNull(profile.facebookUrl),
+      textOrNull(profile.instagramUrl),
+      textOrNull(profile.tiktokUrl),
+      textOrNull(profile.twitterUrl),
+      textOrNull(profile.websiteUrl),
     ]
   );
 
@@ -751,6 +832,76 @@ async function createAccreditationRecord(application, issuedBy) {
   return result.rows[0];
 }
 
+async function listBusinessProfileImages(profileId) {
+  const result = await db.query(
+    `SELECT *
+     FROM business_profile_images
+     WHERE business_profile_id = $1
+     ORDER BY display_order ASC, uploaded_at ASC`,
+    [profileId]
+  );
+  return result.rows;
+}
+
+async function countBusinessProfileImages(profileId) {
+  const result = await db.query(
+    "SELECT COUNT(*)::int AS count FROM business_profile_images WHERE business_profile_id = $1",
+    [profileId]
+  );
+  return result.rows[0]?.count || 0;
+}
+
+async function addBusinessProfileImages(profileId, images) {
+  const existingCount = await countBusinessProfileImages(profileId);
+  const created = [];
+
+  for (const [index, image] of images.entries()) {
+    const result = await db.query(
+      `INSERT INTO business_profile_images (
+        business_profile_id, image_url, original_name, mime_type, file_size, display_order
+      ) VALUES ($1,$2,$3,$4,$5,$6)
+      RETURNING *`,
+      [
+        profileId,
+        image.imageUrl,
+        image.originalName || null,
+        image.mimeType || null,
+        Number.isFinite(Number(image.fileSize)) ? Number(image.fileSize) : null,
+        existingCount + index,
+      ]
+    );
+    created.push(result.rows[0]);
+  }
+
+  return created;
+}
+
+async function deleteBusinessProfileImage(ownerId, imageId) {
+  const result = await db.query(
+    `DELETE FROM business_profile_images img
+     USING business_profiles bp
+     WHERE img.id = $1
+       AND img.business_profile_id = bp.id
+       AND bp.owner_id = $2
+     RETURNING img.*`,
+    [imageId, ownerId]
+  );
+  return result.rows[0] || null;
+}
+
+async function deactivateAccreditationRecordForApplication(applicationId, notes) {
+  const result = await db.query(
+    `UPDATE accreditation_records
+     SET status = 'inactive',
+       notes = COALESCE($2, notes)
+     WHERE application_id = $1
+       AND status = 'active'
+     RETURNING *`,
+    [applicationId, notes || null]
+  );
+  return result.rows[0] || null;
+}
+
 async function listUsers(filters = {}) {
   const params = [];
   const where = [];
@@ -799,7 +950,13 @@ async function updateUserStatus(id, status) {
   }
 
   const result = await db.query(
-    "UPDATE users SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, email, role, status",
+    `UPDATE users
+     SET status = $2::user_status,
+       email_verified_at = CASE WHEN $2::text = 'active' THEN COALESCE(email_verified_at, NOW()) ELSE email_verified_at END,
+       verification_token = CASE WHEN $2::text = 'active' THEN NULL ELSE verification_token END,
+       updated_at = NOW()
+     WHERE id = $1
+     RETURNING id, email, role, status`,
     [id, status]
   );
   return result.rows[0];
@@ -905,6 +1062,8 @@ async function markNotificationRead(id, { userId, role }) {
 
 module.exports = {
   addApplicationDocument,
+  addBusinessProfileImages,
+  countBusinessProfileImages,
   createApplication,
   createAuditLog,
   createAccreditationRecord,
@@ -912,6 +1071,8 @@ module.exports = {
   createBusinessOwnerWithProfile,
   createNotification,
   createUser,
+  deactivateAccreditationRecordForApplication,
+  deleteBusinessProfileImage,
   deleteDraftApplication,
   findUserByEmail,
   findUserById,
@@ -919,6 +1080,7 @@ module.exports = {
   getApplicationById,
   getDocumentById,
   getBusinessProfile,
+  listBusinessProfileImages,
   listAccreditationRecords,
   listApplications,
   listAuditLogs,

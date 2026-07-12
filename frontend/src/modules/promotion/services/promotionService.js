@@ -414,10 +414,25 @@ function mapAccreditedBusiness(business) {
     location: location || business.region || 'Calabanga, Camarines Sur',
     accreditationStatus: business.accreditation?.status || 'accredited',
     accreditationNumber: business.accreditation?.accreditationNumber,
+    issuedAt: business.accreditation?.issuedAt,
     accreditedSince: formatYear(business.accreditation?.issuedAt),
     expiresAt: business.accreditation?.expiresAt,
     contactEmail: business.contactEmail || '',
     phone: business.phone || '',
+    addressLine: business.addressLine || '',
+    barangay: business.barangay || '',
+    municipality: business.municipality || business.cityMunicipality || '',
+    province: business.province || '',
+    region: business.region || '',
+    latitude: business.latitude ?? null,
+    longitude: business.longitude ?? null,
+    legalStructure: business.legalStructure || '',
+    partners: Array.isArray(business.partners) ? business.partners : [],
+    authorizedRepresentativeName: business.authorizedRepresentativeName || '',
+    authorizedRepresentativePosition: business.authorizedRepresentativePosition || '',
+    imageUrl: business.primaryImage?.url || business.images?.[0]?.url || '',
+    images: business.images || [],
+    socialLinks: business.socialLinks || {},
     description:
       business.description ||
       `${business.businessType || 'Tourism business'} accredited through the LGU Tourism Office.`,
@@ -709,6 +724,19 @@ export async function getAccreditedBusinesses(params = {}) {
   return data.map((business) =>
     business.businessType || business.accreditation ? mapAccreditedBusiness(business) : business,
   )
+}
+
+export async function getAccreditedBusinessBySlug(slug) {
+  const response = await promotionApi.getBusinessBySlug(slug).catch((error) => {
+    throw new Error(userMessageForError(error))
+  })
+  const data = response.data
+  const business = mapAccreditedBusiness(data)
+
+  return {
+    ...business,
+    relatedEstablishments: (data.relatedEstablishments || []).map(mapAccreditedBusiness),
+  }
 }
 
 export async function getMapLocations(params = { format: 'list' }) {

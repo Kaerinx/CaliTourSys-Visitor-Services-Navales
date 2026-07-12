@@ -11,8 +11,9 @@ import { friendlyContentError, useCmsList } from '../../composables/useCmsList'
 import { useCmsRelations } from '../../composables/useCmsRelations'
 import { cmsContentApi } from '../../services/cmsContentApi'
 import { useCmsAuthStore } from '../../stores/authStore'
+import { mapboxAccessToken } from '@/config/mapbox'
 
-const mapboxToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || ''
+const mapboxToken = mapboxAccessToken
 const auth = useCmsAuthStore()
 const { filters, items, pagination, isLoading, error, load, setPage } = useCmsList(cmsContentApi.getMapLocations, { locationType: '', sort: '-createdAt' })
 const { relations, relationError } = useCmsRelations({

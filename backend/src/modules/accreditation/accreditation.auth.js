@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { getJwtSecret } = require("../../config/authConfig");
+const { verifyAccessToken } = require("../../utils/tokens");
 
 function authenticate(req, res, next) {
   const header = req.headers.authorization || "";
@@ -10,7 +11,7 @@ function authenticate(req, res, next) {
   }
 
   try {
-    req.user = jwt.verify(token, getJwtSecret());
+    req.user = normalizeAuthPayload(verifyAccreditationToken(token));
     return next();
   } catch (_error) {
     return res.status(401).json({ message: "Invalid or expired token." });
@@ -24,6 +25,36 @@ function authorize(...roles) {
     }
     return next();
   };
+}
+
+function verifyAccreditationToken(token) {
+  try {
+    return jwt.verify(token, getJwtSecret());
+  } catch (legacyError) {
+    try {
+      return verifyAccessToken(token);
+    } catch {
+      throw legacyError;
+    }
+  }
+}
+
+function normalizeAuthPayload(payload) {
+  const roles = Array.isArray(payload.roles) ? payload.roles : [payload.role].filter(Boolean);
+  const role = normalizeRole(payload.role || roles[0]);
+
+  return {
+    ...payload,
+    id: payload.id || payload.sub,
+    role,
+    roles,
+  };
+}
+
+function normalizeRole(role) {
+  if (role === "system_admin") return "admin";
+  if (role === "tourism_officer") return "tourism_staff";
+  return role;
 }
 
 module.exports = { authenticate, authorize };

@@ -14,9 +14,10 @@ import AccreditationBadge from '../components/AccreditationBadge.vue'
 import TouristMapBox from '../components/TouristMapBox.vue'
 import heroBanner from '@/assets/hero-banner.jpg'
 import { SHOW_MUSEUM_MODULE } from '@/config/featureFlags'
+import { mapboxAccessToken } from '@/config/mapbox'
 
 const heroBannerUrl = `url(${heroBanner})`
-const mapboxToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || ''
+const mapboxToken = mapboxAccessToken
 const router = useRouter()
 
 const products = ref([])

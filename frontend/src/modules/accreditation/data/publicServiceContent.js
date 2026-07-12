@@ -1,7 +1,7 @@
 export const serviceIdentity = {
   municipality: "Municipality of Calabanga",
   office: "Tourism Office",
-  serviceName: "Business Accreditation Service",
+  serviceName: "Tourism Business Registration and Accreditation",
   description:
     "A public online service where tourism-related businesses can register, prepare requirements, submit accreditation documents, and track certificate or endorsement release.",
 };
@@ -44,10 +44,43 @@ export const serviceCapabilities = [
 ];
 
 export const guideResource = {
-  title: "Accreditation Guide.pdf",
-  href: "/downloads/Accreditation%20Guide.pdf",
+  title: "Calabanga Tourism Certificate of Registration - English.pdf",
+  href: "/downloads/Calabanga-Tourism-Certificate-of-Registration-English.pdf",
   description:
-    "View the downloadable guide for the complete list of requirements, forms, and instructions.",
+    "View the revised English-only service procedure for the complete list of requirements, offices, processing steps, notes, and suggested certificate content.",
+};
+
+export const certificateRegistrationDetails = {
+  purpose:
+    "The Tourism Certificate of Registration is issued to tourism-related enterprises that have submitted the minimum documentary requirements, paid the corresponding local fees when applicable, and complied with the registration procedures of the Municipality of Calabanga.",
+  office: "Calabanga Tourism Department / Municipal Tourism Office",
+  classification: "Complex",
+  transactionType: "G2B - Government to Business Entity",
+  whoMayAvail:
+    "Owners, operators, authorized representatives, and managers of tourism-related enterprises operating or intending to operate within the Municipality of Calabanga.",
+  requirements: [
+    "Unified Business Permit Application Form or equivalent business registration application form",
+    "DTI, SEC, CDA, or other applicable registration document based on business type",
+    "Barangay Clearance for the business location",
+    "Current Business Permit or Mayor's Permit, if already issued or renewed",
+    "Tax bill, assessment, or official receipt showing payment of local fees when assessed",
+    "Valid government-issued ID of the owner or authorized representative",
+    "Surety bond or insurance coverage for travel agencies and similar enterprises when required",
+  ],
+  process: [
+    "Submit the accomplished application form and complete documentary requirements.",
+    "Wait for confirmation and notice of any lacking or unclear documents.",
+    "Respond to correction requests, if applicable.",
+    "Wait for evaluation, verification, inspection, or inter-office coordination when necessary.",
+    "Wait for approval and signing of the Tourism Certificate of Registration.",
+    "Receive release notice and claim the certificate through the approved release method.",
+  ],
+  processingTime: "7 working days upon receipt of complete requirements",
+  notes: [
+    "Processing time starts only upon receipt of a complete application and complete documentary requirements.",
+    "The Tourism Certificate of Registration is not a substitute for other permits required by law.",
+    "Fees and validity period must follow the latest ordinance, local revenue code, or approved policy of the Municipality of Calabanga.",
+  ],
 };
 
 export const establishmentExamples = [
@@ -69,86 +102,57 @@ export const requiredBusinessInformation = [
 export const processSteps = [
   {
     title: "Create an applicant account",
-    instruction: "Register as the owner or authorized representative.",
-    applicantAction: "Select the business structure and provide contact details.",
-    officerAction: "System records the account for business verification.",
+    instruction: "Register using your active email address and contact details.",
     status: "For Business Verification",
   },
   {
-    title: "Select business type",
-    instruction: "Choose Sole Proprietorship, Partnership, or Corporation.",
-    applicantAction: "Confirm owner, partner, or representative information.",
-    officerAction: "System adjusts fields and document expectations.",
+    title: "Choose your business structure",
+    instruction: "Select Sole Proprietorship, Partnership, or Corporation.",
     status: "Draft",
   },
   {
     title: "Submit business information",
-    instruction: "Enter the registered name, address, category, and permit details.",
-    applicantAction: "Send the registration details for checking.",
-    officerAction: "Officer verifies whether the business can proceed.",
+    instruction: "Enter the business name, address, category, and permit details.",
     status: "For Business Verification",
   },
   {
-    title: "Wait for business verification",
-    instruction: "Monitor email and system messages.",
-    applicantAction: "Wait or respond if the Tourism Office asks for clarification.",
-    officerAction: "Officer approves or flags the business registration.",
+    title: "Wait for Tourism Office verification",
+    instruction: "A tourism staff or officer checks if the account can proceed.",
     status: "Business Verified",
   },
   {
-    title: "Verify email account",
-    instruction: "Open the verification link after the business is cleared.",
-    applicantAction: "Confirm ownership of the registered email address.",
-    officerAction: "System activates sign-in access.",
+    title: "Sign in after approval",
+    instruction: "Once verified, use your registered email and password to access the dashboard.",
     status: "Email Verification Required",
   },
   {
-    title: "Sign in to the system",
-    instruction: "Use the verified email and password.",
-    applicantAction: "Open the applicant dashboard.",
-    officerAction: "System shows profile, applications, and notifications.",
-    status: "For Document Upload",
-  },
-  {
     title: "Complete business profile",
-    instruction: "Review and update the full business profile.",
-    applicantAction: "Add permit numbers, category, address, and map location.",
-    officerAction: "System uses the profile for the application record.",
+    instruction: "Review your business details and update missing information.",
     status: "Draft",
   },
   {
     title: "Upload required documents",
-    instruction: "Attach the files listed for the selected business category.",
-    applicantAction: "Upload PDF, JPG, or PNG files.",
-    officerAction: "System checks file type and stores the documents.",
+    instruction: "Attach the required PDF, JPG, or PNG files.",
     status: "For Document Upload",
   },
   {
     title: "Submit accreditation application",
-    instruction: "Review all entries and submit the application.",
-    applicantAction: "Confirm that the details and attachments are complete.",
-    officerAction: "Officer queue receives the application.",
+    instruction: "Review all information, then submit the application for checking.",
     status: "Submitted",
   },
   {
-    title: "Officer reviews documents",
-    instruction: "The Tourism Office checks the information and uploads.",
-    applicantAction: "Wait for review or prepare corrections.",
-    officerAction: "Officer approves, rejects, or requests correction.",
+    title: "Wait for document review",
+    instruction: "The Tourism Office reviews the submitted information and documents.",
     status: "For Officer Review",
   },
   {
-    title: "Receive status updates",
-    instruction: "Check the dashboard and email notifications.",
-    applicantAction: "Correct missing or unreadable documents if requested.",
-    officerAction: "Officer rechecks corrected submissions.",
+    title: "Respond to corrections if needed",
+    instruction: "Upload corrected documents or update details when requested.",
     status: "Needs Correction",
   },
   {
     title: "Receive certificate release notice",
-    instruction: "Follow the release or claiming instructions.",
-    applicantAction: "Claim the certificate or coordinate delivery if allowed.",
-    officerAction: "Tourism Office marks the transaction completed.",
+    instruction: "Follow the instructions for claiming or receiving the certificate.",
     status: "Certificate for Release",
   },
 ];

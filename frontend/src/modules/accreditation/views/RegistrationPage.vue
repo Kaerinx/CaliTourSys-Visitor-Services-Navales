@@ -3,34 +3,6 @@
     <PublicServiceHeader />
 
     <main class="registration-shell">
-      <aside class="registration-intro" aria-labelledby="registration-title">
-        <p class="registration-kicker">New applicants</p>
-        <h1 id="registration-title">Create your service account</h1>
-        <p>
-          Register the business owner or authorized representative who will manage the
-          accreditation request.
-        </p>
-
-        <div class="registration-notice">
-          <strong>Account access activates after verification.</strong>
-          <p>
-            Submit the business information first. After Tourism Office verification, use the
-            email verification link to activate sign-in access.
-          </p>
-        </div>
-
-        <div class="registration-guidance">
-          <strong>Before you continue</strong>
-          <ul>
-            <li>Use the business name shown on the business permit.</li>
-            <li>Use an active email address for official notifications.</li>
-            <li>Only an owner or authorized representative should register.</li>
-          </ul>
-        </div>
-
-        <RouterLink class="back-link" to="/accreditation">Return to service overview</RouterLink>
-      </aside>
-
       <form class="registration-form" aria-label="Business account registration form" @submit.prevent="submit">
         <div class="registration-form__heading">
           <span>Account registration</span>
@@ -39,10 +11,6 @@
         </div>
 
         <p v-if="message" class="form-message form-message--success" role="status">{{ message }}</p>
-        <div v-if="verificationUrl" class="form-message form-message--success">
-          <p>Email sending is not configured yet. Use the link below to verify this account for local testing.</p>
-          <a class="form-button form-button--secondary" :href="verificationUrl">Verify email</a>
-        </div>
         <p v-if="error" class="form-message form-message--error" role="alert">{{ error }}</p>
 
         <section class="registration-section" aria-labelledby="structure-title">
@@ -76,13 +44,13 @@
             <span>2</span>
             <div>
               <h3 id="personal-title">Applicant information</h3>
-              <p>Provide the details of the owner, partner, or authorized representative.</p>
+              <p>{{ applicantSectionHelp }}</p>
             </div>
           </div>
           <div class="form-grid form-grid--three">
-            <label>First name *<input v-model="form.firstName" autocomplete="given-name" required /></label>
+            <label>{{ applicantFirstNameLabel }} *<input v-model="form.firstName" autocomplete="given-name" required /></label>
             <label>Middle name<input v-model="form.middleName" autocomplete="additional-name" /></label>
-            <label>Last name *<input v-model="form.lastName" autocomplete="family-name" required /></label>
+            <label>{{ applicantLastNameLabel }} *<input v-model="form.lastName" autocomplete="family-name" required /></label>
           </div>
           <fieldset class="radio-field">
             <legend>Sex</legend>
@@ -91,6 +59,45 @@
               <label><input v-model="form.sex" value="Female" type="radio" /> Female</label>
             </div>
           </fieldset>
+
+          <div v-if="isSoleProprietorship" class="information-note">
+            Sole Proprietorship registration accepts one owner applicant only.
+          </div>
+
+          <div v-if="isPartnership" class="structure-details">
+            <div class="structure-details__heading">
+              <strong>Partner names</strong>
+              <button class="small-action" type="button" @click="addPartner">Add Partner</button>
+            </div>
+            <div
+              v-for="(partner, index) in form.business.partners"
+              :key="partner.id"
+              class="repeatable-row"
+            >
+              <label>
+                Partner {{ index + 1 }} name *
+                <input v-model="partner.name" required />
+              </label>
+              <button
+                class="small-action small-action--danger"
+                type="button"
+                :disabled="form.business.partners.length === 1"
+                @click="removePartner(index)"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+
+          <div v-if="isCorporation" class="structure-details">
+            <div class="structure-details__heading">
+              <strong>Company and representative details</strong>
+            </div>
+            <div class="form-grid form-grid--two">
+              <label>SEC / company registration number *<input v-model="form.business.company.registrationNumber" required /></label>
+              <label>Authorized representative position *<input v-model="form.business.company.representativePosition" required /></label>
+            </div>
+          </div>
         </section>
 
         <section class="registration-section" aria-labelledby="business-title">
@@ -243,7 +250,6 @@ import { registerBusinessOwner } from "@/modules/accreditation/services/accredit
 
 const error = ref("");
 const message = ref("");
-const verificationUrl = ref("");
 const certified = ref(false);
 const confirmPassword = ref("");
 const showPrivacy = ref(false);
@@ -270,12 +276,47 @@ const form = reactive({
     zipCode: calabangaLocation.zipCode,
     latitude: "",
     longitude: "",
+    partners: [{ id: Date.now(), name: "" }],
+    company: {
+      registrationNumber: "",
+      representativePosition: "",
+    },
   },
 });
 
 const selectedLegalProfile = computed(
   () => businessLegalTypes.find((type) => type.value === form.business.legalStructure) || businessLegalTypes[0],
 );
+const isSoleProprietorship = computed(() => form.business.legalStructure === "sole-proprietorship");
+const isPartnership = computed(() => form.business.legalStructure === "partnership");
+const isCorporation = computed(() => form.business.legalStructure === "corporation");
+const applicantSectionHelp = computed(() => {
+  if (isSoleProprietorship.value) return "Provide the details of the single owner applicant.";
+  if (isPartnership.value) return "Provide the managing partner details and list all partner names.";
+  if (isCorporation.value) return "Provide the authorized representative details and company information.";
+  return "Provide the applicant details.";
+});
+const applicantFirstNameLabel = computed(() => {
+  if (isSoleProprietorship.value) return "Owner first name";
+  if (isPartnership.value) return "Managing partner first name";
+  if (isCorporation.value) return "Authorized representative first name";
+  return "First name";
+});
+const applicantLastNameLabel = computed(() => {
+  if (isSoleProprietorship.value) return "Owner last name";
+  if (isPartnership.value) return "Managing partner last name";
+  if (isCorporation.value) return "Authorized representative last name";
+  return "Last name";
+});
+
+function addPartner() {
+  form.business.partners.push({ id: Date.now() + Math.random(), name: "" });
+}
+
+function removePartner(index) {
+  if (form.business.partners.length === 1) return;
+  form.business.partners.splice(index, 1);
+}
 
 function applyCalabangaLocation() {
   form.business.region = calabangaLocation.region;
@@ -290,7 +331,6 @@ function applyCalabangaLocation() {
 async function submit() {
   error.value = "";
   message.value = "";
-  verificationUrl.value = "";
   applyCalabangaLocation();
 
   if (form.password !== confirmPassword.value) {
@@ -317,11 +357,35 @@ async function submit() {
     return;
   }
 
+  if (isPartnership.value && form.business.partners.some((partner) => !partner.name.trim())) {
+    error.value = "Please enter the name of each partner.";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+
+  if (
+    isCorporation.value &&
+    (!form.business.company.registrationNumber.trim() ||
+      !form.business.company.representativePosition.trim())
+  ) {
+    error.value = "Please complete the required company and authorized representative details.";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+
   registering.value = true;
   try {
-    const result = await registerBusinessOwner(form);
+    const result = await registerBusinessOwner({
+      ...form,
+      business: {
+        ...form.business,
+        partners: isPartnership.value
+          ? form.business.partners.map((partner) => partner.name.trim()).filter(Boolean)
+          : [],
+        company: isCorporation.value ? { ...form.business.company } : null,
+      },
+    });
     message.value = result.message;
-    verificationUrl.value = result.verificationUrl || "";
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (err) {
     error.value =
@@ -358,25 +422,16 @@ async function submit() {
 }
 
 .registration-shell {
-  width: min(1180px, calc(100% - 40px));
+  width: min(880px, calc(100% - 40px));
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  align-items: start;
-  gap: 42px;
   padding: 58px 0 76px;
-}
-
-.registration-intro {
-  position: sticky;
-  top: 24px;
 }
 
 .registration-shell > * {
   min-width: 0;
 }
 
-.registration-kicker,
 .registration-form__heading > span {
   margin: 0 0 10px;
   color: #176249;
@@ -418,39 +473,11 @@ h3 {
   font-size: 18px;
 }
 
-.registration-intro > p:not(.registration-kicker),
 .registration-form__heading p,
 .registration-section__heading p {
   color: #52665e;
 }
 
-.registration-notice,
-.registration-guidance {
-  margin: 28px 0;
-  padding: 18px;
-  border-left: 4px solid #176249;
-  background: #e9f2ed;
-  color: #304a40;
-  font-size: 13px;
-}
-
-.registration-notice strong,
-.registration-guidance strong {
-  color: #173f32;
-}
-
-.registration-notice p {
-  margin: 8px 0 0;
-}
-
-.registration-guidance ul {
-  display: grid;
-  gap: 8px;
-  margin: 10px 0 0;
-  padding-left: 18px;
-}
-
-.back-link,
 .link-button {
   color: #176249;
   font-weight: 800;
@@ -646,6 +673,63 @@ h3 {
   font-size: 13px;
 }
 
+.structure-details {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #d9e1dc;
+  border-radius: 8px;
+  background: #f8faf7;
+}
+
+.structure-details__heading,
+.repeatable-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.structure-details__heading {
+  align-items: center;
+}
+
+.structure-details__heading strong {
+  color: #173f32;
+}
+
+.repeatable-row label {
+  flex: 1 1 auto;
+}
+
+.small-action {
+  min-height: 38px;
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  border: 1px solid #176249;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #176249;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.small-action:hover {
+  background: #e8f3ed;
+}
+
+.small-action--danger {
+  border-color: #a33a24;
+  color: #8c2d1c;
+}
+
+.small-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .checkbox-line {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
@@ -738,17 +822,6 @@ h3 {
   opacity: 0.58;
 }
 
-@media (max-width: 980px) {
-  .registration-shell {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .registration-intro {
-    position: static;
-    max-width: 720px;
-  }
-}
-
 @media (max-width: 720px) {
   .registration-shell {
     width: min(100% - 28px, 1180px);
@@ -776,6 +849,12 @@ h3 {
   .registration-actions {
     align-items: stretch;
     flex-direction: column-reverse;
+  }
+
+  .structure-details__heading,
+  .repeatable-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 </style>

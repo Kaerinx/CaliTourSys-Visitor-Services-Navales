@@ -64,8 +64,28 @@ function mapAccreditedBusiness(row) {
     municipality: row.municipality,
     province: row.province,
     region: row.region,
+    latitude: toNumber(row.latitude),
+    longitude: toNumber(row.longitude),
     contactEmail: row.contact_email,
     phone: row.phone,
+    legalStructure: row.legal_structure,
+    partners: Array.isArray(row.partners) ? row.partners : [],
+    authorizedRepresentativeName: row.authorized_representative_name,
+    authorizedRepresentativePosition: row.authorized_representative_position,
+    primaryImage: row.primary_image_url
+      ? {
+          url: row.primary_image_url,
+          altText: `${row.business_name} photo`,
+        }
+      : null,
+    images: row.gallery_images || [],
+    socialLinks: {
+      facebook: row.facebook_url,
+      instagram: row.instagram_url,
+      tiktok: row.tiktok_url,
+      twitter: row.twitter_url,
+      website: row.website_url,
+    },
     accreditation: {
       status: row.accreditation_status,
       accreditationNumber: row.accreditation_number,
@@ -1469,6 +1489,35 @@ async function getPromotionBySlug(slug) {
 }
 
 async function getBusinessBySlug(slug) {
+  const accreditedResult = await query(
+    `
+      SELECT *
+      FROM (${accreditedBusinessesSelect()}) accredited
+      WHERE business_slug = $1 OR id = $1
+      LIMIT 1
+    `,
+    [slug],
+  )
+  const accreditedRow = accreditedResult.rows[0]
+
+  if (accreditedRow) {
+    const relatedResult = await query(
+      `
+        SELECT *
+        FROM (${accreditedBusinessesSelect()}) accredited
+        WHERE id <> $1
+        ORDER BY accreditation_issued_at DESC NULLS LAST, business_name ASC
+        LIMIT 4
+      `,
+      [accreditedRow.id],
+    )
+
+    return {
+      ...mapAccreditedBusiness(accreditedRow),
+      relatedEstablishments: relatedResult.rows.map(mapAccreditedBusiness),
+    }
+  }
+
   const result = await query(
     `
       SELECT
@@ -1534,26 +1583,72 @@ function accreditedBusinessesSelect() {
         r.id::text AS id,
         'accreditation_module' AS source,
         b.id AS business_id,
-        NULL::varchar AS business_slug,
+        concat(
+          trim(both '-' from regexp_replace(lower(b.business_name), '[^a-z0-9]+', '-', 'g')),
+          '-',
+          left(r.id::text, 8)
+        ) AS business_slug,
         b.business_name,
         b.business_type,
-        concat_ws(' ', u.first_name, u.last_name) AS owner_name,
-        NULL::text AS description,
-        b.street_address AS address_line,
-        b.barangay,
-        b.city_municipality AS municipality,
+          concat_ws(' ', u.first_name, u.last_name) AS owner_name,
+          b.description,
+          b.street_address AS address_line,
+          b.barangay,
+          b.city_municipality AS municipality,
         b.province,
         b.region,
-        u.email AS contact_email,
-        u.phone,
-        r.status::text AS accreditation_status,
-        r.record_number AS accreditation_number,
-        r.issued_at AS accreditation_issued_at,
+          b.latitude,
+          b.longitude,
+          u.email AS contact_email,
+          u.phone,
+          b.legal_structure,
+          COALESCE(b.partners, '[]'::jsonb) AS partners,
+          b.authorized_representative_name,
+          b.authorized_representative_position,
+          profile_images.primary_image_url,
+          COALESCE(profile_images.gallery_images, '[]'::jsonb) AS gallery_images,
+          b.facebook_url,
+          b.instagram_url,
+          b.tiktok_url,
+          b.twitter_url,
+          b.website_url,
+          r.status::text AS accreditation_status,
+          r.record_number AS accreditation_number,
+          r.issued_at AS accreditation_issued_at,
         r.expires_at AS accreditation_expires_at
-      FROM accreditation_records r
-      JOIN business_profiles b ON b.id = r.business_profile_id
-      JOIN users u ON u.id = b.owner_id
-      WHERE r.status = 'active'
+        FROM accreditation_records r
+        JOIN business_profiles b ON b.id = r.business_profile_id
+        JOIN users u ON u.id = b.owner_id
+        LEFT JOIN LATERAL (
+          SELECT
+            (
+              SELECT bpi.image_url
+              FROM business_profile_images bpi
+              WHERE bpi.business_profile_id = b.id
+              ORDER BY bpi.display_order ASC, bpi.uploaded_at ASC
+              LIMIT 1
+            ) AS primary_image_url,
+            (
+              SELECT jsonb_agg(
+                jsonb_build_object(
+                  'id', image_rows.id,
+                  'url', image_rows.image_url,
+                  'altText', COALESCE(image_rows.original_name, b.business_name || ' photo'),
+                  'displayOrder', image_rows.display_order,
+                  'uploadedAt', image_rows.uploaded_at
+                )
+                ORDER BY image_rows.display_order ASC, image_rows.uploaded_at ASC
+              )
+              FROM (
+                SELECT id, image_url, original_name, display_order, uploaded_at
+                FROM business_profile_images
+                WHERE business_profile_id = b.id
+                ORDER BY display_order ASC, uploaded_at ASC
+                LIMIT 5
+              ) image_rows
+            ) AS gallery_images
+        ) profile_images ON true
+        WHERE r.status = 'active'
         AND (r.expires_at IS NULL OR r.expires_at >= NOW())
       ORDER BY r.business_profile_id, r.issued_at DESC
     ),
@@ -1572,6 +1667,8 @@ function accreditedBusinessesSelect() {
         b.municipality,
         b.province,
         NULL::varchar AS region,
+        NULL::numeric AS latitude,
+        NULL::numeric AS longitude,
         (
           SELECT bc.contact_value
           FROM business_contacts bc
@@ -1585,8 +1682,19 @@ function accreditedBusinessesSelect() {
           WHERE bc.business_id = b.id AND bc.is_public = true AND bc.contact_type = 'phone'
           ORDER BY bc.is_primary DESC, bc.created_at ASC
           LIMIT 1
-        ) AS phone,
-        acc.status::text AS accreditation_status,
+          ) AS phone,
+          NULL::varchar AS legal_structure,
+          '[]'::jsonb AS partners,
+          NULL::varchar AS authorized_representative_name,
+          NULL::varchar AS authorized_representative_position,
+          NULL::text AS primary_image_url,
+          '[]'::jsonb AS gallery_images,
+          NULL::text AS facebook_url,
+          NULL::text AS instagram_url,
+          NULL::text AS tiktok_url,
+          NULL::text AS twitter_url,
+          NULL::text AS website_url,
+          acc.status::text AS accreditation_status,
         acc.accreditation_number,
         acc.issued_at::timestamptz AS accreditation_issued_at,
         acc.expires_at::timestamptz AS accreditation_expires_at

@@ -89,7 +89,9 @@ async function me(req, res, next) {
 async function getProfile(req, res, next) {
   try {
     const profile = await model.getBusinessProfile(req.user.id);
-    res.json({ profile });
+    if (!profile) return res.json({ profile: null });
+    const images = await model.listBusinessProfileImages(profile.id);
+    res.json({ profile: { ...profile, images } });
   } catch (error) {
     next(error);
   }
@@ -101,12 +103,101 @@ async function updateProfile(req, res, next) {
     if (!profile) {
       return res.status(404).json({ message: "Business profile not found." });
     }
+    const images = await model.listBusinessProfileImages(profile.id);
     await audit(req, {
       action: "Updated business profile",
       module: "Business Profile",
       referenceId: profile.id,
     });
-    return res.json({ profile, message: "Business profile updated successfully." });
+    return res.json({ profile: { ...profile, images }, message: "Business profile updated successfully." });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+function profileImageUrl(file) {
+  return `http://localhost:${process.env.PORT || 5000}/uploads/accreditation-business-profiles/${file.filename}`;
+}
+
+function removeUploadedFiles(files = []) {
+  for (const file of files) {
+    if (!file?.path) continue;
+    fs.promises.unlink(file.path).catch(() => {});
+  }
+}
+
+function uploadedImagePath(imageUrl) {
+  try {
+    const pathname = new URL(imageUrl).pathname;
+    return path.resolve(path.join(process.cwd(), pathname.replace(/^\/+/, "")));
+  } catch {
+    return path.resolve(path.join(process.cwd(), String(imageUrl || "").replace(/^\/+/, "")));
+  }
+}
+
+async function uploadProfileImages(req, res, next) {
+  const files = req.files || [];
+  try {
+    if (!files.length) {
+      return res.status(400).json({ message: "Select at least one business photo." });
+    }
+
+    const profile = await model.getBusinessProfile(req.user.id);
+    if (!profile) {
+      removeUploadedFiles(files);
+      return res.status(404).json({ message: "Business profile not found." });
+    }
+
+    const existingCount = await model.countBusinessProfileImages(profile.id);
+    if (existingCount + files.length > 5) {
+      removeUploadedFiles(files);
+      return res.status(400).json({ message: "Upload up to 5 business photos only." });
+    }
+
+    const images = await model.addBusinessProfileImages(
+      profile.id,
+      files.map((file) => ({
+        imageUrl: profileImageUrl(file),
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        fileSize: file.size,
+      }))
+    );
+
+    await audit(req, {
+      action: "Uploaded business profile photos",
+      module: "Business Profile",
+      referenceId: profile.id,
+      details: `${images.length} photo${images.length === 1 ? "" : "s"} uploaded.`,
+    });
+
+    return res.status(201).json({ images, message: "Business photos uploaded successfully." });
+  } catch (error) {
+    removeUploadedFiles(files);
+    return next(error);
+  }
+}
+
+async function deleteProfileImage(req, res, next) {
+  try {
+    const image = await model.deleteBusinessProfileImage(req.user.id, req.params.imageId);
+    if (!image) {
+      return res.status(404).json({ message: "Business photo not found." });
+    }
+
+    const uploadsRoot = path.resolve("uploads");
+    const filePath = uploadedImagePath(image.image_url);
+    if (filePath.startsWith(uploadsRoot)) {
+      fs.promises.unlink(filePath).catch(() => {});
+    }
+
+    await audit(req, {
+      action: "Deleted business profile photo",
+      module: "Business Profile",
+      referenceId: image.business_profile_id,
+    });
+
+    return res.json({ image, message: "Business photo deleted." });
   } catch (error) {
     return next(error);
   }
@@ -275,6 +366,19 @@ async function createUser(req, res, next) {
 
 async function updateUserStatus(req, res, next) {
   try {
+    if (req.user.role === "tourism_staff") {
+      const targetUser = await model.findUserById(req.params.id);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found." });
+      }
+      if (targetUser.role !== "business_owner") {
+        return res.status(403).json({ message: "Tourism staff can only verify business-owner accounts." });
+      }
+      if (!["active", "pending_verification"].includes(req.body.status)) {
+        return res.status(403).json({ message: "Tourism staff can only activate or return business-owner accounts to pending verification." });
+      }
+    }
+
     const user = await model.updateUserStatus(req.params.id, req.body.status);
     if (!user) {
       return res.status(404).json({ message: "User not found." });
@@ -425,6 +529,7 @@ module.exports = {
   createUser,
   dashboard,
   deleteDraftApplication,
+  deleteProfileImage,
   downloadDocument,
   getApplication,
   getProfile,
@@ -444,5 +549,6 @@ module.exports = {
   updateProfile,
   updateUserStatus,
   uploadDocument,
+  uploadProfileImages,
   verifyEmail,
 };

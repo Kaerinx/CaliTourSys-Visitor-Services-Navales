@@ -33,6 +33,38 @@ const upload = multer({
   },
 });
 
+const profileImageStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const uploadDir = "uploads/accreditation-business-profiles";
+    fs.mkdirSync(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: (_req, file, cb) => {
+    const extension = path.extname(file.originalname || "").toLowerCase() || ".jpg";
+    const safeName = path
+      .basename(file.originalname || "business-photo", extension)
+      .replace(/[^a-zA-Z0-9.-]/g, "_")
+      .slice(0, 60);
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}${extension}`);
+  },
+});
+
+const profileImageUpload = multer({
+  storage: profileImageStorage,
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+  fileFilter: (_req, file, cb) => {
+    const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp"];
+    const allowedExtensions = [".jpg", ".jpeg", ".png", ".webp"];
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    if (!allowedMimeTypes.includes(file.mimetype) || !allowedExtensions.includes(ext)) {
+      const error = new Error("Only JPG, PNG, and WebP business photos are allowed.");
+      error.statusCode = 400;
+      return cb(error);
+    }
+    return cb(null, true);
+  },
+});
+
 router.post("/auth/register", controller.register);
 router.get("/auth/verify-email", controller.verifyEmail);
 router.post("/auth/login", controller.login);
@@ -45,6 +77,19 @@ router
   .route("/profile")
   .get(authenticate, authorize("business_owner"), controller.getProfile)
   .patch(authenticate, authorize("business_owner"), controller.updateProfile);
+router.post(
+  "/profile/images",
+  authenticate,
+  authorize("business_owner"),
+  profileImageUpload.array("photos", 5),
+  controller.uploadProfileImages
+);
+router.delete(
+  "/profile/images/:imageId",
+  authenticate,
+  authorize("business_owner"),
+  controller.deleteProfileImage
+);
 
 router
   .route("/applications")
@@ -93,9 +138,9 @@ router.patch("/notifications/:id/read", authenticate, controller.markNotificatio
 
 router
   .route("/admin/users")
-  .get(authenticate, authorize("admin"), controller.listUsers)
+  .get(authenticate, authorize("tourism_staff", "admin"), controller.listUsers)
   .post(authenticate, authorize("admin"), controller.createUser);
-router.patch("/admin/users/:id/status", authenticate, authorize("admin"), controller.updateUserStatus);
+router.patch("/admin/users/:id/status", authenticate, authorize("tourism_staff", "admin"), controller.updateUserStatus);
 router.get("/admin/audit-logs", authenticate, authorize("admin"), controller.listAuditLogs);
 
 module.exports = router;
