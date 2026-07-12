@@ -5,7 +5,7 @@
         <h1>User Management</h1>
         <p>Manage business owners, tourism staff/officers, and the system administrator.</p>
       </div>
-      <button class="btn primary" @click="showCreate = true">Add New User</button>
+      <button v-if="canCreateUsers" class="btn primary" @click="showCreate = true">Add New User</button>
     </div>
 
     <p v-if="message" class="form-success sticky-error">{{ message }}</p>
@@ -51,8 +51,12 @@
             <td><StatusBadge :status="user.status" /></td>
             <td class="actions-cell">
               <button class="icon-action" @click="selected = user">View</button>
-              <button class="icon-action" @click="toggleUser(user)">
-                {{ user.status === "active" ? "Lock" : "Activate" }}
+              <button
+                v-if="canUpdateStatus(user)"
+                class="icon-action"
+                @click="toggleUser(user)"
+              >
+                {{ statusActionLabel(user) }}
               </button>
             </td>
           </tr>
@@ -165,6 +169,7 @@ const filteredUsers = computed(() => {
   });
 });
 
+const canCreateUsers = computed(() => auth.role === "admin");
 const businessOwnerCount = computed(() => users.value.filter((user) => user.role === "business_owner").length);
 const staffCount = computed(() =>
   users.value.filter((user) => user.role === "tourism_staff").length
@@ -224,7 +229,7 @@ async function submitCreateUser() {
 }
 
 async function toggleUser(user) {
-  const nextStatus = user.status === "active" ? "inactive" : "active";
+  const nextStatus = user.status === "active" ? (auth.role === "admin" ? "inactive" : "pending_verification") : "active";
   message.value = "";
   error.value = "";
 
@@ -237,6 +242,18 @@ async function toggleUser(user) {
   } catch (err) {
     error.value = err.response?.data?.message || "Unable to update user status.";
   }
+}
+
+function canUpdateStatus(user) {
+  if (auth.role === "admin") return true;
+  return auth.role === "tourism_staff" && user.role === "business_owner";
+}
+
+function statusActionLabel(user) {
+  if (user.status === "active") {
+    return auth.role === "admin" ? "Lock" : "Return to Pending";
+  }
+  return "Verify / Activate";
 }
 
 function normalizeUser(user) {
@@ -264,6 +281,7 @@ function demoUsers() {
   return [
     { id: "demo-system-admin", name: "System Administrator", email: "system.admin@tourism.gov.ph", role: "admin", status: "active", phone: "+63 900 000 0000", sex: "Male" },
     { id: "demo-owner", name: "John Martinez", email: "john@sunsetresort.com", role: "business_owner", status: "active", phone: "+63 912 345 6789", sex: "Male" },
+    { id: "demo-pending-owner", name: "Pending Applicant", email: "pending@applicant.test", role: "business_owner", status: "pending_verification", phone: "+63 900 111 2222", sex: "Female" },
   ];
 }
 

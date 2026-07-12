@@ -6,9 +6,10 @@
  * Docs: https://docs.mapbox.com/api/navigation/directions/
  */
 
-const DIRECTIONS_BASE_URL = 'https://api.mapbox.com/directions/v5/mapbox'
+import { mapboxAccessToken } from '@/config/mapbox'
 
-const accessToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || ''
+const DIRECTIONS_BASE_URL = 'https://api.mapbox.com/directions/v5/mapbox'
+const accessToken = mapboxAccessToken
 
 function hasValidToken() {
   return accessToken.startsWith('pk.')

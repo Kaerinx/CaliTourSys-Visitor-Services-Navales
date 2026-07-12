@@ -131,6 +131,7 @@ const menu = computed(() => {
     return [
       { label: "Dashboard", path: "/cms/businesses", icon: LayoutDashboard },
       { label: "Applications", path: "/cms/businesses/applications", icon: FileText },
+      { label: "Account Verification", path: "/accreditation/app/users", icon: Users },
       { label: "Records", path: "/cms/businesses/records", icon: Building2 },
       { label: "Reports", path: "/cms/businesses/reports", icon: BarChart3 },
       { label: "Notifications", path: "/accreditation/app/notifications", icon: Bell },

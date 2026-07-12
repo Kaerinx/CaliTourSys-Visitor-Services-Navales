@@ -2,10 +2,13 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { hasMapboxPublicToken, mapboxAccessToken } from "@/config/mapbox";
 
 const CALABANGA_CENTER = [123.2469, 13.7069];
 const DEFAULT_ZOOM = 12;
 const SELECTED_ZOOM = 15;
+const TILE_SIZE = 256;
+const FALLBACK_TILE_SPREAD = 2;
 
 const props = defineProps({
   address: { type: String, default: "" },
@@ -15,23 +18,50 @@ const props = defineProps({
 
 const emit = defineEmits(["update:latitude", "update:longitude", "update:address"]);
 
-const accessToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || "";
+const accessToken = mapboxAccessToken;
 const mapContainer = ref(null);
 const mapLoadError = ref("");
 const locationError = ref("");
 const mapReady = ref(false);
+const fallbackZoom = ref(13);
 
 let map = null;
 let marker = null;
 let resizeObserver = null;
 
-const hasValidToken = computed(() => accessToken.startsWith("pk."));
 const selectedCoordinates = computed(() => {
+  if (props.latitude === "" || props.longitude === "") return null;
+
   const latitude = Number(props.latitude);
   const longitude = Number(props.longitude);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
   if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
   return [longitude, latitude];
+});
+const fallbackCenter = computed(() => selectedCoordinates.value || CALABANGA_CENTER);
+const fallbackTileFrame = computed(() => lngLatToTile(fallbackCenter.value[0], fallbackCenter.value[1], fallbackZoom.value));
+const fallbackTiles = computed(() => {
+  const centerTile = fallbackTileFrame.value;
+  const baseX = Math.floor(centerTile.x);
+  const baseY = Math.floor(centerTile.y);
+  const tiles = [];
+
+  for (let xOffset = -FALLBACK_TILE_SPREAD; xOffset <= FALLBACK_TILE_SPREAD; xOffset += 1) {
+    for (let yOffset = -FALLBACK_TILE_SPREAD; yOffset <= FALLBACK_TILE_SPREAD; yOffset += 1) {
+      const x = baseX + xOffset;
+      const y = baseY + yOffset;
+      tiles.push({
+        key: `${fallbackZoom.value}-${x}-${y}`,
+        src: `https://tile.openstreetmap.org/${fallbackZoom.value}/${x}/${y}.png`,
+        style: {
+          left: `calc(50% + ${(x - centerTile.x) * TILE_SIZE}px)`,
+          top: `calc(50% + ${(y - centerTile.y) * TILE_SIZE}px)`,
+        },
+      });
+    }
+  }
+
+  return tiles;
 });
 
 function setCoordinates(latitude, longitude) {
@@ -43,8 +73,29 @@ function coordinateAddress(latitude, longitude) {
   return `Lat ${Number(latitude).toFixed(6)}, Lng ${Number(longitude).toFixed(6)}`;
 }
 
+function lngLatToTile(longitude, latitude, zoom) {
+  const scale = 2 ** zoom;
+  const latitudeRadians = (latitude * Math.PI) / 180;
+  return {
+    x: ((longitude + 180) / 360) * scale,
+    y: ((1 - Math.log(Math.tan(latitudeRadians) + 1 / Math.cos(latitudeRadians)) / Math.PI) / 2) * scale,
+  };
+}
+
+function tileToLngLat(x, y, zoom) {
+  const scale = 2 ** zoom;
+  const longitude = (x / scale) * 360 - 180;
+  const latitudeRadians = Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / scale)));
+  const latitude = (latitudeRadians * 180) / Math.PI;
+  return { lng: longitude, lat: latitude };
+}
+
+function clampFallbackZoom(zoom) {
+  return Math.min(17, Math.max(11, zoom));
+}
+
 async function reverseGeocode(latitude, longitude) {
-  if (!hasValidToken.value) {
+  if (!hasMapboxPublicToken) {
     return coordinateAddress(latitude, longitude);
   }
 
@@ -97,7 +148,7 @@ function syncMarker() {
 }
 
 async function initializeMap() {
-  if (!hasValidToken.value || !mapContainer.value || map) return;
+  if (!hasMapboxPublicToken || !mapContainer.value || map) return;
 
   try {
     mapboxgl.accessToken = accessToken;
@@ -130,6 +181,20 @@ async function initializeMap() {
   } catch {
     mapLoadError.value = "Map unavailable.";
   }
+}
+
+function selectFallbackCoordinates(event) {
+  const bounds = event.currentTarget.getBoundingClientRect();
+  const xOffset = (event.clientX - bounds.left - bounds.width / 2) / TILE_SIZE;
+  const yOffset = (event.clientY - bounds.top - bounds.height / 2) / TILE_SIZE;
+  const centerTile = fallbackTileFrame.value;
+  const lngLat = tileToLngLat(centerTile.x + xOffset, centerTile.y + yOffset, fallbackZoom.value);
+
+  selectCoordinates(lngLat);
+}
+
+function adjustFallbackZoom(delta) {
+  fallbackZoom.value = clampFallbackZoom(fallbackZoom.value + delta);
 }
 
 function useCurrentLocation() {
@@ -171,10 +236,38 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="establishment-location-picker" aria-label="Establishment coordinates">
-    <div v-if="hasValidToken && !mapLoadError" ref="mapContainer" class="establishment-location-picker__map"></div>
+    <div
+      v-if="hasMapboxPublicToken && !mapLoadError"
+      ref="mapContainer"
+      class="establishment-location-picker__map"
+    ></div>
+    <div
+      v-else-if="!hasMapboxPublicToken"
+      class="establishment-location-picker__map establishment-location-picker__tile-map"
+      role="button"
+      tabindex="0"
+      aria-label="Click to select establishment coordinates"
+      @click="selectFallbackCoordinates"
+    >
+      <img
+        v-for="tile in fallbackTiles"
+        :key="tile.key"
+        class="establishment-location-picker__tile"
+        :src="tile.src"
+        :style="tile.style"
+        alt=""
+        draggable="false"
+      />
+      <span v-if="selectedCoordinates" class="establishment-location-picker__pin" aria-hidden="true"></span>
+      <div class="establishment-location-picker__zoom" aria-label="Map zoom controls">
+        <button type="button" aria-label="Zoom in" @click.stop="adjustFallbackZoom(1)">+</button>
+        <button type="button" aria-label="Zoom out" @click.stop="adjustFallbackZoom(-1)">-</button>
+      </div>
+      <span class="establishment-location-picker__attribution">© OpenStreetMap contributors</span>
+    </div>
     <div v-else class="establishment-location-picker__fallback">
       <strong>Map unavailable</strong>
-      <span>{{ mapLoadError || "Mapbox token is not configured." }}</span>
+      <span>{{ mapLoadError }}</span>
     </div>
 
     <div class="establishment-location-picker__fields">
@@ -237,6 +330,93 @@ onBeforeUnmount(() => {
 
 .establishment-location-picker__fallback strong {
   color: #173f32;
+}
+
+.establishment-location-picker__tile-map {
+  position: relative;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.establishment-location-picker__tile {
+  position: absolute;
+  width: 256px;
+  height: 256px;
+  max-width: none;
+  transform: translate(-50%, -50%);
+}
+
+.establishment-location-picker__pin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  border: 3px solid #ffffff;
+  border-radius: 50% 50% 50% 0;
+  background: #176249;
+  box-shadow: 0 4px 10px rgba(23, 63, 50, 0.28);
+  transform: translate(-50%, -100%) rotate(-45deg);
+}
+
+.establishment-location-picker__pin::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #ffffff;
+  content: "";
+  transform: translate(-50%, -50%);
+}
+
+.establishment-location-picker__zoom {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  overflow: hidden;
+  border: 1px solid #b9c9c1;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(23, 63, 50, 0.14);
+}
+
+.establishment-location-picker__zoom button {
+  display: grid;
+  width: 34px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-bottom: 1px solid #d7e1dc;
+  background: #ffffff;
+  color: #173f32;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.establishment-location-picker__zoom button:last-child {
+  border-bottom: 0;
+}
+
+.establishment-location-picker__zoom button:hover {
+  background: #edf7f2;
+}
+
+.establishment-location-picker__attribution {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #173f32;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .establishment-location-picker__fields {

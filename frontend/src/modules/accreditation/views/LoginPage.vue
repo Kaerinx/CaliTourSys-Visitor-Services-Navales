@@ -5,7 +5,7 @@
     <main class="entry-shell">
       <section class="entry-intro" aria-labelledby="login-title">
         <p class="entry-kicker">Returning applicants</p>
-        <h1 id="login-title">Sign in to the Business Accreditation Service</h1>
+        <h1 id="login-title">Sign in to Tourism Business Registration and Accreditation</h1>
         <p>
           Access your account to continue an application, respond to revision requests, or track a
           Tourism Office decision.
@@ -15,7 +15,7 @@
           <strong>Before signing in</strong>
           <ul>
             <li>Use the email address registered for the business account.</li>
-            <li>Check that the account email has been verified.</li>
+            <li>Wait for Tourism Office verification before signing in.</li>
             <li>Contact the Tourism Office if you cannot access the registered email.</li>
           </ul>
         </div>
@@ -64,10 +64,6 @@
         </label>
 
         <p v-if="error" class="form-message form-message--error" role="alert">{{ error }}</p>
-        <div v-if="verificationUrl" class="form-message form-message--success">
-          <p>Verify this business-owner account before signing in.</p>
-          <a class="entry-button entry-button--secondary" :href="verificationUrl">Verify email</a>
-        </div>
 
         <button class="entry-button entry-button--primary" type="submit">Sign in</button>
 
@@ -97,13 +93,11 @@ import { useAuthStore } from "@/stores/authStore";
 const router = useRouter();
 const auth = useAuthStore();
 const error = ref("");
-const verificationUrl = ref("");
 const showPassword = ref(false);
 const form = reactive({ email: "", password: "" });
 
 async function submit() {
   error.value = "";
-  verificationUrl.value = "";
   try {
     const user = await auth.login(form);
     if (user.role !== "business_owner") {
@@ -114,7 +108,6 @@ async function submit() {
     router.push("/accreditation/app/dashboard");
   } catch (err) {
     error.value = err.response?.data?.message || "Unable to sign in.";
-    verificationUrl.value = err.response?.data?.verificationUrl || "";
   }
 }
 </script>

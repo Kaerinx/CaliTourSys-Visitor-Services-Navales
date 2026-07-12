@@ -56,7 +56,7 @@ export default [
       { path: "records", redirect: redirectToCmsBusinesses("/cms/businesses/records") },
       { path: "reports", redirect: redirectToCmsBusinesses("/cms/businesses/reports") },
       { path: "admin-dashboard", component: AdminDashboard, meta: { allowedRoles: ["admin"] } },
-      { path: "users", component: UserManagement, meta: { allowedRoles: ["admin"] } },
+      { path: "users", component: UserManagement, meta: { allowedRoles: ["tourism_staff", "admin"] } },
       { path: "roles", component: RoleManagement, meta: { allowedRoles: ["admin"] } },
       { path: "audit", component: AuditLogs, meta: { allowedRoles: ["admin"] } },
       { path: "notifications", component: NotificationsPage },

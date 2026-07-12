@@ -5,8 +5,9 @@ import CmsMapPicker from './CmsMapPicker.vue'
 import CmsRelationSelect from './CmsRelationSelect.vue'
 import { toNullable, validateRequired } from './formUtils'
 import { useCmsAuthStore } from '../../stores/authStore'
+import { mapboxAccessToken } from '@/config/mapbox'
 
-const mapboxToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || ''
+const mapboxToken = mapboxAccessToken
 
 const props = defineProps({
   open: { type: Boolean, default: false },

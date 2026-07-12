@@ -71,9 +71,33 @@
         >
           Start Review
         </button>
-        <button class="btn outline" type="button" :disabled="savingDecision" @click="submitReview('for_revision')">Request Revision</button>
-        <button class="btn danger" type="button" :disabled="savingDecision" @click="submitReview('rejected')">Reject</button>
-        <button class="btn primary" type="button" :disabled="savingDecision" @click="submitReview('approved')">Approve</button>
+        <button
+          v-if="canRequestRevision"
+          class="btn outline"
+          type="button"
+          :disabled="savingDecision"
+          @click="submitReview('for_revision')"
+        >
+          Request Revision
+        </button>
+        <button
+          v-if="canReject"
+          class="btn danger"
+          type="button"
+          :disabled="savingDecision"
+          @click="submitReview('rejected')"
+        >
+          Reject
+        </button>
+        <button
+          v-if="canApprove"
+          class="btn primary"
+          type="button"
+          :disabled="savingDecision"
+          @click="submitReview('approved')"
+        >
+          Approve
+        </button>
       </div>
     </form>
   </section>
@@ -85,6 +109,7 @@ import { useRoute } from "vue-router";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import { demoApplications, getRequiredDocumentsForBusinessType } from "@/modules/accreditation/data/mockData";
 import { getApplication, openApplicationDocument, reviewApplication } from "@/modules/accreditation/services/accreditationApi";
+import { cmsContentApi } from "@/modules/cms/services/cmsContentApi";
 import { useAuthStore } from "@/stores/authStore";
 
 const route = useRoute();
@@ -96,6 +121,7 @@ const documents = ref([]);
 const savingDecision = ref(false);
 const application = reactive(normalizeApplication(demoApplications[0]));
 const queuePath = computed(() => "/cms/businesses/applications");
+const isCmsBusinessRoute = computed(() => route.path.startsWith("/cms/businesses"));
 
 onMounted(loadApplication);
 
@@ -116,10 +142,13 @@ const decisionHint = computed(() => {
   if (application.status === "submitted") return "Start review when you begin checking the application.";
   if (application.status === "under_review") return "Approve, reject, or request revision after checking the documents.";
   if (application.status === "for_revision") return "The owner has been asked to revise this application.";
-  if (application.status === "approved") return "This application has already been approved.";
+  if (application.status === "approved") return "This application is approved. You can still request revision or reject it if a post-approval issue is found.";
   if (application.status === "rejected") return "This application has already been rejected.";
   return "Record the next application decision.";
 });
+const canRequestRevision = computed(() => ["submitted", "under_review", "approved"].includes(application.status));
+const canReject = computed(() => ["submitted", "under_review", "approved"].includes(application.status));
+const canApprove = computed(() => ["submitted", "under_review"].includes(application.status));
 const normalizedDocuments = computed(() =>
   getRequiredDocumentsForBusinessType(application.business_type).map((name) => {
     const document = documents.value.find((item) => item.document_type === name || item.name === name);
@@ -128,8 +157,28 @@ const normalizedDocuments = computed(() =>
 );
 
 async function loadApplication() {
-  await auth.connectDemoToBackend();
   const id = route.query.application || demoApplications[0].id;
+  message.value = "";
+  error.value = "";
+
+  if (isCmsBusinessRoute.value) {
+    if (!route.query.application) {
+      error.value = "Select an application from the queue first.";
+      return;
+    }
+
+    try {
+      const { data } = await cmsContentApi.getAccreditationApplication(id);
+      Object.assign(application, normalizeApplication(data.application));
+      remarks.value = application.review_remarks || "";
+      documents.value = data.documents || [];
+    } catch (err) {
+      error.value = err.message || "Unable to load application.";
+    }
+    return;
+  }
+
+  await auth.connectDemoToBackend();
   if (isDemoSession()) {
     Object.assign(application, normalizeApplication(demoApplications.find((app) => app.id === id) || demoApplications[0]));
     documents.value = application.documents || [];
@@ -142,7 +191,7 @@ async function loadApplication() {
     remarks.value = application.review_remarks || "";
     documents.value = result.documents || [];
   } catch (err) {
-    error.value = err.response?.data?.message || "Unable to load application.";
+    error.value = err.response?.data?.message || err.message || "Unable to load application.";
   }
 }
 
@@ -152,6 +201,17 @@ async function submitReview(status) {
   savingDecision.value = true;
 
   try {
+    if (isCmsBusinessRoute.value) {
+      const { data } = await cmsContentApi.reviewAccreditationApplication(application.id, {
+        status,
+        remarks: remarks.value,
+      });
+      Object.assign(application, normalizeApplication(data.application));
+      remarks.value = application.review_remarks || "";
+      message.value = "Review decision saved.";
+      return;
+    }
+
     if (isDemoSession()) {
       application.status = status;
       message.value = "Review decision saved for prototype.";
@@ -166,7 +226,7 @@ async function submitReview(status) {
     remarks.value = application.review_remarks || "";
     message.value = "Review decision saved.";
   } catch (err) {
-    error.value = err.response?.data?.message || "Unable to save review decision.";
+    error.value = err.response?.data?.message || err.message || "Unable to save review decision.";
   } finally {
     savingDecision.value = false;
   }

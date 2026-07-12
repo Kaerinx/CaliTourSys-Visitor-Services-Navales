@@ -13,12 +13,13 @@ import {
 } from '../services/promotionService'
 import { formatRouteDistance, formatRouteDuration, getRoute } from '../services/mapboxDirections'
 import { useGeolocationStore } from '@/stores/geolocation'
+import { mapboxAccessToken } from '@/config/mapbox'
 
 const TouristMapBox = defineAsyncComponent(() => import('../components/TouristMapBox.vue'))
 const ReviewsSection = defineAsyncComponent(() => import('../components/ReviewsSection.vue'))
 const NearbySuggestions = defineAsyncComponent(() => import('../components/NearbySuggestions.vue'))
 
-const mapboxToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || ''
+const mapboxToken = mapboxAccessToken
 const VISITOR_SESSION_KEY = 'calitoursys_public_visitor'
 const PENDING_SAVE_KEY = 'calitoursys_pending_destination_save'
 

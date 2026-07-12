@@ -162,8 +162,18 @@ const promotionRoutes = [
     component: () => import('./views/AccreditedEstablishmentsView.vue'),
   },
   {
+    path: '/accredited-establishments/:slug',
+    name: 'promotion-establishment-information',
+    component: () => import('./views/EstablishmentInformationView.vue'),
+    props: true,
+  },
+  {
     path: '/promotion/accredited-establishments',
     redirect: '/accredited-establishments',
+  },
+  {
+    path: '/promotion/accredited-establishments/:slug',
+    redirect: (to) => `/accredited-establishments/${to.params.slug}`,
   },
   {
     path: '/promotion/inquiry',

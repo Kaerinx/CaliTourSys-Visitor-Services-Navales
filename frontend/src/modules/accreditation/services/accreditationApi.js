@@ -80,6 +80,16 @@ export async function updateBusinessProfile(payload) {
   return data;
 }
 
+export async function uploadBusinessProfileImages(formData) {
+  const { data } = await http.post("/accreditation/profile/images", formData);
+  return data;
+}
+
+export async function deleteBusinessProfileImage(id) {
+  const { data } = await http.delete(`/accreditation/profile/images/${id}`);
+  return data;
+}
+
 export async function getApplications(params = {}) {
   const { data } = await http.get("/accreditation/applications", { params });
   return data;

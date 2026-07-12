@@ -42,6 +42,17 @@ function initials(name) {
     .toUpperCase()
 }
 
+function socialEntries(business) {
+  const links = business.socialLinks || {}
+  return [
+    { key: 'website', label: 'Website', url: links.website },
+    { key: 'facebook', label: 'Facebook', url: links.facebook },
+    { key: 'instagram', label: 'Instagram', url: links.instagram },
+    { key: 'tiktok', label: 'TikTok', url: links.tiktok },
+    { key: 'twitter', label: 'Twitter / X', url: links.twitter },
+  ].filter((item) => item.url)
+}
+
 function clearFilters() {
   searchQuery.value = ''
   activeType.value = 'All types'
@@ -126,18 +137,35 @@ onMounted(loadBusinesses)
           </div>
 
           <div v-else class="business-grid">
-            <article
+            <RouterLink
               v-for="business in filteredBusinesses"
               :key="business.id"
               class="business-card"
+              :to="{ name: 'promotion-establishment-information', params: { slug: business.slug || business.id } }"
             >
-              <div class="business-card__mark" aria-hidden="true">
-                {{ initials(business.name) }}
+              <div class="business-card__media">
+                <img
+                  v-if="business.imageUrl"
+                  :src="business.imageUrl"
+                  :alt="`${business.name} cover photo`"
+                />
+                <span v-else>{{ initials(business.name) }}</span>
               </div>
               <div class="business-card__body">
                 <AccreditationBadge floating />
                 <h2>{{ business.name }}</h2>
                 <p>{{ business.description }}</p>
+                <div v-if="socialEntries(business).length" class="business-socials">
+                  <a
+                    v-for="link in socialEntries(business)"
+                    :key="link.key"
+                    :href="link.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {{ link.label }}
+                  </a>
+                </div>
                 <dl>
                   <div>
                     <dt>Business Type</dt>
@@ -157,7 +185,7 @@ onMounted(loadBusinesses)
                   </div>
                 </dl>
               </div>
-            </article>
+            </RouterLink>
           </div>
         </div>
       </section>
@@ -439,7 +467,7 @@ h1 {
 .business-card {
   min-width: 0;
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
+  grid-template-columns: 180px minmax(0, 1fr);
   gap: 18px;
   padding: 22px;
   border: 1px solid #e8e4dc;
@@ -457,9 +485,10 @@ h1 {
   transform: translateY(-2px);
 }
 
-.business-card__mark {
-  width: 84px;
-  height: 84px;
+.business-card__media {
+  width: 180px;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
   display: grid;
   place-items: center;
   border-radius: 12px;
@@ -470,6 +499,18 @@ h1 {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 22px;
   font-weight: 700;
+}
+
+.business-card__media img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.business-card__media span {
+  display: grid;
+  place-items: center;
 }
 
 .business-card__body {
@@ -487,6 +528,29 @@ h1 {
   margin: 8px 0 0;
   color: #5c5c5c;
   font-size: 14px;
+}
+
+.business-socials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.business-socials a {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid #d7e5dd;
+  border-radius: 999px;
+  color: #1b4332;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.business-socials a:hover {
+  background: #d8f3dc;
 }
 
 dl {
@@ -555,6 +619,10 @@ dd {
 
   .business-card {
     grid-template-columns: 1fr;
+  }
+
+  .business-card__media {
+    width: 100%;
   }
 
   dl {

@@ -1,12 +1,8 @@
 <template>
   <header class="service-header">
     <div class="service-header__inner">
-      <RouterLink class="brand" to="/" aria-label="TWBIS Home">
-        <span class="brand__mark">T</span>
-        <span class="brand__copy">
-          <span class="brand__name">TWBIS</span>
-          <span class="brand__tagline">Calabanga Tourism</span>
-        </span>
+      <RouterLink class="brand" to="/" aria-label="Love Calabanga Home">
+        <img src="@/assets/brand/love-calabanga-logo.png" alt="Love Calabanga" />
       </RouterLink>
 
       <nav class="site-nav__links" aria-label="Primary navigation">
@@ -15,9 +11,13 @@
         <RouterLink to="/products" class="site-nav__link">Products</RouterLink>
         <RouterLink to="/packages" class="site-nav__link">Packages</RouterLink>
         <RouterLink to="/events" class="site-nav__link">Events</RouterLink>
-        <RouterLink to="/promotion/museum" class="site-nav__link">Museum</RouterLink>
         <div class="site-nav__dropdown">
-          <button class="site-nav__link site-nav__dropdown-trigger site-nav__link--active" type="button" aria-haspopup="true">
+          <button
+            class="site-nav__link site-nav__dropdown-trigger"
+            :class="{ 'site-nav__link--active': accreditationActive }"
+            type="button"
+            aria-haspopup="true"
+          >
             Accreditation
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m6 9 6 6 6-6" />
@@ -32,14 +32,27 @@
       </nav>
 
       <div class="site-nav__actions">
-        <a class="help-link" href="/accreditation#help">Help</a>
-        <RouterLink v-if="showSignIn" class="login-button" to="/accreditation/login">Sign in</RouterLink>
+        <button class="search-button" type="button" aria-label="Search">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m16 16 4 4" />
+          </svg>
+        </button>
+        <RouterLink v-if="showSignIn" class="login-button" to="/accreditation/login">Login</RouterLink>
       </div>
     </div>
   </header>
 </template>
 
 <script setup>
+import { computed } from "vue";
+import { useRoute } from "vue-router";
+
+const route = useRoute();
+const accreditationActive = computed(
+  () => route.path.startsWith("/accreditation") || route.path.startsWith("/accredited-establishments")
+);
+
 defineProps({
   showSignIn: {
     type: Boolean,
@@ -54,7 +67,8 @@ defineProps({
   z-index: 50;
   top: 0;
   height: 64px;
-  border-bottom: 1px solid #e8e4dc;
+  border-top: 1px solid #0f1713;
+  border-bottom: 1px solid #d8d8d8;
   background: #ffffff;
 }
 
@@ -71,45 +85,19 @@ defineProps({
 .brand {
   display: inline-flex;
   align-items: center;
-  flex: 0 0 auto;
-  gap: 10px;
   text-decoration: none;
 }
 
-.brand__mark {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: #1b4332;
-  color: #ffffff;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-weight: 700;
-}
-
-.brand__copy {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.05;
-}
-
-.brand__name {
-  color: #1b4332;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.brand__tagline {
-  color: #5c5c5c;
-  font-size: 11px;
+.brand img {
+  height: 38px;
+  width: auto;
+  display: block;
 }
 
 .site-nav__links {
   display: flex;
   align-self: stretch;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   gap: 14px;
 }
@@ -121,7 +109,7 @@ defineProps({
   padding: 0 6px;
   border: 0;
   background: transparent;
-  color: #1a1a1a;
+  color: #000000;
   font: inherit;
   font-size: 15px;
   font-weight: 500;
@@ -135,6 +123,7 @@ defineProps({
   color: #1b4332;
 }
 
+.site-nav__link.router-link-active::after,
 .site-nav__link--active::after {
   position: absolute;
   right: 6px;
@@ -146,18 +135,13 @@ defineProps({
   content: "";
 }
 
-.site-nav__dropdown-trigger.site-nav__link--active::after {
-  content: none;
-}
-
 .site-nav__dropdown {
   position: relative;
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: stretch;
 }
 
 .site-nav__dropdown-trigger {
-  height: 100%;
   gap: 4px;
 }
 
@@ -173,7 +157,7 @@ defineProps({
 
 .site-nav__dropdown-menu {
   position: absolute;
-  top: calc(100% - 6px);
+  top: 100%;
   left: 50%;
   width: 220px;
   display: grid;
@@ -214,21 +198,41 @@ defineProps({
 .site-nav__actions {
   display: flex;
   align-items: center;
-  flex: 0 0 auto;
   gap: 12px;
 }
 
-.help-link,
-.login-button {
+.search-button {
+  width: 44px;
+  height: 44px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #707070;
+  cursor: pointer;
+}
+
+.search-button svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+}
+
+.search-button:hover,
+.search-button:focus-visible {
   color: #1b4332;
+  outline: none;
+}
+
+.login-button {
+  color: #001d12;
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
-}
-
-.help-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 4px;
 }
 
 .login-button {
@@ -236,7 +240,7 @@ defineProps({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 18px;
+  padding: 0 17px;
   border: 1.5px solid #1b4332;
   border-radius: 8px;
 }
@@ -250,6 +254,10 @@ defineProps({
   .site-nav__links {
     display: none;
   }
+
+  .service-header__inner {
+    width: min(100% - 48px, 1200px);
+  }
 }
 
 @media (max-width: 640px) {
@@ -258,12 +266,8 @@ defineProps({
     gap: 18px;
   }
 
-  .help-link {
-    display: none;
-  }
-
-  .brand__name {
-    font-size: 18px;
+  .brand img {
+    height: 32px;
   }
 
   .login-button {

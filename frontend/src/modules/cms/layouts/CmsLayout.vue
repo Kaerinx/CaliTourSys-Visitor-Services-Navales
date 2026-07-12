@@ -19,6 +19,7 @@ const fallbackNavigation = [
   { key: 'categories', label: 'Categories', path: '/cms/categories', permissions: ['events.view', 'products.view', 'destinations.view', 'museum.view'], icon: 'audit' },
   { key: 'products', label: 'Products / OTOP', path: '/cms/products', permission: 'products.view', icon: 'package' },
   { key: 'businesses', label: 'Businesses', path: '/cms/businesses', permission: 'businesses.view', icon: 'building' },
+  { key: 'business-account-verification', label: 'Account Verification', path: '/cms/businesses/account-verification', permission: 'businesses.view', icon: 'users' },
   { key: 'map', label: 'Map Locations', path: '/cms/map-locations', permission: 'map_locations.view', icon: 'map' },
   { key: 'museum', label: 'Museum', path: '/cms/museum', permission: 'museum.view', icon: 'museum' },
   { key: 'visitor-services', label: 'Visitor Services / Inquiries', path: '/cms/visitor', permissions: ['inquiries.view', 'dashboard.view'], icon: 'users' },
@@ -69,6 +70,17 @@ const navigationItems = computed(() => {
       path: '/cms/product-development/assets',
       permission: 'products.view',
       icon: 'package',
+    })
+  }
+
+  if (!mapped.some((item) => item.key === 'business-account-verification')) {
+    const insertIndex = mapped.findIndex((item) => item.key === 'businesses')
+    mapped.splice(insertIndex >= 0 ? insertIndex + 1 : mapped.length, 0, {
+      key: 'business-account-verification',
+      label: 'Account Verification',
+      path: '/cms/businesses/account-verification',
+      permission: 'businesses.view',
+      icon: 'users',
     })
   }
 

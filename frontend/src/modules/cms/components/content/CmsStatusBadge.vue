@@ -1,15 +1,23 @@
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   status: {
     type: String,
     default: 'draft',
   },
 })
+
+const statusLabel = computed(() =>
+  String(props.status || 'draft')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+)
 </script>
 
 <template>
   <span class="cms-status-badge" :data-status="status">
-    {{ status || 'draft' }}
+    {{ statusLabel }}
   </span>
 </template>
 
@@ -25,7 +33,6 @@ defineProps({
   background: #f8fafc;
   font-size: 0.78rem;
   font-weight: 800;
-  text-transform: capitalize;
 }
 
 .cms-status-badge[data-status='published'],
@@ -36,7 +43,8 @@ defineProps({
 }
 
 .cms-status-badge[data-status='draft'],
-.cms-status-badge[data-status='inactive'] {
+.cms-status-badge[data-status='inactive'],
+.cms-status-badge[data-status='pending_verification'] {
   color: #075985;
   border-color: #bae6fd;
   background: #e0f2fe;

@@ -152,6 +152,12 @@ const cmsRoutes = [
         meta: { permission: 'businesses.view' },
       },
       {
+        path: 'businesses/account-verification',
+        name: 'cms-business-account-verification',
+        component: () => import('./views/businesses/CmsBusinessAccountVerificationView.vue'),
+        meta: { permission: 'businesses.view' },
+      },
+      {
         path: 'museum',
         name: 'cms-museum',
         component: () => import('./views/content/CmsMuseumArtifactsView.vue'),

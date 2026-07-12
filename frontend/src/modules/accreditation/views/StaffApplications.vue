@@ -67,6 +67,7 @@ import { useRoute } from "vue-router";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import { demoApplications, getRequiredDocumentsForBusinessType } from "@/modules/accreditation/data/mockData";
 import { getApplications } from "@/modules/accreditation/services/accreditationApi";
+import { cmsContentApi } from "@/modules/cms/services/cmsContentApi";
 import { useAuthStore } from "@/stores/authStore";
 
 const auth = useAuthStore();
@@ -75,23 +76,9 @@ const search = ref(String(route.query.q || ""));
 const statusFilter = ref("all");
 const applications = ref([]);
 const reviewPath = computed(() => "/cms/businesses/review");
+const isCmsBusinessRoute = computed(() => route.path.startsWith("/cms/businesses"));
 
-onMounted(async () => {
-  await auth.connectDemoToBackend();
-  if (isDemoSession()) {
-    applications.value = demoApplications.map(normalizeApplication).filter((app) => app.status !== "draft");
-    return;
-  }
-
-  try {
-    const result = await getApplications();
-    applications.value = result.applications
-      .map(normalizeApplication)
-      .filter((app) => app.status !== "draft");
-  } catch (_err) {
-    applications.value = [];
-  }
-});
+onMounted(loadApplications);
 
 watch(
   () => route.query.q,
@@ -124,6 +111,39 @@ function normalizeApplication(app) {
     documents: Array.isArray(app.documents) ? app.documents : [],
     owner: app.owner || `${app.first_name || ""} ${app.last_name || ""}`.trim() || "Business Owner",
   };
+}
+
+async function loadApplications() {
+  try {
+    if (isCmsBusinessRoute.value) {
+      const result = await cmsContentApi.getAccreditationApplications();
+      applications.value = unwrapApplicationList(result)
+        .map(normalizeApplication)
+        .filter((app) => app.status !== "draft");
+      return;
+    }
+
+    await auth.connectDemoToBackend();
+    if (isDemoSession()) {
+      applications.value = demoApplications.map(normalizeApplication).filter((app) => app.status !== "draft");
+      return;
+    }
+
+    const result = await getApplications();
+    applications.value = unwrapApplicationList(result)
+      .map(normalizeApplication)
+      .filter((app) => app.status !== "draft");
+  } catch (_err) {
+    applications.value = [];
+  }
+}
+
+function unwrapApplicationList(result) {
+  if (Array.isArray(result?.data)) return result.data;
+  if (Array.isArray(result?.data?.applications)) return result.data.applications;
+  if (Array.isArray(result?.applications)) return result.applications;
+  if (Array.isArray(result?.items)) return result.items;
+  return [];
 }
 
 function documentProgress(app) {

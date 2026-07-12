@@ -8,10 +8,12 @@
  * walking/driving/cycling profiles.
  */
 
+import { mapboxAccessToken } from '@/config/mapbox'
+
 const MATRIX_BASE_URL = 'https://api.mapbox.com/directions-matrix/v1/mapbox'
 export const MATRIX_MAX_COORDINATES = 25
 
-const accessToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || ''
+const accessToken = mapboxAccessToken
 
 const EARTH_RADIUS_METERS = 6371000
 

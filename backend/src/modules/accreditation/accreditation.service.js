@@ -237,6 +237,7 @@ async function registerBusinessOwner(payload) {
     ["phone", "Mobile number"],
   ];
   const requiredBusinessFields = [
+    ["legalStructure", "Business type"],
     ["businessName", "Business name"],
     ["region", "Region"],
     ["province", "Province"],
@@ -283,6 +284,25 @@ async function registerBusinessOwner(payload) {
     throw error;
   }
 
+  if (business.legalStructure === "partnership") {
+    const partners = Array.isArray(business.partners)
+      ? business.partners.map((partner) => String(partner || "").trim()).filter(Boolean)
+      : [];
+    if (partners.length === 0) {
+      const error = new Error("Please enter at least one partner name for a partnership.");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  if (business.legalStructure === "corporation") {
+    if (!business.company?.registrationNumber || !business.company?.representativePosition) {
+      const error = new Error("Please complete the company registration number and authorized representative position.");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
   const existing = await model.findUserByEmail(payload.email.toLowerCase());
   if (existing) {
     const error = new Error("A user with this email already exists.");
@@ -291,21 +311,17 @@ async function registerBusinessOwner(payload) {
   }
 
   const passwordHash = await bcrypt.hash(payload.password, 10);
-  const verificationToken = crypto.randomBytes(32).toString("hex");
-
   const user = await model.createBusinessOwnerWithProfile({
     ...payload,
     email: payload.email.toLowerCase(),
     passwordHash,
     status: "pending_verification",
-    verificationToken,
+    verificationToken: null,
   }, business);
-  const verification = await sendVerificationEmail(user.email, verificationToken);
 
   return {
     user,
-    message: "Account created. Please check your email for verification.",
-    verificationUrl: verification.sent ? undefined : verification.verifyUrl,
+    message: "Account created. Please wait for Tourism Office verification before signing in.",
   };
 }
 
@@ -314,6 +330,12 @@ async function verifyEmail(token) {
   if (!user) {
     const error = new Error("Invalid or expired verification token.");
     error.statusCode = 400;
+    throw error;
+  }
+
+  if (user.role === "business_owner") {
+    const error = new Error("Business owner accounts must be verified by a tourism staff/officer before sign-in access is activated.");
+    error.statusCode = 403;
     throw error;
   }
   return model.verifyUserEmail(user.id);
@@ -335,16 +357,8 @@ async function login(email, password) {
   }
 
   if (user.status === "pending_verification") {
-    if (!process.env.SMTP_HOST) {
-      const verifiedUser = await model.verifyUserEmail(user.id);
-      return { token: signToken(verifiedUser), user: publicUser(verifiedUser) };
-    }
-
-    const error = new Error("Please verify your email before logging in.");
+    const error = new Error("Your account is awaiting Tourism Office verification. Sign-in access activates after a tourism staff/officer approves the account.");
     error.statusCode = 403;
-    if (!process.env.SMTP_HOST && user.verification_token) {
-      error.verificationUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/accreditation/verify-email?token=${user.verification_token}`;
-    }
     throw error;
   }
 
@@ -655,8 +669,8 @@ async function reviewApplication(reviewerId, applicationId, payload) {
   const transitions = {
     submitted: ["under_review", "for_revision", "rejected", "approved"],
     under_review: ["for_revision", "rejected", "approved"],
+    approved: ["for_revision", "rejected"],
     for_revision: [],
-    approved: [],
     rejected: [],
   };
   const allowedNext = transitions[existing.status] || [];
@@ -677,6 +691,11 @@ async function reviewApplication(reviewerId, applicationId, payload) {
 
   if (payload.status === "approved") {
     await model.createAccreditationRecord(application, reviewerId);
+  } else if (existing.status === "approved" && ["for_revision", "rejected"].includes(payload.status)) {
+    await model.deactivateAccreditationRecordForApplication(
+      application.id,
+      payload.remarks || `Application changed from approved to ${payload.status}.`
+    );
   }
 
   const notificationMap = {
