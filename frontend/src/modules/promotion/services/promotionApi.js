@@ -85,6 +85,10 @@ export function getTouristBookingById(requestId) {
   return http.getAuth(`/tourist/bookings/${requestId}`)
 }
 
+export function createTouristBookingDateChangeRequest(requestId, payload) {
+  return http.postAuth(`/tourist/bookings/${requestId}/date-change-requests`, payload)
+}
+
 export function getProductBySlug(slug) {
   return http.get(publicPath(`/products/${slug}`))
 }

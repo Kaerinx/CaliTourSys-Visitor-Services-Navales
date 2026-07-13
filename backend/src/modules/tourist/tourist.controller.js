@@ -1,4 +1,5 @@
 const publicService = require('../public/public.service')
+const validators = require('./tourist.validators')
 const { successResponse } = require('../../utils/apiResponse')
 const { setPrivateNoStore } = require('../../utils/cacheHeaders')
 
@@ -40,7 +41,28 @@ async function getBooking(req, res, next) {
   }
 }
 
+async function createDateChangeRequest(req, res, next) {
+  try {
+    if (!isUuid(req.params.requestId)) throw notFoundBooking()
+    const body = validators.dateChangeRequestBodySchema.parse(req.body || {})
+    setPrivateNoStore(res)
+    return successResponse(
+      req,
+      res,
+      await publicService.createTouristPackageBookingDateChangeRequest({
+        requestId: req.params.requestId,
+        touristAccountId: req.tourist.id,
+        ...body,
+      }),
+      201,
+    )
+  } catch (error) {
+    return next(error)
+  }
+}
+
 module.exports = {
+  createDateChangeRequest,
   getBooking,
   listBookings,
 }

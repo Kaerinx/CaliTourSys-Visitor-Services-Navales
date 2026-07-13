@@ -85,8 +85,8 @@ const bookingDateSchema = z
 const packageBookingParticipantSchema = z
   .object({
     fullName: z.string().trim().min(1).max(255),
-    age: z.coerce.number().int().min(0).max(130),
-    gender: z.string().trim().min(1).max(40),
+    age: z.coerce.number().int().min(0).max(130).optional(),
+    gender: z.enum(['M', 'F', 'Male', 'Female', 'male', 'female']),
     notes: z.string().trim().max(1000).optional(),
   })
   .strict()
@@ -96,6 +96,7 @@ const packageBookingRepresentativeSchema = z
     fullName: z.string().trim().min(1).max(255),
     email: z.email().max(255),
     phoneNumber: z.string().trim().min(1).max(80),
+    gender: z.enum(['M', 'F', 'Male', 'Female', 'male', 'female']).optional(),
   })
   .strict()
 
@@ -108,7 +109,12 @@ const createPackageBookingRequestBodySchema = z
     phoneNumber: z.string().trim().min(1).max(80).optional(),
     representativeContact: packageBookingRepresentativeSchema.optional(),
     participants: z.array(packageBookingParticipantSchema).min(1).max(80).optional(),
-    preferredBookingDate: bookingDateSchema,
+    preferredBookingDate: bookingDateSchema.optional(),
+    startDate: bookingDateSchema.optional(),
+    endDate: bookingDateSchema.optional(),
+    durationDays: z.coerce.number().int().min(1).optional(),
+    paymentPlan: z.enum(['deposit_50', 'full_payment']).default('full_payment'),
+    paymentMethod: z.enum(['qr_instapay', 'bank_transfer', 'cash']).default('qr_instapay'),
     message: z.string().trim().max(5000).optional(),
   })
   .strict()
@@ -121,6 +127,10 @@ const createPackageBookingRequestBodySchema = z
       path: ['representativeContact'],
     },
   )
+  .refine((data) => data.startDate || data.preferredBookingDate, {
+    message: 'Start date is required.',
+    path: ['startDate'],
+  })
 
 const lookupPackageBookingRequestBodySchema = z
   .object({

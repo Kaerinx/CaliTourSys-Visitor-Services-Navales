@@ -1,4 +1,4 @@
-const { query } = require('../../../config/db')
+const { pool, query } = require('../../../config/db')
 
 const SORT_COLUMNS = {
   createdAt: 'created_at',
@@ -41,6 +41,19 @@ function createConflictError(message) {
   error.code = 'CONFLICT'
   error.publicMessage = message
   return error
+}
+
+function toDateOnly(value) {
+  if (!value) return null
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10)
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function handleWriteError(error) {
@@ -115,8 +128,10 @@ function mapPackageBookingRequest(row) {
   if (!row) return null
   return {
     id: row.id,
+    bookingReference: row.booking_reference || null,
     packageId: row.package_id,
     packageName: row.package_name_snapshot,
+    bookingSource: row.booking_source || 'online',
     selectedPax: Number(row.selected_pax),
     basePrice: row.base_price_snapshot == null ? null : Number(row.base_price_snapshot),
     basePax: row.base_pax_snapshot == null ? null : Number(row.base_pax_snapshot),
@@ -127,7 +142,18 @@ function mapPackageBookingRequest(row) {
       email: row.visitor_email,
       phoneNumber: row.visitor_phone_number,
     },
-    preferredBookingDate: row.preferred_booking_date,
+    representative: {
+      fullName: row.representative_full_name || row.visitor_full_name,
+      email: row.representative_email || row.visitor_email,
+      phoneNumber: row.representative_phone_number || row.visitor_phone_number,
+      gender: row.representative_gender || null,
+    },
+    participants: Array.isArray(row.participants) ? row.participants : [],
+    dateChangeRequests: Array.isArray(row.date_change_requests) ? row.date_change_requests : [],
+    preferredBookingDate: toDateOnly(row.preferred_booking_date),
+    startDate: toDateOnly(row.start_date || row.preferred_booking_date),
+    endDate: toDateOnly(row.end_date || row.preferred_booking_date),
+    durationDays: row.duration_days_snapshot == null ? 1 : Number(row.duration_days_snapshot),
     message: row.message || '',
     paymentRequired: Boolean(row.payment_required_snapshot),
     paymentInstruction: row.payment_instruction_snapshot || '',
@@ -143,6 +169,15 @@ function mapPackageBookingRequest(row) {
       : null,
     bookingStatus: row.booking_status,
     paymentStatus: row.payment_status,
+    paymentPlan: row.payment_plan || null,
+    initialPaymentAmount: row.initial_payment_amount == null ? null : Number(row.initial_payment_amount),
+    appliedCreditAmount: row.applied_credit_amount == null ? 0 : Number(row.applied_credit_amount),
+    balanceDueAt: row.balance_due_at,
+    depositDueAt: row.deposit_due_at,
+    depositStatus: row.deposit_status || null,
+    paymentMethod: row.selected_payment_method || null,
+    depositDeadlineExtendedAt: row.deposit_deadline_extended_at,
+    depositExtensionReason: row.deposit_extension_reason || '',
     pricingNote: row.pricing_note,
     bookingReviewNotes: row.booking_review_notes || '',
     bookingDeclineReason: row.booking_decline_reason || '',
@@ -153,6 +188,11 @@ function mapPackageBookingRequest(row) {
     paymentVerifiedBy: row.payment_verified_by,
     paymentRejectionReason: row.payment_rejection_reason || '',
     paymentNotes: row.payment_notes || '',
+    payments: Array.isArray(row.payments) ? row.payments : [],
+    expiredAt: row.expired_at,
+    cancelledAt: row.cancelled_at,
+    cancellationReason: row.cancellation_reason || '',
+    rebookedFromBookingId: row.rebooked_from_booking_id || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     verifiedByUser: row.verified_by_email
@@ -495,7 +535,54 @@ function packageBookingSelect() {
       verified_user.email AS verified_by_email,
       verified_user.display_name AS verified_by_display_name,
       reviewed_user.email AS reviewed_by_email,
-      reviewed_user.display_name AS reviewed_by_display_name
+      reviewed_user.display_name AS reviewed_by_display_name,
+      COALESCE((
+        SELECT jsonb_agg(jsonb_build_object(
+          'id', participant.id,
+          'participantOrder', participant.participant_order,
+          'fullName', participant.full_name,
+          'age', participant.age,
+          'gender', participant.gender,
+          'notes', participant.notes
+        ) ORDER BY participant.participant_order)
+        FROM package_booking_request_participants participant
+        WHERE participant.package_booking_request_id = pbr.id
+      ), '[]'::jsonb) AS participants,
+      COALESCE((
+        SELECT jsonb_agg(jsonb_build_object(
+          'id', payment.id,
+          'amount', payment.amount,
+          'paymentMethod', payment.payment_method,
+          'paymentStatus', payment.payment_status,
+          'transactionReference', payment.transaction_reference,
+          'submittedAt', payment.submitted_at,
+          'verifiedAt', payment.verified_at,
+          'isLegacy', payment.is_legacy
+        ) ORDER BY payment.submitted_at DESC)
+        FROM package_booking_payments payment
+        WHERE payment.package_booking_request_id = pbr.id
+      ), '[]'::jsonb) AS payments,
+      COALESCE((
+        SELECT SUM(credit.amount - credit.refundable_excess)
+        FROM package_booking_credit_transfers credit
+        WHERE credit.to_booking_request_id = pbr.id
+          AND credit.status = 'applied'
+      ), 0)::numeric AS applied_credit_amount,
+      COALESCE((
+        SELECT jsonb_agg(jsonb_build_object(
+          'id', request_change.id,
+          'startDate', request_change.requested_start_date,
+          'endDate', request_change.requested_end_date,
+          'durationDays', request_change.requested_duration_days,
+          'reason', request_change.reason,
+          'status', request_change.status,
+          'createdAt', request_change.created_at,
+          'reviewedAt', request_change.reviewed_at,
+          'reviewNotes', request_change.review_notes
+        ) ORDER BY request_change.created_at DESC)
+        FROM package_booking_date_change_requests request_change
+        WHERE request_change.package_booking_request_id = pbr.id
+      ), '[]'::jsonb) AS date_change_requests
     FROM package_booking_requests pbr
     LEFT JOIN users verified_user ON verified_user.id = pbr.payment_verified_by
     LEFT JOIN users reviewed_user ON reviewed_user.id = pbr.booking_reviewed_by
@@ -593,6 +680,9 @@ async function updatePackageBookingStatus(id, data, userId) {
       UPDATE package_booking_requests
       SET booking_status = $2::varchar,
           booking_decline_reason = CASE WHEN $2::varchar = 'declined' THEN $3 ELSE booking_decline_reason END,
+          cancelled_at = CASE WHEN $2::varchar = 'cancelled' THEN now() ELSE cancelled_at END,
+          cancelled_by = CASE WHEN $2::varchar = 'cancelled' THEN $5::uuid ELSE cancelled_by END,
+          cancellation_reason = CASE WHEN $2::varchar = 'cancelled' THEN $3 ELSE cancellation_reason END,
           booking_review_notes = COALESCE($4, booking_review_notes),
           booking_reviewed_at = now(),
           booking_reviewed_by = $5::uuid
@@ -612,20 +702,65 @@ async function verifyPackageBookingPayment(id, userId) {
     throw createValidationError('Payment proof can only be verified while status is proof_submitted.')
   }
 
-  const result = await query(
-    `
-      UPDATE package_booking_requests
-      SET payment_status = 'verified',
-          payment_verified_at = now(),
-          payment_verified_by = $2::uuid,
-          payment_rejection_reason = NULL
-      WHERE id = $1
-      RETURNING *
-    `,
-    [id, userId],
-  )
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const payment = await client.query(
+      `
+        UPDATE package_booking_payments
+        SET payment_status = 'verified', verified_at = now(), verified_by = $2::uuid,
+            rejection_reason = NULL
+        WHERE id = (
+          SELECT id FROM package_booking_payments
+          WHERE package_booking_request_id = $1 AND payment_status = 'pending_verification'
+          ORDER BY submitted_at DESC LIMIT 1
+          FOR UPDATE
+        )
+        RETURNING id
+      `,
+      [id, userId],
+    )
+    if (!payment.rows[0]) throw createValidationError('No pending payment transaction was found.')
 
-  return { before: existing, after: await getPackageBookingRequestById(result.rows[0].id) }
+    const totals = await client.query(
+      `SELECT (
+         COALESCE((SELECT SUM(amount) FROM package_booking_payments
+                   WHERE package_booking_request_id = $1 AND payment_status = 'verified'), 0)
+         + COALESCE((SELECT SUM(amount - refundable_excess) FROM package_booking_credit_transfers
+                     WHERE to_booking_request_id = $1 AND status = 'applied'), 0)
+       )::numeric AS verified_amount`,
+      [id],
+    )
+    const verifiedAmount = Number(totals.rows[0].verified_amount || 0)
+    const requiredAmount = Number(existing.initialPaymentAmount ?? existing.totalAmount ?? 0)
+    const bookingPaymentStatus = verifiedAmount >= Number(existing.totalAmount || requiredAmount)
+      ? 'paid'
+      : verifiedAmount >= requiredAmount
+        ? 'verified'
+        : 'partially_paid'
+    const depositStatus = verifiedAmount >= requiredAmount ? 'paid' : 'partially_paid'
+
+    const result = await client.query(
+      `
+        UPDATE package_booking_requests
+        SET payment_status = $2,
+            deposit_status = $3,
+            payment_verified_at = now(),
+            payment_verified_by = $4::uuid,
+            payment_rejection_reason = NULL
+        WHERE id = $1
+        RETURNING id
+      `,
+      [id, bookingPaymentStatus, depositStatus, userId],
+    )
+    await client.query('COMMIT')
+    return { before: existing, after: await getPackageBookingRequestById(result.rows[0].id) }
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 async function rejectPackageBookingPayment(id, data) {
@@ -635,21 +770,382 @@ async function rejectPackageBookingPayment(id, data) {
     throw createValidationError('Payment proof can only be rejected while status is proof_submitted.')
   }
 
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query(
+      `
+        UPDATE package_booking_payments
+        SET payment_status = 'rejected', rejection_reason = $2,
+            notes = COALESCE($3, notes), verified_at = NULL, verified_by = NULL
+        WHERE id = (
+          SELECT id FROM package_booking_payments
+          WHERE package_booking_request_id = $1 AND payment_status = 'pending_verification'
+          ORDER BY submitted_at DESC LIMIT 1
+          FOR UPDATE
+        )
+      `,
+      [id, data.reason, data.notes || null],
+    )
+    const result = await client.query(
+      `
+        UPDATE package_booking_requests
+        SET payment_status = 'rejected', deposit_status = 'rejected',
+            payment_rejection_reason = $2,
+            payment_notes = COALESCE($3, payment_notes),
+            payment_verified_at = NULL,
+            payment_verified_by = NULL
+        WHERE id = $1
+        RETURNING id
+      `,
+      [id, data.reason, data.notes || null],
+    )
+    await client.query('COMMIT')
+    return { before: existing, after: await getPackageBookingRequestById(result.rows[0].id) }
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+async function updatePackageBookingSchedule(id, data, userId) {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const locked = await client.query('SELECT * FROM package_booking_requests WHERE id = $1 FOR UPDATE', [id])
+    const existing = locked.rows[0]
+    if (!existing) throw createNotFoundError('Package booking request')
+
+    const capacityResult = await client.query(
+      `
+        SELECT COALESCE(inventory.capacity_pax, tp.departure_capacity, tp.max_pax) AS capacity_pax
+        FROM tourism_packages tp
+        LEFT JOIN package_departure_inventory inventory
+          ON inventory.package_id = tp.id AND inventory.start_date = $2::date
+        WHERE tp.id = $1
+        FOR UPDATE OF tp
+      `,
+      [existing.package_id, data.startDate],
+    )
+    const capacity = capacityResult.rows[0]?.capacity_pax == null ? null : Number(capacityResult.rows[0].capacity_pax)
+    if (capacity !== null) {
+      const reserved = await client.query(
+        `
+          SELECT COALESCE(SUM(selected_pax), 0)::integer AS reserved_pax
+          FROM package_booking_requests
+          WHERE package_id = $1 AND start_date = $2::date AND id <> $3
+            AND booking_status IN ('pending', 'reviewed', 'approved', 'rescheduled')
+        `,
+        [existing.package_id, data.startDate, id],
+      )
+      if (Number(reserved.rows[0].reserved_pax || 0) + Number(existing.selected_pax) > capacity) {
+        throw createValidationError('The selected departure does not have enough available slots.')
+      }
+    }
+
+    if (data.dateChangeRequestId) {
+      const approved = await client.query(
+        `
+          UPDATE package_booking_date_change_requests
+          SET status = 'approved', reviewed_by = $3, reviewed_at = now(), review_notes = $4
+          WHERE id = $1 AND package_booking_request_id = $2 AND status = 'pending'
+          RETURNING id
+        `,
+        [data.dateChangeRequestId, id, userId, data.reason],
+      )
+      if (!approved.rows[0]) throw createValidationError('The pending date-change request was not found.')
+    }
+
+    await client.query(
+      `
+        UPDATE package_booking_requests
+        SET preferred_booking_date = $2, start_date = $2, end_date = $3,
+            duration_days_snapshot = $4, booking_status = 'rescheduled',
+            balance_due_at = CASE WHEN payment_plan = 'deposit_50'
+              THEN ($2::date - 3)::timestamp AT TIME ZONE 'Asia/Manila'
+              ELSE balance_due_at END,
+            booking_reviewed_at = now(), booking_reviewed_by = $5
+        WHERE id = $1
+      `,
+      [id, data.startDate, data.endDate, data.durationDays, userId],
+    )
+    await client.query(
+      `INSERT INTO package_booking_events
+       (package_booking_request_id, event_type, actor_user_id, before_values, after_values, reason)
+       VALUES ($1, 'schedule_changed', $2, $3::jsonb, $4::jsonb, $5)`,
+      [
+        id,
+        userId,
+        JSON.stringify({ startDate: existing.start_date, endDate: existing.end_date, durationDays: existing.duration_days_snapshot }),
+        JSON.stringify({ startDate: data.startDate, endDate: data.endDate, durationDays: data.durationDays }),
+        data.reason,
+      ],
+    )
+    await client.query('COMMIT')
+    return { before: mapPackageBookingRequest(existing), after: await getPackageBookingRequestById(id) }
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+async function extendPackageBookingDepositDeadline(id, data, userId) {
+  const existing = await getPackageBookingRequestById(id)
+  if (!existing) throw createNotFoundError('Package booking request')
   const result = await query(
     `
       UPDATE package_booking_requests
-      SET payment_status = 'rejected',
-          payment_rejection_reason = $2,
-          payment_notes = COALESCE($3, payment_notes),
-          payment_verified_at = NULL,
-          payment_verified_by = NULL
+      SET deposit_due_at = $2, deposit_deadline_extended_at = now(),
+          deposit_deadline_extended_by = $3, deposit_extension_reason = $4
       WHERE id = $1
-      RETURNING *
+      RETURNING id
     `,
-    [id, data.reason, data.notes || null],
+    [id, data.depositDueAt, userId, data.reason],
   )
-
+  await query(
+    `INSERT INTO package_booking_events
+     (package_booking_request_id, event_type, actor_user_id, before_values, after_values, reason)
+     VALUES ($1, 'deposit_deadline_extended', $2, $3::jsonb, $4::jsonb, $5)`,
+    [id, userId, JSON.stringify({ depositDueAt: existing.depositDueAt }), JSON.stringify({ depositDueAt: data.depositDueAt }), data.reason],
+  )
   return { before: existing, after: await getPackageBookingRequestById(result.rows[0].id) }
+}
+
+async function getTransferablePackageBookingCredit(id) {
+  const result = await query(
+    `
+      SELECT COALESCE(SUM(payment.amount), 0)::numeric AS verified_amount
+      FROM package_booking_payments payment
+      WHERE payment.package_booking_request_id = $1
+        AND payment.payment_status = 'verified'
+    `,
+    [id],
+  )
+  return Number(result.rows[0]?.verified_amount || 0)
+}
+
+async function getPackageBookingPaymentTotals(id) {
+  const result = await query(
+    `
+      SELECT
+        (
+          COALESCE((SELECT SUM(amount) FROM package_booking_payments
+                    WHERE package_booking_request_id = $1 AND payment_status = 'verified'), 0)
+          + COALESCE((SELECT SUM(amount - refundable_excess) FROM package_booking_credit_transfers
+                      WHERE to_booking_request_id = $1 AND status = 'applied'), 0)
+        )::numeric AS verified_amount,
+        COALESCE((SELECT SUM(amount) FROM package_booking_payments
+                  WHERE package_booking_request_id = $1 AND payment_status = 'pending_verification'), 0)::numeric AS pending_amount
+    `,
+    [id],
+  )
+  return {
+    verifiedAmount: Number(result.rows[0]?.verified_amount || 0),
+    pendingAmount: Number(result.rows[0]?.pending_amount || 0),
+  }
+}
+
+async function recordPackageBookingPayment(id, data, userId) {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const bookingResult = await client.query(
+      'SELECT * FROM package_booking_requests WHERE id = $1 FOR UPDATE',
+      [id],
+    )
+    const booking = bookingResult.rows[0]
+    if (!booking) throw createNotFoundError('Package booking request')
+
+    if (data.transactionReference) {
+      const duplicate = await client.query(
+        `SELECT id FROM package_booking_payments
+         WHERE lower(transaction_reference) = lower($1)
+           AND payment_status NOT IN ('rejected', 'voided')
+         LIMIT 1`,
+        [data.transactionReference],
+      )
+      if (duplicate.rows[0]) throw createConflictError('This payment reference has already been submitted.')
+    }
+
+    const status = data.paymentMethod === 'cash' ? 'verified' : 'pending_verification'
+    const paymentResult = await client.query(
+      `
+        INSERT INTO package_booking_payments (
+          package_booking_request_id, amount, payment_method, payment_status,
+          transaction_reference, proof_file_url, proof_original_filename,
+          proof_mime_type, proof_file_size, verified_at, verified_by, notes
+        )
+        VALUES (
+          $1, $2, $3::varchar(40), $4::varchar(40), $5, $6, $7, $8, $9,
+          CASE WHEN $4::varchar(40) = 'verified' THEN now() ELSE NULL END,
+          CASE WHEN $4::varchar(40) = 'verified' THEN $10::uuid ELSE NULL END,
+          $11
+        )
+        RETURNING *
+      `,
+      [
+        id,
+        data.amount,
+        data.paymentMethod,
+        status,
+        data.transactionReference || null,
+        data.proofFileUrl || null,
+        data.proofOriginalFilename || null,
+        data.proofMimeType || null,
+        data.proofFileSize ?? null,
+        userId,
+        data.notes || '',
+      ],
+    )
+
+    const totals = await client.query(
+      `SELECT (
+         COALESCE((SELECT SUM(amount) FROM package_booking_payments
+                   WHERE package_booking_request_id = $1 AND payment_status = 'verified'), 0)
+         + COALESCE((SELECT SUM(amount - refundable_excess) FROM package_booking_credit_transfers
+                     WHERE to_booking_request_id = $1 AND status = 'applied'), 0)
+       )::numeric AS verified_amount`,
+      [id],
+    )
+    const verifiedAmount = Number(totals.rows[0]?.verified_amount || 0)
+    const totalAmount = Number(booking.computed_total_amount || 0)
+    const initialAmount = Number(booking.initial_payment_amount || totalAmount)
+    const paymentStatus = status === 'pending_verification'
+      ? 'proof_submitted'
+      : verifiedAmount >= totalAmount
+        ? 'paid'
+        : verifiedAmount > 0
+          ? 'partially_paid'
+          : 'unpaid'
+    const depositStatus = status === 'pending_verification'
+      ? 'proof_submitted'
+      : verifiedAmount >= initialAmount
+        ? 'paid'
+        : 'partially_paid'
+
+    await client.query(
+      `
+        UPDATE package_booking_requests
+        SET selected_payment_method = $2,
+            payment_status = $3,
+            deposit_status = $4,
+            payment_reference_number = COALESCE($5, payment_reference_number),
+            proof_file_url = COALESCE($6, proof_file_url),
+            proof_original_filename = COALESCE($7, proof_original_filename),
+            proof_mime_type = COALESCE($8, proof_mime_type),
+            proof_file_size = COALESCE($9, proof_file_size),
+            payment_submitted_at = now(),
+            payment_verified_at = CASE WHEN $10 = 'verified' THEN now() ELSE payment_verified_at END,
+            payment_verified_by = CASE WHEN $10 = 'verified' THEN $11::uuid ELSE payment_verified_by END
+        WHERE id = $1
+      `,
+      [
+        id,
+        data.paymentMethod,
+        paymentStatus,
+        depositStatus,
+        data.transactionReference || null,
+        data.proofFileUrl || null,
+        data.proofOriginalFilename || null,
+        data.proofMimeType || null,
+        data.proofFileSize ?? null,
+        status,
+        userId,
+      ],
+    )
+    await client.query('COMMIT')
+    const payment = paymentResult.rows[0]
+    return {
+      payment: {
+        id: payment.id,
+        amount: Number(payment.amount),
+        paymentMethod: payment.payment_method,
+        paymentStatus: payment.payment_status,
+        transactionReference: payment.transaction_reference,
+        submittedAt: payment.submitted_at,
+        verifiedAt: payment.verified_at,
+      },
+      booking: await getPackageBookingRequestById(id),
+    }
+  } catch (error) {
+    await client.query('ROLLBACK')
+    if (error.code === '23505') throw createConflictError('This payment reference has already been submitted.')
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+async function transferPackageBookingCredit(data, userId) {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const locked = await client.query(
+      `SELECT * FROM package_booking_requests WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE`,
+      [[data.fromBookingRequestId, data.toBookingRequestId]],
+    )
+    if (locked.rows.length !== 2) throw createNotFoundError('Package booking request')
+
+    const result = await client.query(
+      `
+        INSERT INTO package_booking_credit_transfers (
+          from_booking_request_id, to_booking_request_id, amount, expires_at,
+          approved_by, reason, refundable_excess
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *
+      `,
+      [
+        data.fromBookingRequestId,
+        data.toBookingRequestId,
+        data.amount,
+        data.expiresAt,
+        userId,
+        data.reason,
+        data.refundableExcess,
+      ],
+    )
+    await client.query(
+      `UPDATE package_booking_requests
+       SET deposit_status = 'transferred'
+       WHERE id = $1`,
+      [data.fromBookingRequestId],
+    )
+    await client.query(
+      `UPDATE package_booking_requests
+       SET rebooked_from_booking_id = $2,
+           deposit_status = CASE WHEN $3 >= COALESCE(initial_payment_amount, computed_total_amount, 0)
+             THEN 'paid' ELSE 'partially_paid' END,
+           payment_status = CASE WHEN $3 >= COALESCE(computed_total_amount, 0)
+             THEN 'paid' ELSE 'partially_paid' END
+       WHERE id = $1`,
+      [data.toBookingRequestId, data.fromBookingRequestId, data.amount],
+    )
+    await client.query(
+      `INSERT INTO package_booking_events
+       (package_booking_request_id, event_type, actor_user_id, after_values, reason)
+       VALUES ($1, 'credit_transferred_out', $3, $4::jsonb, $5),
+              ($2, 'credit_transferred_in', $3, $4::jsonb, $5)`,
+      [
+        data.fromBookingRequestId,
+        data.toBookingRequestId,
+        userId,
+        JSON.stringify({ amount: data.amount, refundableExcess: data.refundableExcess }),
+        data.reason,
+      ],
+    )
+    await client.query('COMMIT')
+    return result.rows[0]
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 async function updatePackageBookingNotes(id, data) {
@@ -876,6 +1372,8 @@ module.exports = {
   getInquiryById,
   getMediaById,
   getPackageBookingRequestById,
+  getTransferablePackageBookingCredit,
+  getPackageBookingPaymentTotals,
   getUserById,
   listAuditLogs,
   listInquiries,
@@ -887,12 +1385,16 @@ module.exports = {
   listRoles,
   listUsers,
   rejectPackageBookingPayment,
+  recordPackageBookingPayment,
   replaceUserRoles,
   updateInquiryStatus,
   updateMedia,
   updateNewsletterStatus,
   updatePackageBookingNotes,
+  updatePackageBookingSchedule,
   updatePackageBookingStatus,
   updateUserStatus,
   verifyPackageBookingPayment,
+  extendPackageBookingDepositDeadline,
+  transferPackageBookingCredit,
 }

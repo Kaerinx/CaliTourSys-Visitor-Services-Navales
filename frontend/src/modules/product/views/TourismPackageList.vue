@@ -289,6 +289,8 @@ function getReadinessIssues(packageDetail) {
   if (!packageDetail.description) issues.push('Description is required.')
   if (!packageDetail.targetMarket) issues.push('Target market is required.')
   if (!packageDetail.estimatedDuration) issues.push('Estimated duration is required.')
+  if (!packageDetail.durationDays) issues.push('Duration in days is required.')
+  if (!packageDetail.departureCapacity) issues.push('Departure capacity is required.')
   if (!packageDetail.items?.some((item) => item.itemType === 'Plan')) {
     issues.push('At least one linked plan is required.')
   }
@@ -395,7 +397,8 @@ function getReadinessIssues(packageDetail) {
           <td>
             <span class="package-market">
               <span>{{ tourismPackage.targetMarket }}</span>
-              <strong>{{ tourismPackage.estimatedDuration }}</strong>
+              <strong>{{ tourismPackage.durationDays || 1 }} day(s) / {{ tourismPackage.estimatedDuration }}</strong>
+              <span>Capacity: {{ tourismPackage.departureCapacity || tourismPackage.maxPax || 'Not set' }}</span>
             </span>
           </td>
           <td>
@@ -453,7 +456,7 @@ function getReadinessIssues(packageDetail) {
             <span>{{ tourismPackage.category }}</span>
           </div>
           <span>{{ tourismPackage.targetMarket }}</span>
-          <span>{{ tourismPackage.estimatedDuration }}</span>
+          <span>{{ tourismPackage.durationDays || 1 }} day(s) / capacity {{ tourismPackage.departureCapacity || tourismPackage.maxPax || 'Not set' }}</span>
           <span>{{ packagePricingLabel(tourismPackage) }}</span>
           <span>{{ tourismPackage.itemCount }} item(s)</span>
           <div class="cms-mobile-card__actions cms-table-actions product-table-actions">

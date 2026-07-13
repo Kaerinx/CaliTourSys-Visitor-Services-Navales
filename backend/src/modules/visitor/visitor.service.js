@@ -3,6 +3,7 @@ const model = require('./visitor.model');
 const { signToken } = require('../../middleware/auth');
 const { query: pgQuery } = require('../../config/db');
 const { hashPassword } = require('../../utils/password');
+const { requireGender } = require('../booking/bookingRules');
 
 function httpError(statusCode, message) {
   const error = new Error(message);
@@ -19,6 +20,21 @@ function required(payload, fields) {
 
 function normalizeType(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function normalizeVisitorGenders(payload) {
+  return {
+    ...payload,
+    gender: payload.gender ? requireGender(payload.gender) : payload.gender,
+    companions: Array.isArray(payload.companions)
+      ? payload.companions.map((companion, index) => ({
+          ...companion,
+          gender: companion.gender
+            ? requireGender(companion.gender, `Companion ${index + 1} gender`)
+            : companion.gender,
+        }))
+      : payload.companions,
+  };
 }
 
 function classifyVisitor(payload) {
@@ -319,6 +335,8 @@ async function receptionistSummary(user) {
 async function createVisitor(payload, user) {
   required(payload, ['full_name', 'visit_date']);
 
+  payload = normalizeVisitorGenders(payload);
+
   const visitor = {
     ...payload,
     visitor_type: classifyVisitor(payload),
@@ -363,6 +381,7 @@ async function getVisitor(id, user) {
 
 async function updateVisitor(id, payload, user) {
   await getVisitor(id, user);
+  payload = normalizeVisitorGenders(payload);
   const next = {
     ...payload,
     visitor_type: payload.visitor_type ? normalizeType(payload.visitor_type) : undefined,

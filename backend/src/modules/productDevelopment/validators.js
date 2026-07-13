@@ -167,6 +167,8 @@ const packageBodySchema = z
     category: z.enum(PACKAGE_CATEGORIES),
     targetMarket: requiredText('Target market', 255),
     estimatedDuration: requiredText('Estimated duration', 120),
+    durationDays: optionalPositiveInteger('Duration days'),
+    departureCapacity: optionalPositiveInteger('Departure capacity'),
     basePrice: optionalMoney('Base price'),
     basePax: optionalPositiveInteger('Base pax'),
     extraPaxPrice: optionalMoney('Extra person price'),

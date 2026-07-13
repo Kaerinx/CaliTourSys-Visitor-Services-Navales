@@ -173,6 +173,8 @@ function mapPackage(row) {
     category: row.category || 'Nature',
     targetMarket: row.target_market,
     estimatedDuration: row.estimated_duration,
+    durationDays: row.duration_days == null ? null : Number(row.duration_days),
+    departureCapacity: row.departure_capacity == null ? null : Number(row.departure_capacity),
     basePrice: row.base_price == null ? null : Number(row.base_price),
     basePax: row.base_pax == null ? null : Number(row.base_pax),
     extraPaxPrice: row.extra_pax_price == null ? null : Number(row.extra_pax_price),
@@ -1070,11 +1072,11 @@ async function createPackage(data, userId) {
     const inserted = await client.query(
       `
         INSERT INTO tourism_packages (
-          name, description, category, target_market, estimated_duration,
+          name, description, category, target_market, estimated_duration, duration_days, departure_capacity,
           base_price, base_pax, extra_pax_price, min_pax, max_pax, payment_required,
           package_status, remarks, created_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING id
       `,
       [
@@ -1083,6 +1085,8 @@ async function createPackage(data, userId) {
         data.category,
         data.targetMarket,
         data.estimatedDuration,
+        data.durationDays,
+        data.departureCapacity,
         data.basePrice,
         data.basePax,
         data.extraPaxPrice,
@@ -1113,9 +1117,10 @@ async function updatePackage(id, data) {
       `
         UPDATE tourism_packages
         SET name = $2, description = $3, category = $4, target_market = $5,
-            estimated_duration = $6, base_price = $7, base_pax = $8, extra_pax_price = $9,
-            min_pax = $10, max_pax = $11, payment_required = $12, package_status = $13,
-            remarks = $14
+            estimated_duration = $6, duration_days = $7, departure_capacity = $8,
+            base_price = $9, base_pax = $10, extra_pax_price = $11,
+            min_pax = $12, max_pax = $13, payment_required = $14, package_status = $15,
+            remarks = $16
         WHERE id = $1
         RETURNING id
       `,
@@ -1126,6 +1131,8 @@ async function updatePackage(id, data) {
         data.category,
         data.targetMarket,
         data.estimatedDuration,
+        data.durationDays,
+        data.departureCapacity,
         data.basePrice,
         data.basePax,
         data.extraPaxPrice,

@@ -1,7 +1,7 @@
 <script setup>
 import PromotionFooter from '../components/PromotionFooter.vue'
 import PromotionNavbar from '../components/PromotionNavbar.vue'
-import { getTouristBookingById } from '../services/promotionApi'
+import { createTouristBookingDateChangeRequest, getTouristBookingById } from '../services/promotionApi'
 import { submitPackagePaymentProof } from '../services/promotionService'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
@@ -18,25 +18,41 @@ const isUploading = ref(false)
 const errorMessage = ref('')
 const uploadMessage = ref('')
 const uploadError = ref('')
+const isRequestingDateChange = ref(false)
+const dateChangeMessage = ref('')
+const dateChangeError = ref('')
 const proofForm = reactive({
   file: null,
   paymentReferenceNumber: '',
   paymentNotes: '',
 })
+const dateChangeForm = reactive({ startDate: '', durationDays: 1, reason: '' })
 
 const hasKnownTotal = computed(() => isFiniteAmount(booking.value?.totalAmount))
+const verifiedAmount = computed(() => Number(booking.value?.verifiedPaymentAmount || 0) + Number(booking.value?.appliedCreditAmount || 0))
+const pendingAmount = computed(() => Number(booking.value?.pendingPaymentAmount || 0))
+const remainingAmount = computed(() => Math.max(0, Number(booking.value?.totalAmount || 0) - verifiedAmount.value))
+const amountDue = computed(() => {
+  if (!hasKnownTotal.value || pendingAmount.value > 0 || remainingAmount.value <= 0) return 0
+  return verifiedAmount.value > 0
+    ? remainingAmount.value
+    : Math.min(Number(booking.value?.initialPaymentAmount || booking.value?.totalAmount || 0), remainingAmount.value)
+})
 const canUploadProof = computed(() => {
   return Boolean(
     booking.value?.id &&
       booking.value.paymentRequired &&
       hasKnownTotal.value &&
-      ['unpaid', 'rejected'].includes(booking.value.paymentStatus),
+      amountDue.value > 0 &&
+      pendingAmount.value === 0 &&
+      !['cancelled', 'declined', 'expired'].includes(booking.value.bookingStatus),
   )
 })
 const proofStatusLabel = computed(() => {
   if (!booking.value?.proofOfPayment) return 'No proof submitted'
   return `Submitted ${formatDisplayDate(booking.value.proofOfPayment.uploadedAt)}`
 })
+const canRequestDateChange = computed(() => !['declined', 'cancelled', 'expired'].includes(booking.value?.bookingStatus))
 const nextSteps = computed(() => {
   if (!booking.value) return ''
   if (!hasKnownTotal.value) {
@@ -63,11 +79,34 @@ async function loadBooking() {
   try {
     const response = await getTouristBookingById(props.requestId)
     booking.value = response.data
+    dateChangeForm.startDate = String(booking.value.startDate || booking.value.preferredBookingDate || '').slice(0, 10)
+    dateChangeForm.durationDays = Number(booking.value.durationDays || 1)
   } catch (error) {
     booking.value = null
     errorMessage.value = error.message || 'Unable to load this booking request.'
   } finally {
     isLoading.value = false
+  }
+}
+
+async function requestDateChange() {
+  if (!booking.value?.id) return
+  isRequestingDateChange.value = true
+  dateChangeMessage.value = ''
+  dateChangeError.value = ''
+  try {
+    await createTouristBookingDateChangeRequest(booking.value.id, {
+      startDate: dateChangeForm.startDate,
+      durationDays: Number(dateChangeForm.durationDays),
+      reason: dateChangeForm.reason,
+    })
+    dateChangeMessage.value = 'Date-change request submitted for staff approval and availability checking.'
+    dateChangeForm.reason = ''
+    await loadBooking()
+  } catch (error) {
+    dateChangeError.value = error.message || 'Unable to submit the date-change request.'
+  } finally {
+    isRequestingDateChange.value = false
   }
 }
 
@@ -84,6 +123,10 @@ async function uploadProof() {
     uploadError.value = 'Choose a proof of payment file first.'
     return
   }
+  if (!proofForm.paymentReferenceNumber.trim()) {
+    uploadError.value = 'Payment reference number is required for electronic payments.'
+    return
+  }
 
   isUploading.value = true
   uploadMessage.value = ''
@@ -92,6 +135,8 @@ async function uploadProof() {
   try {
     await submitPackagePaymentProof(booking.value.id, {
       file: proofForm.file,
+      amount: amountDue.value,
+      paymentMethod: booking.value.paymentMethod || 'qr_instapay',
       paymentReferenceNumber: proofForm.paymentReferenceNumber,
       paymentNotes: proofForm.paymentNotes,
     })
@@ -190,8 +235,17 @@ function formatDisplayDate(value) {
             <dl>
               <div><dt>Package</dt><dd>{{ booking.packageName }}</dd></div>
               <div><dt>Selected pax</dt><dd>{{ booking.selectedPax }} pax</dd></div>
-              <div><dt>Preferred date</dt><dd>{{ formatDisplayDate(booking.preferredBookingDate) }}</dd></div>
+              <div><dt>Booking source</dt><dd>{{ formatStatusLabel(booking.bookingSource) }}</dd></div>
+              <div><dt>Start date</dt><dd>{{ formatDisplayDate(booking.startDate || booking.preferredBookingDate) }}</dd></div>
+              <div><dt>End date</dt><dd>{{ formatDisplayDate(booking.endDate) }}</dd></div>
+              <div><dt>Duration</dt><dd>{{ booking.durationDays || 1 }} day(s)</dd></div>
               <div><dt>Estimated total</dt><dd>{{ formatCurrency(booking.totalAmount) }}</dd></div>
+              <div><dt>Payment plan</dt><dd>{{ formatStatusLabel(booking.paymentPlan) }}</dd></div>
+              <div><dt>Payment method</dt><dd>{{ formatStatusLabel(booking.paymentMethod) }}</dd></div>
+              <div><dt>Verified / credited</dt><dd>{{ formatCurrency(verifiedAmount) }}</dd></div>
+              <div><dt>Remaining balance</dt><dd>{{ formatCurrency(remainingAmount) }}</dd></div>
+              <div><dt>Deposit deadline</dt><dd>{{ formatDisplayDate(booking.depositDueAt) }}</dd></div>
+              <div><dt>Balance deadline</dt><dd>{{ booking.balanceDueAt ? formatDisplayDate(booking.balanceDueAt) : 'Not applicable' }}</dd></div>
               <div><dt>Booking status</dt><dd>{{ formatStatusLabel(booking.bookingStatus) }}</dd></div>
               <div><dt>Payment status</dt><dd>{{ formatStatusLabel(booking.paymentStatus) }}</dd></div>
               <div><dt>Payment required</dt><dd>{{ booking.paymentRequired ? 'Yes' : 'No' }}</dd></div>
@@ -203,6 +257,13 @@ function formatDisplayDate(value) {
           <aside class="next-panel">
             <h2>Next steps</h2>
             <p>{{ nextSteps }}</p>
+            <RouterLink
+              v-if="canUploadProof"
+              class="payment-link"
+              :to="{ name: 'promotion-package-booking-payment', params: { slug: booking.packageId || 'booking' }, query: { requestId: booking.id } }"
+            >
+              Continue to payment
+            </RouterLink>
             <div v-if="booking.proofOfPayment" class="proof-summary">
               <span>Proof of payment</span>
               <strong>{{ booking.proofOfPayment.originalFilename || 'Uploaded file' }}</strong>
@@ -216,12 +277,12 @@ function formatDisplayDate(value) {
             <p class="eyebrow">Manual payment</p>
             <h2>Upload proof of payment</h2>
             <p>{{ booking.paymentInstruction }}</p>
-            <strong>Amount due: {{ formatCurrency(booking.totalAmount) }}</strong>
+            <strong>Amount due now: {{ formatCurrency(amountDue) }}</strong>
           </div>
 
           <label>
             <span>Payment reference number</span>
-            <input v-model.trim="proofForm.paymentReferenceNumber" type="text" />
+            <input v-model.trim="proofForm.paymentReferenceNumber" type="text" required />
           </label>
 
           <label>
@@ -243,6 +304,24 @@ function formatDisplayDate(value) {
 
           <button type="button" :disabled="isUploading" @click="uploadProof">
             {{ isUploading ? 'Uploading...' : 'Upload proof of payment' }}
+          </button>
+        </section>
+
+        <section v-if="canRequestDateChange" class="date-change-panel">
+          <div>
+            <p class="eyebrow">Reschedule</p>
+            <h2>Request a date change</h2>
+            <p>Your current booking stays unchanged until authorized staff approve this request and confirm availability.</p>
+          </div>
+          <div class="date-change-grid">
+            <label><span>New start date</span><input v-model="dateChangeForm.startDate" type="date" required /></label>
+            <label><span>Duration (days)</span><input v-model="dateChangeForm.durationDays" type="number" min="1" required /></label>
+          </div>
+          <label><span>Reason</span><textarea v-model.trim="dateChangeForm.reason" rows="3" required></textarea></label>
+          <p v-if="dateChangeMessage" class="message message--success">{{ dateChangeMessage }}</p>
+          <p v-if="dateChangeError" class="message message--error">{{ dateChangeError }}</p>
+          <button type="button" :disabled="isRequestingDateChange || !dateChangeForm.startDate || !dateChangeForm.reason" @click="requestDateChange">
+            {{ isRequestingDateChange ? 'Submitting...' : 'Submit date-change request' }}
           </button>
         </section>
       </template>
@@ -279,6 +358,7 @@ function formatDisplayDate(value) {
 .detail-panel,
 .next-panel,
 .payment-panel,
+.date-change-panel,
 .state-panel {
   border: 1px solid #e4e1d8;
   border-radius: 8px;
@@ -372,6 +452,7 @@ h1 {
 .detail-panel,
 .next-panel,
 .payment-panel,
+.date-change-panel,
 .state-panel {
   padding: 24px;
 }
@@ -410,6 +491,18 @@ dd {
   background: #fffaf0;
 }
 
+.date-change-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.date-change-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .payment-panel strong {
   display: block;
   margin-top: 10px;
@@ -444,6 +537,7 @@ textarea:focus {
 }
 
 button,
+.payment-link,
 .state-panel a {
   width: max-content;
   min-height: 44px;
@@ -458,6 +552,7 @@ button,
   font: inherit;
   font-weight: 900;
   cursor: pointer;
+  text-decoration: none;
 }
 
 button:disabled {
@@ -486,7 +581,8 @@ button:disabled {
 
 @media (max-width: 860px) {
   .receipt-hero,
-  .detail-grid {
+  .detail-grid,
+  .date-change-grid {
     display: grid;
     grid-template-columns: 1fr;
   }
@@ -506,6 +602,7 @@ button:disabled {
   .detail-panel,
   .next-panel,
   .payment-panel,
+  .date-change-panel,
   .state-panel {
     padding: 22px;
   }
@@ -515,6 +612,7 @@ button:disabled {
   }
 
   button,
+  .payment-link,
   .state-panel a {
     width: 100%;
   }

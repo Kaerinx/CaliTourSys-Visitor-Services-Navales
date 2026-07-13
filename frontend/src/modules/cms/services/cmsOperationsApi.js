@@ -22,6 +22,21 @@ export const cmsOperationsApi = {
   getPackageBookingRequestById(id) {
     return http.getAuth(`/cms/package-bookings/${id}`)
   },
+  createWalkInPackageBooking(payload) {
+    return http.postAuth('/cms/package-bookings', payload)
+  },
+  updatePackageBookingSchedule(id, payload) {
+    return http.patchAuth(`/cms/package-bookings/${id}/schedule`, payload)
+  },
+  extendPackageBookingDepositDeadline(id, payload) {
+    return http.patchAuth(`/cms/package-bookings/${id}/deposit-deadline`, payload)
+  },
+  recordPackageBookingPayment(id, payload) {
+    return http.postAuth(`/cms/package-bookings/${id}/payments`, payload)
+  },
+  transferPackageBookingCredit(id, payload) {
+    return http.postAuth(`/cms/package-bookings/${id}/credit-transfers`, payload)
+  },
   updatePackageBookingStatus(id, payload) {
     return http.patchAuth(`/cms/package-bookings/${id}/status`, payload)
   },

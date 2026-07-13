@@ -14,6 +14,19 @@ function toBoolean(value) {
   return Boolean(value)
 }
 
+function toDateOnly(value) {
+  if (!value) return null
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10)
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function imageFromRow(row, prefix = 'primary_image') {
   const url = row[`${prefix}_url`]
   const altText = row[`${prefix}_alt_text`]
@@ -172,6 +185,8 @@ function mapPackage(row) {
     },
     targetMarket: row.target_market,
     estimatedDuration: row.estimated_duration,
+    durationDays: row.duration_days == null ? null : Number(row.duration_days),
+    departureCapacity: row.departure_capacity == null ? null : Number(row.departure_capacity),
     basePrice: toNumber(row.base_price),
     basePax: row.base_pax == null ? null : Number(row.base_pax),
     extraPaxPrice: toNumber(row.extra_pax_price),
@@ -210,8 +225,10 @@ function mapPackageItem(row) {
 function mapPackageBookingRequest(row) {
   return {
     id: row.id,
+    bookingReference: row.booking_reference || null,
     packageId: row.package_id,
     packageName: row.package_name_snapshot,
+    bookingSource: row.booking_source || 'online',
     selectedPax: Number(row.selected_pax),
     basePrice: toNumber(row.base_price_snapshot),
     basePax: row.base_pax_snapshot == null ? null : Number(row.base_pax_snapshot),
@@ -226,13 +243,26 @@ function mapPackageBookingRequest(row) {
       fullName: row.representative_full_name || row.visitor_full_name,
       email: row.representative_email || row.visitor_email,
       phoneNumber: row.representative_phone_number || row.visitor_phone_number,
+      gender: row.representative_gender || null,
     },
     participants: Array.isArray(row.participants) ? row.participants : [],
-    preferredBookingDate: row.preferred_booking_date,
+    preferredBookingDate: toDateOnly(row.preferred_booking_date),
+    startDate: toDateOnly(row.start_date || row.preferred_booking_date),
+    endDate: toDateOnly(row.end_date || row.preferred_booking_date),
+    durationDays: row.duration_days_snapshot == null ? 1 : Number(row.duration_days_snapshot),
     message: row.message || '',
     paymentRequired: toBoolean(row.payment_required_snapshot),
     bookingStatus: row.booking_status,
     paymentStatus: row.payment_status,
+    paymentPlan: row.payment_plan || null,
+    initialPaymentAmount: toNumber(row.initial_payment_amount),
+    verifiedPaymentAmount: toNumber(row.verified_payment_amount) || 0,
+    pendingPaymentAmount: toNumber(row.pending_payment_amount) || 0,
+    appliedCreditAmount: toNumber(row.applied_credit_amount) || 0,
+    depositDueAt: row.deposit_due_at || null,
+    balanceDueAt: row.balance_due_at || null,
+    depositStatus: row.deposit_status || null,
+    paymentMethod: row.selected_payment_method || null,
     paymentInstruction: row.payment_instruction_snapshot || '',
     paymentReferenceNumber: row.payment_reference_number || '',
     proofOfPayment: row.proof_file_url
@@ -757,6 +787,8 @@ async function getPackageForBooking(packageId) {
         extra_pax_price,
         min_pax,
         max_pax,
+        duration_days,
+        departure_capacity,
         payment_required,
         package_status
       FROM tourism_packages
@@ -774,6 +806,42 @@ async function createPackageBookingRequest(data) {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
+    const capacityResult = await client.query(
+      `
+        SELECT COALESCE(inventory.capacity_pax, tp.departure_capacity, tp.max_pax) AS capacity_pax
+        FROM tourism_packages tp
+        LEFT JOIN package_departure_inventory inventory
+          ON inventory.package_id = tp.id
+         AND inventory.start_date = $2::date
+        WHERE tp.id = $1
+        FOR UPDATE OF tp
+      `,
+      [data.packageId, data.startDate],
+    )
+    const capacity = capacityResult.rows[0]?.capacity_pax == null
+      ? null
+      : Number(capacityResult.rows[0].capacity_pax)
+    if (capacity !== null) {
+      const reservedResult = await client.query(
+        `
+          SELECT COALESCE(SUM(selected_pax), 0)::integer AS reserved_pax
+          FROM package_booking_requests
+          WHERE package_id = $1
+            AND start_date = $2::date
+            AND booking_status IN ('pending', 'reviewed', 'approved', 'rescheduled')
+        `,
+        [data.packageId, data.startDate],
+      )
+      const reserved = Number(reservedResult.rows[0]?.reserved_pax || 0)
+      if (reserved + data.selectedPax > capacity) {
+        const error = new Error('The selected departure does not have enough available slots.')
+        error.statusCode = 409
+        error.code = 'PACKAGE_CAPACITY_EXCEEDED'
+        error.publicMessage = error.message
+        throw error
+      }
+    }
+
     const result = await client.query(
       `
         INSERT INTO package_booking_requests (
@@ -790,17 +858,29 @@ async function createPackageBookingRequest(data) {
           representative_full_name,
           representative_email,
           representative_phone_number,
+          representative_gender,
+          other_participant_names,
           preferred_booking_date,
+          start_date,
+          end_date,
+          duration_days_snapshot,
+          booking_source,
           message,
           payment_required_snapshot,
           payment_instruction_snapshot,
+          payment_plan,
+          initial_payment_amount,
+          balance_due_at,
+          deposit_due_at,
+          deposit_status,
+          selected_payment_method,
           booking_status,
           payment_status,
           pricing_note,
           tourist_account_id
         )
         VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, lower($9), $10, $11, lower($12), $13, $14, $15, $16, $17, $18, $19, $20, $21
+          $1, $2, $3, $4, $5, $6, $7, $8, lower($9), $10, $11, lower($12), $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33
         )
         RETURNING *
       `,
@@ -818,10 +898,22 @@ async function createPackageBookingRequest(data) {
         data.representativeFullName,
         data.representativeEmail,
         data.representativePhoneNumber,
+        data.representativeGender || null,
+        (data.participants || []).map((participant) => participant.fullName).join('\n') || null,
         data.preferredBookingDate,
+        data.startDate,
+        data.endDate,
+        data.durationDays,
+        data.bookingSource,
         data.message,
         data.paymentRequiredSnapshot,
         data.paymentInstructionSnapshot,
+        data.paymentPlan,
+        data.initialPaymentAmount,
+        data.balanceDueAt,
+        data.depositDueAt,
+        data.depositStatus,
+        data.paymentMethod,
         data.bookingStatus,
         data.paymentStatus,
         data.pricingNote,
@@ -878,7 +970,7 @@ async function createPackageBookingRequest(data) {
 
 async function getPackageBookingRequestById(requestId) {
   const result = await query(
-    'SELECT * FROM package_booking_requests WHERE id = $1 LIMIT 1',
+    `${packageBookingWithPaymentTotalsSelect()} WHERE pbr.id = $1 LIMIT 1`,
     [requestId],
   )
 
@@ -888,14 +980,13 @@ async function getPackageBookingRequestById(requestId) {
 async function findPackageBookingRequestForPublicLookup({ requestId, email, phoneNumber }) {
   const result = await query(
     `
-      SELECT *
-      FROM package_booking_requests
-      WHERE id = $1
+      ${packageBookingWithPaymentTotalsSelect()}
+      WHERE (pbr.id::text = $1 OR upper(pbr.booking_reference) = upper($1))
         AND (
-          ($2::text IS NOT NULL AND visitor_email = lower($2))
+          ($2::text IS NOT NULL AND pbr.visitor_email = lower($2))
           OR (
             $3::text IS NOT NULL
-            AND regexp_replace(visitor_phone_number, '\\D', '', 'g') = $3
+            AND regexp_replace(pbr.visitor_phone_number, '\\D', '', 'g') = $3
           )
         )
       LIMIT 1
@@ -909,10 +1000,9 @@ async function findPackageBookingRequestForPublicLookup({ requestId, email, phon
 async function listPackageBookingRequestsByTouristId(touristAccountId) {
   const result = await query(
     `
-      SELECT *
-      FROM package_booking_requests
-      WHERE tourist_account_id = $1
-      ORDER BY created_at DESC, preferred_booking_date DESC
+      ${packageBookingWithPaymentTotalsSelect()}
+      WHERE pbr.tourist_account_id = $1
+      ORDER BY pbr.created_at DESC, pbr.preferred_booking_date DESC
     `,
     [touristAccountId],
   )
@@ -923,10 +1013,9 @@ async function listPackageBookingRequestsByTouristId(touristAccountId) {
 async function getPackageBookingRequestByTouristId({ requestId, touristAccountId }) {
   const result = await query(
     `
-      SELECT *
-      FROM package_booking_requests
-      WHERE id = $1
-        AND tourist_account_id = $2
+      ${packageBookingWithPaymentTotalsSelect()}
+      WHERE pbr.id = $1
+        AND pbr.tourist_account_id = $2
       LIMIT 1
     `,
     [requestId, touristAccountId],
@@ -936,34 +1025,215 @@ async function getPackageBookingRequestByTouristId({ requestId, touristAccountId
 }
 
 async function updatePackageBookingPaymentProof(requestId, data) {
-  const result = await query(
-    `
-      UPDATE package_booking_requests
-      SET payment_reference_number = $2,
-          proof_file_url = $3,
-          proof_original_filename = $4,
-          proof_mime_type = $5,
-          proof_file_size = $6,
-          proof_uploaded_at = now(),
-          payment_submitted_at = now(),
-          payment_status = 'proof_submitted',
-          payment_rejection_reason = NULL,
-          payment_notes = COALESCE($7, payment_notes)
-      WHERE id = $1
-      RETURNING *
-    `,
-    [
-      requestId,
-      data.paymentReferenceNumber || null,
-      data.fileUrl,
-      data.originalFilename,
-      data.mimeType,
-      data.fileSize,
-      data.paymentNotes || null,
-    ],
-  )
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const bookingResult = await client.query(
+      'SELECT computed_total_amount FROM package_booking_requests WHERE id = $1 FOR UPDATE',
+      [requestId],
+    )
+    const totalAmount = Number(bookingResult.rows[0]?.computed_total_amount || 0)
+    const allocatedResult = await client.query(
+      `
+        SELECT (
+          COALESCE((SELECT SUM(amount) FROM package_booking_payments
+                    WHERE package_booking_request_id = $1
+                      AND payment_status IN ('pending_verification', 'verified')), 0)
+          + COALESCE((SELECT SUM(amount - refundable_excess) FROM package_booking_credit_transfers
+                      WHERE to_booking_request_id = $1 AND status = 'applied'), 0)
+        )::numeric AS allocated_amount
+      `,
+      [requestId],
+    )
+    const allocatedAmount = Number(allocatedResult.rows[0]?.allocated_amount || 0)
+    if (data.amount > Math.max(0, totalAmount - allocatedAmount)) {
+      const error = new Error('Payment amount exceeds the remaining booking balance.')
+      error.statusCode = 400
+      error.code = 'VALIDATION_ERROR'
+      error.publicMessage = error.message
+      throw error
+    }
+    if (data.paymentReferenceNumber) {
+      const duplicate = await client.query(
+        `
+          SELECT id
+          FROM package_booking_payments
+          WHERE lower(transaction_reference) = lower($1)
+            AND payment_status NOT IN ('rejected', 'voided')
+          LIMIT 1
+        `,
+        [data.paymentReferenceNumber],
+      )
+      if (duplicate.rows[0]) {
+        const error = new Error('This payment reference has already been submitted.')
+        error.statusCode = 409
+        error.code = 'DUPLICATE_PAYMENT_REFERENCE'
+        error.publicMessage = error.message
+        throw error
+      }
+    }
 
-  return result.rows[0] ? mapPackageBookingRequest(result.rows[0]) : null
+    await client.query(
+      `
+        INSERT INTO package_booking_payments (
+          package_booking_request_id, amount, payment_method, payment_status,
+          transaction_reference, proof_file_url, proof_original_filename,
+          proof_mime_type, proof_file_size, notes
+        )
+        VALUES ($1, $2, $3, 'pending_verification', $4, $5, $6, $7, $8, $9)
+      `,
+      [
+        requestId,
+        data.amount,
+        data.paymentMethod,
+        data.paymentReferenceNumber,
+        data.fileUrl,
+        data.originalFilename,
+        data.mimeType,
+        data.fileSize,
+        data.paymentNotes || '',
+      ],
+    )
+
+    const result = await client.query(
+      `
+        UPDATE package_booking_requests
+        SET payment_reference_number = $2,
+            proof_file_url = $3,
+            proof_original_filename = $4,
+            proof_mime_type = $5,
+            proof_file_size = $6,
+            proof_uploaded_at = now(),
+            payment_submitted_at = now(),
+            payment_status = 'proof_submitted',
+            deposit_status = 'proof_submitted',
+            selected_payment_method = $7,
+            payment_rejection_reason = NULL,
+            payment_notes = COALESCE($8, payment_notes)
+        WHERE id = $1
+        RETURNING *
+      `,
+      [
+        requestId,
+        data.paymentReferenceNumber,
+        data.fileUrl,
+        data.originalFilename,
+        data.mimeType,
+        data.fileSize,
+        data.paymentMethod,
+        data.paymentNotes || null,
+      ],
+    )
+
+    await client.query('COMMIT')
+    return result.rows[0] ? mapPackageBookingRequest(result.rows[0]) : null
+  } catch (error) {
+    await client.query('ROLLBACK')
+    if (error.code === '23505') {
+      const conflict = new Error('This payment reference has already been submitted.')
+      conflict.statusCode = 409
+      conflict.code = 'DUPLICATE_PAYMENT_REFERENCE'
+      conflict.publicMessage = conflict.message
+      throw conflict
+    }
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+function packageBookingWithPaymentTotalsSelect() {
+  return `
+    SELECT pbr.*,
+      COALESCE((SELECT SUM(payment.amount) FROM package_booking_payments payment
+                WHERE payment.package_booking_request_id = pbr.id
+                  AND payment.payment_status = 'verified'), 0)::numeric AS verified_payment_amount,
+      COALESCE((SELECT SUM(payment.amount) FROM package_booking_payments payment
+                WHERE payment.package_booking_request_id = pbr.id
+                  AND payment.payment_status = 'pending_verification'), 0)::numeric AS pending_payment_amount,
+      COALESCE((SELECT SUM(credit.amount - credit.refundable_excess)
+                FROM package_booking_credit_transfers credit
+                WHERE credit.to_booking_request_id = pbr.id AND credit.status = 'applied'), 0)::numeric AS applied_credit_amount
+    FROM package_booking_requests pbr
+  `
+}
+
+async function createPackageBookingDateChangeRequest(data) {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const booking = await client.query(
+      `
+        SELECT id
+        FROM package_booking_requests
+        WHERE id = $1 AND tourist_account_id = $2
+        FOR UPDATE
+      `,
+      [data.requestId, data.touristAccountId],
+    )
+    if (!booking.rows[0]) return null
+
+    const result = await client.query(
+      `
+        INSERT INTO package_booking_date_change_requests (
+          package_booking_request_id,
+          requested_by_tourist_account_id,
+          requested_start_date,
+          requested_end_date,
+          requested_duration_days,
+          reason
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
+      `,
+      [
+        data.requestId,
+        data.touristAccountId,
+        data.startDate,
+        data.endDate,
+        data.durationDays,
+        data.reason,
+      ],
+    )
+    await client.query(
+      `
+        INSERT INTO package_booking_events (
+          package_booking_request_id, event_type, actor_tourist_account_id, after_values, reason
+        )
+        VALUES ($1, 'date_change_requested', $2, $3::jsonb, $4)
+      `,
+      [
+        data.requestId,
+        data.touristAccountId,
+        JSON.stringify({ startDate: data.startDate, endDate: data.endDate, durationDays: data.durationDays }),
+        data.reason,
+      ],
+    )
+    await client.query('COMMIT')
+    const row = result.rows[0]
+    return {
+      id: row.id,
+      bookingRequestId: row.package_booking_request_id,
+      startDate: toDateOnly(row.requested_start_date),
+      endDate: toDateOnly(row.requested_end_date),
+      durationDays: Number(row.requested_duration_days),
+      reason: row.reason,
+      status: row.status,
+      createdAt: row.created_at,
+    }
+  } catch (error) {
+    await client.query('ROLLBACK')
+    if (error.code === '23505') {
+      const conflict = new Error('A date-change request is already pending for this booking.')
+      conflict.statusCode = 409
+      conflict.code = 'DATE_CHANGE_ALREADY_PENDING'
+      conflict.publicMessage = conflict.message
+      throw conflict
+    }
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 async function listCategories(tableName) {
@@ -2309,6 +2579,7 @@ module.exports = {
   getPackageBySlug,
   getPackageForBooking,
   createPackageBookingRequest,
+  createPackageBookingDateChangeRequest,
   getPackageBookingRequestById,
   getPackageBookingRequestByTouristId,
   findPackageBookingRequestForPublicLookup,

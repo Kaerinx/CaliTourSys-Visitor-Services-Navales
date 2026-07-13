@@ -109,8 +109,27 @@ function isFiniteAmount(value) {
 
 function canUploadPaymentProof(booking) {
   if (!booking?.paymentRequired || !isFiniteAmount(booking.totalAmount)) return false
-  if (booking.paymentStatus === 'verified') return false
-  return !booking.proofOfPayment || booking.paymentStatus === 'rejected'
+  if (pendingAmountFor(booking) > 0 || amountDueFor(booking) <= 0) return false
+  return !['cancelled', 'declined', 'expired'].includes(booking.bookingStatus)
+}
+
+function verifiedAmountFor(booking) {
+  return Number(booking?.verifiedPaymentAmount || 0) + Number(booking?.appliedCreditAmount || 0)
+}
+
+function pendingAmountFor(booking) {
+  return Number(booking?.pendingPaymentAmount || 0)
+}
+
+function amountDueFor(booking) {
+  if (!isFiniteAmount(booking?.totalAmount)) return 0
+
+  const verifiedAmount = verifiedAmountFor(booking)
+  const remainingAmount = Math.max(0, Number(booking.totalAmount) - verifiedAmount)
+  if (pendingAmountFor(booking) > 0 || remainingAmount <= 0) return 0
+
+  if (verifiedAmount > 0) return remainingAmount
+  return Math.min(Number(booking.initialPaymentAmount || booking.totalAmount || 0), remainingAmount)
 }
 
 function proofStatusLabel(booking) {
@@ -320,7 +339,7 @@ function formatDisplayDate(value) {
               <div>
                 <span>Payment instructions</span>
                 <p>{{ booking.paymentInstruction }}</p>
-                <strong>Amount due: {{ formatCurrency(booking.totalAmount) }}</strong>
+                <strong>Amount due: {{ formatCurrency(amountDueFor(booking)) }}</strong>
               </div>
 
               <label>

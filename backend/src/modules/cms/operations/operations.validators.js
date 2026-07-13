@@ -11,8 +11,8 @@ const pageLimit = {
 
 const mediaStatusSchema = z.enum(['active', 'archived'])
 const inquiryStatusSchema = z.enum(['new', 'read', 'responded', 'archived'])
-const packageBookingStatusSchema = z.enum(['pending', 'reviewed', 'approved', 'declined', 'cancelled'])
-const packagePaymentStatusSchema = z.enum(['unpaid', 'proof_submitted', 'verified', 'rejected', 'not_required', 'pending_inquiry'])
+const packageBookingStatusSchema = z.enum(['pending', 'reviewed', 'approved', 'declined', 'cancelled', 'expired', 'rescheduled'])
+const packagePaymentStatusSchema = z.enum(['unpaid', 'proof_submitted', 'verified', 'rejected', 'not_required', 'pending_inquiry', 'partially_paid', 'paid'])
 const inquiryResponseStatusSchema = z.enum(['draft', 'sent'])
 const subscriptionStatusSchema = z.enum(['subscribed', 'unsubscribed', 'bounced'])
 const userStatusSchema = z.enum(['active', 'inactive', 'locked', 'pending'])
@@ -159,6 +159,70 @@ const packageBookingPaymentRejectBodySchema = z
   })
   .strict()
 
+const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD date format.')
+const bookingGenderSchema = z.enum(['M', 'F', 'Male', 'Female', 'male', 'female'])
+
+const walkInBookingBodySchema = z
+  .object({
+    packageId: z.uuid('Select a tourism package.'),
+    selectedPax: z.coerce.number().int().min(1).max(80),
+    representativeContact: z.object({
+      fullName: z.string().trim().min(1).max(255),
+      phoneNumber: z.string().trim().min(1).max(80),
+      email: z.email().max(255).optional().nullable(),
+      gender: bookingGenderSchema,
+    }).strict(),
+    participants: z.array(z.object({
+      fullName: z.string().trim().min(1).max(255),
+      gender: bookingGenderSchema,
+    }).strict()).max(80).optional(),
+    startDate: dateOnlySchema,
+    endDate: dateOnlySchema.optional(),
+    durationDays: z.coerce.number().int().min(1).optional(),
+    paymentPlan: z.enum(['deposit_50', 'full_payment']).default('full_payment'),
+    paymentMethod: z.enum(['cash', 'qr_instapay', 'bank_transfer']).default('cash'),
+    message: z.string().trim().max(5000).optional(),
+  })
+  .strict()
+
+const bookingScheduleBodySchema = z
+  .object({
+    startDate: dateOnlySchema,
+    endDate: dateOnlySchema.optional(),
+    durationDays: z.coerce.number().int().min(1),
+    reason: z.string().trim().min(1).max(2000),
+    dateChangeRequestId: z.uuid().optional(),
+  })
+  .strict()
+
+const bookingDepositExtensionBodySchema = z
+  .object({
+    depositDueAt: z.string().datetime({ offset: true }),
+    reason: z.string().trim().min(1).max(2000),
+  })
+  .strict()
+
+const bookingCreditTransferBodySchema = z
+  .object({
+    toBookingRequestId: z.uuid(),
+    amount: z.coerce.number().positive(),
+    reason: z.string().trim().min(1).max(2000),
+  })
+  .strict()
+
+const bookingPaymentBodySchema = z
+  .object({
+    amount: z.coerce.number().positive(),
+    paymentMethod: z.enum(['cash', 'qr_instapay', 'bank_transfer']),
+    transactionReference: z.string().trim().max(120).optional(),
+    proofFileUrl: z.string().trim().max(5000).optional(),
+    proofOriginalFilename: z.string().trim().max(255).optional(),
+    proofMimeType: z.string().trim().max(120).optional(),
+    proofFileSize: z.coerce.number().int().nonnegative().optional(),
+    notes: z.string().trim().max(2000).optional(),
+  })
+  .strict()
+
 const newsletterStatusBodySchema = z
   .object({
     status: subscriptionStatusSchema,
@@ -188,6 +252,10 @@ module.exports = {
   newsletterListQuerySchema,
   newsletterStatusBodySchema,
   packageBookingNotesBodySchema,
+  bookingCreditTransferBodySchema,
+  bookingPaymentBodySchema,
+  bookingDepositExtensionBodySchema,
+  bookingScheduleBodySchema,
   packageBookingPaymentRejectBodySchema,
   packageBookingRequestListQuerySchema,
   packageBookingStatusBodySchema,
@@ -195,4 +263,5 @@ module.exports = {
   userRolesBodySchema,
   userStatusBodySchema,
   uuidParamsSchema,
+  walkInBookingBodySchema,
 }
