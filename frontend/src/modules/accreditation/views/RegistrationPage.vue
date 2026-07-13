@@ -16,7 +16,12 @@
         <p v-if="message" class="form-message form-message--success" role="status">{{ message }}</p>
         <p v-if="error" class="form-message form-message--error" role="alert">{{ error }}</p>
 
-        <section class="registration-section" aria-labelledby="structure-title">
+        <section
+          id="business-type"
+          ref="businessTypeSection"
+          class="registration-section"
+          aria-labelledby="structure-title"
+        >
           <div class="registration-section__heading">
             <span>1</span>
             <div>
@@ -96,10 +101,34 @@
             <div class="structure-details__heading">
               <strong>Company and representative details</strong>
             </div>
-            <div class="form-grid form-grid--two">
-              <label>SEC / company registration number *<input v-model="form.business.company.registrationNumber" required /></label>
+            <div class="form-grid">
               <label>Authorized representative position *<input v-model="form.business.company.representativePosition" required /></label>
             </div>
+            <label class="proof-upload">
+              <span>Authorized representative valid ID *</span>
+              <input
+                :key="form.business.legalStructure"
+                class="proof-upload__input"
+                type="file"
+                accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                @change="selectRegistrationFile('representativeValidId', $event)"
+              />
+              <span class="proof-upload__control">
+                <Upload :size="18" aria-hidden="true" />
+                {{ registrationFiles.representativeValidId?.name || "Upload valid ID image" }}
+              </span>
+              <a
+                v-if="previewUrls.representativeValidId"
+                class="proof-preview"
+                :href="previewUrls.representativeValidId"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <img :src="previewUrls.representativeValidId" alt="Authorized representative valid ID preview" />
+                <span>View selected image <ExternalLink :size="14" aria-hidden="true" /></span>
+              </a>
+              <small>Upload a clear JPG or PNG image, up to 5 MB.</small>
+            </label>
           </div>
         </section>
 
@@ -131,7 +160,62 @@
                 </optgroup>
               </select>
             </label>
-            <label>Business permit number<input v-model="form.business.businessPermitNumber" /></label>
+            <label>Business permit number *<input v-model="form.business.businessPermitNumber" required /></label>
+            <label>
+              {{ registrationNumberLabel }} *
+              <input v-model="form.business.dtiSecRegistrationNumber" required />
+            </label>
+          </div>
+          <div class="registration-proof-grid">
+            <label class="proof-upload">
+              <span>Business permit image *</span>
+              <input
+                class="proof-upload__input"
+                type="file"
+                accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                @change="selectRegistrationFile('businessPermit', $event)"
+              />
+              <span class="proof-upload__control">
+                <Upload :size="18" aria-hidden="true" />
+                {{ registrationFiles.businessPermit?.name || "Upload business permit" }}
+              </span>
+              <a
+                v-if="previewUrls.businessPermit"
+                class="proof-preview"
+                :href="previewUrls.businessPermit"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <img :src="previewUrls.businessPermit" alt="Business permit preview" />
+                <span>View selected image <ExternalLink :size="14" aria-hidden="true" /></span>
+              </a>
+              <small>Upload a clear JPG or PNG image, up to 5 MB.</small>
+            </label>
+            <label class="proof-upload">
+              <span>{{ registrationCertificateLabel }} *</span>
+              <input
+                :key="form.business.legalStructure"
+                class="proof-upload__input"
+                type="file"
+                accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                @change="selectRegistrationFile('registrationCertificate', $event)"
+              />
+              <span class="proof-upload__control">
+                <Upload :size="18" aria-hidden="true" />
+                {{ registrationFiles.registrationCertificate?.name || `Upload ${registrationCertificateLabel}` }}
+              </span>
+              <a
+                v-if="previewUrls.registrationCertificate"
+                class="proof-preview"
+                :href="previewUrls.registrationCertificate"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <img :src="previewUrls.registrationCertificate" :alt="`${registrationCertificateLabel} preview`" />
+                <span>View selected image <ExternalLink :size="14" aria-hidden="true" /></span>
+              </a>
+              <small>Upload a clear JPG or PNG image, up to 5 MB.</small>
+            </label>
           </div>
           <div class="form-grid form-grid--two">
             <label>Region *
@@ -223,7 +307,6 @@
         </section>
 
         <div class="registration-actions">
-          <RouterLink class="form-button form-button--secondary" to="/accreditation/login">Go to sign in</RouterLink>
           <button class="form-button form-button--primary" type="submit" :disabled="registering">
             {{ registering ? "Registering..." : "Register account" }}
           </button>
@@ -236,8 +319,9 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from "vue";
-import { ArrowLeft } from "@lucide/vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { useRoute } from "vue-router";
+import { ArrowLeft, ExternalLink, Upload } from "@lucide/vue";
 import DataPrivacyModal from "@/modules/accreditation/components/modals/DataPrivacyModal.vue";
 import EstablishmentLocationPicker from "@/modules/accreditation/components/EstablishmentLocationPicker.vue";
 import {
@@ -254,6 +338,18 @@ const certified = ref(false);
 const confirmPassword = ref("");
 const showPrivacy = ref(false);
 const registering = ref(false);
+const businessTypeSection = ref(null);
+const route = useRoute();
+const registrationFiles = reactive({
+  businessPermit: null,
+  registrationCertificate: null,
+  representativeValidId: null,
+});
+const previewUrls = reactive({
+  businessPermit: "",
+  registrationCertificate: "",
+  representativeValidId: "",
+});
 const form = reactive({
   firstName: "",
   middleName: "",
@@ -268,6 +364,7 @@ const form = reactive({
     businessName: "",
     businessType: "",
     businessPermitNumber: "",
+    dtiSecRegistrationNumber: "",
     region: calabangaLocation.region,
     province: calabangaLocation.province,
     cityMunicipality: calabangaLocation.cityMunicipality,
@@ -278,7 +375,6 @@ const form = reactive({
     longitude: "",
     partners: [{ id: Date.now(), name: "" }],
     company: {
-      registrationNumber: "",
       representativePosition: "",
     },
   },
@@ -290,6 +386,12 @@ const selectedLegalProfile = computed(
 const isSoleProprietorship = computed(() => form.business.legalStructure === "sole-proprietorship");
 const isPartnership = computed(() => form.business.legalStructure === "partnership");
 const isCorporation = computed(() => form.business.legalStructure === "corporation");
+const registrationNumberLabel = computed(() =>
+  isSoleProprietorship.value ? "DTI registration number" : "SEC registration number",
+);
+const registrationCertificateLabel = computed(() =>
+  isSoleProprietorship.value ? "DTI certificate image" : "SEC certificate image",
+);
 const applicantSectionHelp = computed(() => {
   if (isSoleProprietorship.value) return "Provide the details of the single owner applicant.";
   if (isPartnership.value) return "Provide the managing partner details and list all partner names.";
@@ -308,6 +410,54 @@ const applicantLastNameLabel = computed(() => {
   if (isCorporation.value) return "Authorized representative last name";
   return "Last name";
 });
+
+watch(
+  () => form.business.legalStructure,
+  (_currentStructure, previousStructure) => {
+    if (!previousStructure) return;
+    form.business.dtiSecRegistrationNumber = "";
+    form.business.company.representativePosition = "";
+    clearRegistrationFile("registrationCertificate");
+    clearRegistrationFile("representativeValidId");
+  },
+);
+
+onBeforeUnmount(() => {
+  Object.keys(previewUrls).forEach(clearRegistrationFile);
+});
+
+onMounted(async () => {
+  if (route.hash !== "#business-type") return;
+
+  await nextTick();
+  businessTypeSection.value?.scrollIntoView({ block: "start" });
+});
+
+function selectRegistrationFile(key, event) {
+  const file = event.target.files?.[0] || null;
+  if (!file) {
+    clearRegistrationFile(key);
+    return;
+  }
+
+  if (!["image/jpeg", "image/png"].includes(file.type) || file.size > 5 * 1024 * 1024) {
+    clearRegistrationFile(key);
+    event.target.value = "";
+    error.value = "Registration proofs must be JPG or PNG images no larger than 5 MB.";
+    return;
+  }
+
+  error.value = "";
+  if (previewUrls[key]) URL.revokeObjectURL(previewUrls[key]);
+  registrationFiles[key] = file;
+  previewUrls[key] = URL.createObjectURL(file);
+}
+
+function clearRegistrationFile(key) {
+  if (previewUrls[key]) URL.revokeObjectURL(previewUrls[key]);
+  previewUrls[key] = "";
+  registrationFiles[key] = null;
+}
 
 function addPartner() {
   form.business.partners.push({ id: Date.now() + Math.random(), name: "" });
@@ -357,6 +507,18 @@ async function submit() {
     return;
   }
 
+  if (!form.business.businessPermitNumber.trim() || !form.business.dtiSecRegistrationNumber.trim()) {
+    error.value = `Please enter the business permit number and ${registrationNumberLabel.value.toLowerCase()}.`;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+
+  if (!registrationFiles.businessPermit || !registrationFiles.registrationCertificate) {
+    error.value = `Please upload the business permit and ${registrationCertificateLabel.value.toLowerCase()}.`;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+
   if (isPartnership.value && form.business.partners.some((partner) => !partner.name.trim())) {
     error.value = "Please enter the name of each partner.";
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -365,26 +527,39 @@ async function submit() {
 
   if (
     isCorporation.value &&
-    (!form.business.company.registrationNumber.trim() ||
-      !form.business.company.representativePosition.trim())
+    (!form.business.company.representativePosition.trim() || !registrationFiles.representativeValidId)
   ) {
-    error.value = "Please complete the required company and authorized representative details.";
+    error.value = "Please provide the authorized representative position and upload a valid ID image.";
     window.scrollTo({ top: 0, behavior: "smooth" });
     return;
   }
 
   registering.value = true;
   try {
-    const result = await registerBusinessOwner({
+    const registrationPayload = {
       ...form,
       business: {
         ...form.business,
         partners: isPartnership.value
           ? form.business.partners.map((partner) => partner.name.trim()).filter(Boolean)
           : [],
-        company: isCorporation.value ? { ...form.business.company } : null,
+        company: isCorporation.value
+          ? {
+              ...form.business.company,
+              registrationNumber: form.business.dtiSecRegistrationNumber.trim(),
+            }
+          : null,
       },
-    });
+    };
+    const formData = new FormData();
+    formData.append("payload", JSON.stringify(registrationPayload));
+    formData.append("businessPermitProof", registrationFiles.businessPermit);
+    formData.append("registrationCertificateProof", registrationFiles.registrationCertificate);
+    if (isCorporation.value) {
+      formData.append("representativeValidId", registrationFiles.representativeValidId);
+    }
+
+    const result = await registerBusinessOwner(formData);
     message.value = result.message;
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (err) {
@@ -531,6 +706,82 @@ h3 {
   border-bottom: 1px solid #d9e1dc;
 }
 
+.registration-proof-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.proof-upload {
+  position: relative;
+  align-content: start;
+}
+
+.proof-upload__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.proof-upload__control {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1px dashed #9fb9ad;
+  border-radius: 6px;
+  background: #f7faf8;
+  color: #176249;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.proof-upload:hover .proof-upload__control,
+.proof-upload__input:focus-visible + .proof-upload__control {
+  border-color: #176249;
+  background: #edf7f2;
+}
+
+.proof-preview {
+  display: grid;
+  gap: 7px;
+  color: #176249;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.proof-preview img {
+  width: 100%;
+  height: 150px;
+  display: block;
+  border: 1px solid #cddbd4;
+  border-radius: 6px;
+  background: #ffffff;
+  object-fit: contain;
+}
+
+.proof-preview span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.proof-preview:hover span {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+#business-type {
+  scroll-margin-top: 24px;
+}
+
 .registration-section__heading {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
@@ -615,7 +866,7 @@ h3 {
   font-weight: 500;
 }
 
-.registration-form input:not([type="radio"]):not([type="checkbox"]),
+.registration-form input:not([type="radio"]):not([type="checkbox"]):not([type="file"]),
 .registration-form select {
   width: 100%;
   min-height: 44px;
@@ -627,7 +878,7 @@ h3 {
   font: inherit;
 }
 
-.registration-form input:focus,
+.registration-form input:not([type="file"]):focus,
 .registration-form select:focus {
   border-color: #176249;
   outline: 0;
@@ -853,7 +1104,8 @@ h3 {
 
   .form-grid--three,
   .form-grid--two,
-  .form-grid--address {
+  .form-grid--address,
+  .registration-proof-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

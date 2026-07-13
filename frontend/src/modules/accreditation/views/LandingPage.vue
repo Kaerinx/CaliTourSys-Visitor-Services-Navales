@@ -10,7 +10,10 @@
             <h1 id="service-title">{{ serviceIdentity.serviceName }}</h1>
             <p class="service-lede">{{ serviceIdentity.description }}</p>
             <div class="service-actions">
-              <RouterLink class="service-button service-button--primary" to="/accreditation/register">
+              <RouterLink
+                class="service-button service-button--primary"
+                :to="{ name: 'accreditation-register', hash: '#business-type' }"
+              >
                 Apply for Accreditation
                 <ArrowRight :size="17" aria-hidden="true" />
               </RouterLink>
@@ -35,10 +38,10 @@
             <div class="service-dropdown__content">
               <p class="service-intro">{{ certificateRegistrationDetails.purpose }}</p>
 
-              <a class="service-more-link" :href="guideResource.href" target="_blank" rel="noopener">
+              <button class="service-more-link" type="button" @click="showServiceDetails = true">
                 More details
-                <Download :size="17" aria-hidden="true" />
-              </a>
+                <FileText :size="17" aria-hidden="true" />
+              </button>
             </div>
           </details>
         </div>
@@ -142,12 +145,33 @@
           </div>
 
           <ol class="process-timeline">
-            <li v-for="(step, index) in processSteps" :key="step.title">
-              <span class="step-number">{{ index + 1 }}</span>
-              <div>
-                <h3>{{ step.title }}</h3>
-                <p>{{ step.instruction }}</p>
-                <span class="status-chip">{{ step.status }}</span>
+            <li
+              v-for="(step, index) in processSteps"
+              :key="step.title"
+              :class="{ 'process-step--featured': index === 0 }"
+            >
+              <a
+                v-if="index === 0"
+                class="process-step__row process-step__row--link"
+                href="#apply-for-accreditation"
+                aria-label="Go to Apply for Accreditation"
+              >
+                <span class="step-number">{{ index + 1 }}</span>
+                <div class="process-step__content">
+                  <h3>{{ step.title }}</h3>
+                  <p>{{ step.instruction }}</p>
+                </div>
+                <span class="process-step__cue">
+                  Start here
+                  <ChevronDown :size="17" aria-hidden="true" />
+                </span>
+              </a>
+              <div v-else class="process-step__row">
+                <span class="step-number">{{ index + 1 }}</span>
+                <div class="process-step__content">
+                  <h3>{{ step.title }}</h3>
+                  <p>{{ step.instruction }}</p>
+                </div>
               </div>
             </li>
           </ol>
@@ -165,26 +189,42 @@
             </p>
           </div>
           <div class="service-actions">
-            <RouterLink class="service-button service-button--primary" to="/accreditation/register">Apply for Accreditation</RouterLink>
-            <RouterLink class="service-button service-button--secondary" to="/accreditation/login">Sign In</RouterLink>
+            <RouterLink
+              id="apply-for-accreditation"
+              class="service-button service-button--primary"
+              :to="{ name: 'accreditation-register', hash: '#business-type' }"
+            >
+              Apply for Accreditation
+            </RouterLink>
           </div>
         </div>
       </section>
     </main>
 
     <PublicServiceFooter />
+
+    <ServiceDetailsModal
+      :open="showServiceDetails"
+      :title="guideResource.title"
+      :description="guideResource.description"
+      :source="guideResource.href"
+      :download-name="guideResource.downloadName"
+      @close="showServiceDetails = false"
+    />
   </div>
 </template>
 
 <script setup>
+import { ref } from "vue";
 import {
   ArrowRight,
   CheckCircle2,
   ChevronDown,
-  Download,
+  FileText,
 } from "@lucide/vue";
 import PublicServiceFooter from "@/modules/accreditation/components/PublicServiceFooter.vue";
 import PublicServiceHeader from "@/modules/accreditation/components/PublicServiceHeader.vue";
+import ServiceDetailsModal from "@/modules/accreditation/components/modals/ServiceDetailsModal.vue";
 import {
   certificateRegistrationDetails,
   guideResource,
@@ -192,6 +232,8 @@ import {
   serviceIdentity,
   serviceOverview,
 } from "@/modules/accreditation/data/publicServiceContent";
+
+const showServiceDetails = ref(false);
 
 const primaryEnterpriseGroups = [
   {
@@ -538,10 +580,13 @@ h3 {
   padding: 8px 16px;
   border: 1px solid #1b4332;
   border-radius: 8px;
+  background: #ffffff;
   color: #1b4332;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .service-more-link:hover {
@@ -658,22 +703,48 @@ dd {
 
 .process-timeline {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
   margin: 0;
   padding: 0;
+  border-top: 1px solid #d9e1dc;
   list-style: none;
 }
 
 .process-timeline li {
   min-width: 0;
+  border-bottom: 1px solid #d9e1dc;
+}
+
+.process-step__row {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  gap: 14px;
-  padding: 20px;
-  border: 1px solid #d9e1dc;
-  border-radius: 8px;
-  background: #ffffff;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 0;
+}
+
+.process-step__row--link {
+  margin: 8px 0;
+  padding: 18px 16px;
+  border-left: 3px solid #1b4332;
+  background: #edf5f1;
+  color: inherit;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.process-step__row--link:hover,
+.process-step__row--link:focus-visible {
+  background: #e3f0e9;
+  box-shadow: inset 0 0 0 1px #b8cec3;
+}
+
+.process-step__row--link:focus-visible {
+  outline: 2px solid #1b4332;
+  outline-offset: 2px;
 }
 
 .step-number {
@@ -689,21 +760,17 @@ dd {
 }
 
 .process-timeline p {
-  margin: 6px 0 14px;
+  margin: 6px 0 0;
   color: #4d625a;
   font-size: 14px;
 }
 
-.status-chip {
+.process-step__cue {
   display: inline-flex;
   align-items: center;
-  min-height: 30px;
-  padding: 5px 10px;
-  border: 1px solid #b9c9c1;
-  border-radius: 999px;
-  background: #f4f8f6;
-  color: #294c40;
-  font-size: 11px;
+  gap: 6px;
+  color: #1b4332;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -728,11 +795,11 @@ dd {
   margin-top: 0;
 }
 
-@media (max-width: 1080px) {
-  .process-timeline {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+#apply-for-accreditation {
+  scroll-margin-top: 96px;
+}
 
+@media (max-width: 1080px) {
   .split-layout {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -752,10 +819,6 @@ dd {
 
   .service-hero__overlay {
     padding: 72px 0 104px;
-  }
-
-  .process-timeline {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .start-section__layout {
@@ -785,6 +848,16 @@ dd {
   .service-actions,
   .service-actions .service-button {
     width: 100%;
+  }
+
+  .process-step__row {
+    grid-template-columns: 36px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .process-step__cue {
+    grid-column: 2;
+    margin-top: 4px;
   }
 }
 </style>

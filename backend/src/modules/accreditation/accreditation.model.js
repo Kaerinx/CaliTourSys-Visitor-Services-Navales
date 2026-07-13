@@ -103,7 +103,7 @@ async function createUser(user) {
   return result.rows[0];
 }
 
-async function createBusinessOwnerWithProfile(user, profile) {
+async function createBusinessOwnerWithProfile(user, profile, registrationDocuments = []) {
   const client = await db.pool.connect();
 
   try {
@@ -135,7 +135,7 @@ async function createBusinessOwnerWithProfile(user, profile) {
 
     const organization = organizationFields(profile, user);
 
-    await client.query(
+    const profileResult = await client.query(
       `INSERT INTO business_profiles (
         owner_id, business_name, business_type, business_permit_number,
         dti_sec_registration_number, region, province, city_municipality,
@@ -143,7 +143,8 @@ async function createBusinessOwnerWithProfile(user, profile) {
         description, facebook_url, instagram_url, tiktok_url, twitter_url, website_url,
         legal_structure, partners, authorized_representative_name,
         authorized_representative_position, company_registration_number
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+      RETURNING id`,
       [
         createdUser.id,
         profile.businessName,
@@ -171,6 +172,23 @@ async function createBusinessOwnerWithProfile(user, profile) {
         organization.companyRegistrationNumber,
       ]
     );
+
+    const businessProfileId = profileResult.rows[0].id;
+    for (const document of registrationDocuments) {
+      await client.query(
+        `INSERT INTO business_registration_documents (
+          business_profile_id, document_type, original_name, file_path, mime_type, file_size
+        ) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [
+          businessProfileId,
+          document.documentType,
+          document.originalName,
+          document.filePath,
+          document.mimeType,
+          document.fileSize,
+        ]
+      );
+    }
 
     await client.query("COMMIT");
     return createdUser;
@@ -689,6 +707,21 @@ async function getDocumentById(id) {
   return result.rows[0];
 }
 
+async function getRegistrationDocumentById(id) {
+  const result = await db.query(
+    `SELECT
+       d.*,
+       b.owner_id,
+       b.business_name,
+       b.legal_structure
+     FROM business_registration_documents d
+     JOIN business_profiles b ON b.id = d.business_profile_id
+     WHERE d.id = $1`,
+    [id]
+  );
+  return result.rows[0];
+}
+
 async function createNotification(notification) {
   const result = await db.query(
     `INSERT INTO notifications (
@@ -909,32 +942,81 @@ async function listUsers(filters = {}) {
 
   if (filters.role && filters.role !== "all") {
     params.push(filters.role);
-    where.push(`role = $${params.length}`);
+    where.push(`u.role = $${params.length}`);
   }
 
   if (filters.status && filters.status !== "all") {
     params.push(filters.status);
-    where.push(`status = $${params.length}`);
+    where.push(`u.status = $${params.length}`);
   }
 
   if (filters.q) {
     params.push(`%${filters.q}%`);
     where.push(`(
-      first_name ILIKE $${params.length}
-      OR last_name ILIKE $${params.length}
-      OR email ILIKE $${params.length}
-      OR phone ILIKE $${params.length}
+      u.first_name ILIKE $${params.length}
+      OR u.last_name ILIKE $${params.length}
+      OR u.email ILIKE $${params.length}
+      OR u.phone ILIKE $${params.length}
+      OR b.business_name ILIKE $${params.length}
+      OR b.business_permit_number ILIKE $${params.length}
+      OR b.dti_sec_registration_number ILIKE $${params.length}
     )`);
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const countParams = [...params];
   const countResult = pageInfo
-    ? await db.query(`SELECT COUNT(*)::int AS total FROM users ${whereSql}`, countParams)
+    ? await db.query(
+        `SELECT COUNT(DISTINCT u.id)::int AS total
+         FROM users u
+         LEFT JOIN business_profiles b ON b.owner_id = u.id
+         ${whereSql}`,
+        countParams
+      )
     : null;
   const sql = appendPagination(
-    `SELECT id, first_name, middle_name, last_name, sex, email, phone, telephone, role, status, last_login_at, created_at
-     FROM users ${whereSql} ORDER BY created_at DESC`,
+    `SELECT
+       u.id,
+       u.first_name,
+       u.middle_name,
+       u.last_name,
+       u.sex,
+       u.email,
+       u.phone,
+       u.telephone,
+       u.role,
+       u.status,
+       u.last_login_at,
+       u.created_at,
+       CASE WHEN b.id IS NULL THEN NULL ELSE jsonb_build_object(
+         'id', b.id,
+         'business_name', b.business_name,
+         'business_type', b.business_type,
+         'legal_structure', b.legal_structure,
+         'business_permit_number', b.business_permit_number,
+         'dti_sec_registration_number', b.dti_sec_registration_number,
+         'authorized_representative_name', b.authorized_representative_name,
+         'authorized_representative_position', b.authorized_representative_position
+       ) END AS business,
+       COALESCE(
+         jsonb_agg(
+           jsonb_build_object(
+             'id', d.id,
+             'document_type', d.document_type,
+             'original_name', d.original_name,
+             'mime_type', d.mime_type,
+             'file_size', d.file_size,
+             'uploaded_at', d.uploaded_at
+           ) ORDER BY d.uploaded_at
+         ) FILTER (WHERE d.id IS NOT NULL),
+         '[]'::jsonb
+       ) AS registration_documents
+     FROM users u
+     LEFT JOIN business_profiles b ON b.owner_id = u.id
+     LEFT JOIN business_registration_documents d ON d.business_profile_id = b.id
+     ${whereSql}
+     GROUP BY u.id, b.id
+     ORDER BY u.created_at DESC`,
     params,
     pageInfo
   );
@@ -1079,6 +1161,7 @@ module.exports = {
   findUserByVerificationToken,
   getApplicationById,
   getDocumentById,
+  getRegistrationDocumentById,
   getBusinessProfile,
   listBusinessProfileImages,
   listAccreditationRecords,
