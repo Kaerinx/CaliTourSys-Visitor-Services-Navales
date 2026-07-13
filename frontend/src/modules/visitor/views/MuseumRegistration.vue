@@ -17,9 +17,8 @@
         <label>
           Gender
           <select v-model="form.gender">
-            <option>Female</option>
-            <option>Male</option>
-            <option>Prefer not to say</option>
+            <option value="M">M</option>
+            <option value="F">F</option>
           </select>
         </label>
         <label>
@@ -85,9 +84,8 @@
             <label>
               Gender
               <select v-model="companion.gender">
-                <option>Female</option>
-                <option>Male</option>
-                <option>Prefer not to say</option>
+                <option value="M">M</option>
+                <option value="F">F</option>
               </select>
             </label>
             <label>
@@ -129,7 +127,7 @@ const defaults = {
   full_name: '',
   contact_number: '',
   email: '',
-  gender: 'Female',
+  gender: 'M',
   age_group: 'adult',
   visitor_type: 'local',
   nationality: 'Filipino',
@@ -149,7 +147,7 @@ function syncCompanions() {
   while (companions.value.length < needed) {
     companions.value.push({
       full_name: '',
-      gender: 'Female',
+      gender: 'M',
       age_group: 'adult',
       nationality: form.nationality || 'Filipino',
     })

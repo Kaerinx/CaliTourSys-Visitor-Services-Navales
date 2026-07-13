@@ -12,7 +12,7 @@
       <div class="field"><label>Full Name *</label><input v-model="form.full_name" required /></div>
       <div class="field"><label>Contact Number</label><input v-model="form.contact_number" /></div>
       <div class="field"><label>Email</label><input v-model="form.email" type="email" /></div>
-      <div class="field"><label>Gender</label><select v-model="form.gender"><option>Female</option><option>Male</option><option>Prefer not to say</option></select></div>
+      <div class="field"><label>Gender</label><select v-model="form.gender"><option value="M">M</option><option value="F">F</option></select></div>
       <div class="field"><label>Age Group</label><select v-model="form.age_group"><option value="adult">Adult</option><option value="senior">Senior</option><option value="child">Child</option></select></div>
       <div class="field"><label>Nationality</label><input v-model="form.nationality" /></div>
       <div class="field"><label>Province</label><input v-model="form.province" /></div>
@@ -39,7 +39,7 @@
         <div v-for="(_, index) in companions" :key="index" class="form-grid" style="margin-bottom:18px">
           <div class="field"><label>Companion Name</label><input v-model="companions[index].full_name" /></div>
           <div class="field"><label>Age Group</label><select v-model="companions[index].age_group"><option value="adult">Adult</option><option value="senior">Senior</option><option value="child">Child</option></select></div>
-          <div class="field"><label>Gender</label><select v-model="companions[index].gender"><option>Female</option><option>Male</option><option>Prefer not to say</option></select></div>
+          <div class="field"><label>Gender</label><select v-model="companions[index].gender"><option value="M">M</option><option value="F">F</option></select></div>
           <div class="field"><label>Nationality</label><input v-model="companions[index].nationality" /></div>
         </div>
       </div>
@@ -78,7 +78,7 @@ function defaultForm() {
     full_name: '',
     contact_number: '',
     email: '',
-    gender: 'Female',
+    gender: 'M',
     age_group: 'adult',
     nationality: 'Filipino',
     province: '',
@@ -96,7 +96,7 @@ function defaultForm() {
 watch(guestCount, (count) => {
   const needed = Math.max(0, Number(count || 1) - 1)
   while (companions.value.length < needed) {
-    companions.value.push({ full_name: '', age_group: 'adult', gender: 'Female', nationality: 'Filipino' })
+    companions.value.push({ full_name: '', age_group: 'adult', gender: 'M', nationality: 'Filipino' })
   }
   companions.value = companions.value.slice(0, needed)
 })

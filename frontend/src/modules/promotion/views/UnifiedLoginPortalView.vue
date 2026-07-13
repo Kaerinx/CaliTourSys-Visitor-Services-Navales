@@ -171,15 +171,17 @@ function normalizeMode(value) {
 
 function resolveTouristRedirect() {
   const redirect = Array.isArray(route.query.redirect) ? route.query.redirect[0] : route.query.redirect
-  if (
-    typeof redirect === 'string' &&
-    redirect.startsWith('/tourist') &&
-    redirect !== '/tourist/login' &&
-    redirect !== '/tourist/register'
-  ) {
-    return redirect
-  }
+  if (isAllowedTouristRedirect(redirect)) return redirect
   return '/tourist/dashboard'
+}
+
+function isAllowedTouristRedirect(redirect) {
+  if (typeof redirect !== 'string' || !redirect.startsWith('/') || redirect.startsWith('//')) return false
+
+  const path = redirect.split(/[?#]/, 1)[0]
+  if (path.startsWith('/tourist/') && !['/tourist/login', '/tourist/register'].includes(path)) return true
+
+  return /^\/packages\/[^/]+\/(booking-info|payment)$/.test(path)
 }
 
 function resolveStaffRedirect(user) {

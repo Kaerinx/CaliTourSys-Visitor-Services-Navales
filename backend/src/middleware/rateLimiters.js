@@ -29,6 +29,21 @@ const inquiryRateLimiter = createPublicRateLimiter({
   message: 'Too many inquiry submissions. Please try again later.',
 })
 
+const bookingRequestRateLimiter = createPublicRateLimiter({
+  limit: 10,
+  message: 'Too many booking requests. Please try again later.',
+})
+
+const bookingLookupRateLimiter = createPublicRateLimiter({
+  limit: 30,
+  message: 'Too many booking lookups. Please try again later.',
+})
+
+const paymentProofRateLimiter = createPublicRateLimiter({
+  limit: 15,
+  message: 'Too many payment proof submissions. Please try again later.',
+})
+
 const newsletterRateLimiter = createPublicRateLimiter({
   limit: 5,
   message: 'Too many newsletter subscription attempts. Please try again later.',
@@ -40,8 +55,11 @@ const itineraryWriteRateLimiter = createPublicRateLimiter({
 })
 
 module.exports = {
+  bookingLookupRateLimiter,
+  bookingRequestRateLimiter,
   loginRateLimiter,
   inquiryRateLimiter,
   newsletterRateLimiter,
+  paymentProofRateLimiter,
   itineraryWriteRateLimiter,
 }
