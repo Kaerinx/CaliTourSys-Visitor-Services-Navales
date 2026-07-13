@@ -44,10 +44,11 @@ export const serviceCapabilities = [
 ];
 
 export const guideResource = {
-  title: "Calabanga Tourism Certificate of Registration - English.pdf",
-  href: "/downloads/Calabanga-Tourism-Certificate-of-Registration-English.pdf",
+  title: "Updated Guidelines on the Progressive Accreditation System",
+  href: "/downloads/DOT-MC-No.-2023-0003-Updated-Guidelines-UPAS.pdf",
+  downloadName: "DOT-MC-No.-2023-0003-Updated-Guidelines-UPAS.pdf",
   description:
-    "View the revised English-only service procedure for the complete list of requirements, offices, processing steps, notes, and suggested certificate content.",
+    "Review the Department of Tourism guidelines and accreditation standards without leaving the Online Accreditation page.",
 };
 
 export const certificateRegistrationDetails = {
@@ -103,57 +104,46 @@ export const processSteps = [
   {
     title: "Create an applicant account",
     instruction: "Register using your active email address and contact details.",
-    status: "For Business Verification",
   },
   {
     title: "Choose your business structure",
     instruction: "Select Sole Proprietorship, Partnership, or Corporation.",
-    status: "Draft",
   },
   {
     title: "Submit business information",
     instruction: "Enter the business name, address, category, and permit details.",
-    status: "For Business Verification",
   },
   {
     title: "Wait for Tourism Office verification",
     instruction: "A tourism staff or officer checks if the account can proceed.",
-    status: "Business Verified",
   },
   {
     title: "Sign in after approval",
     instruction: "Once verified, use your registered email and password to access the dashboard.",
-    status: "Email Verification Required",
   },
   {
     title: "Complete business profile",
     instruction: "Review your business details and update missing information.",
-    status: "Draft",
   },
   {
     title: "Upload required documents",
     instruction: "Attach the required PDF, JPG, or PNG files.",
-    status: "For Document Upload",
   },
   {
     title: "Submit accreditation application",
     instruction: "Review all information, then submit the application for checking.",
-    status: "Submitted",
   },
   {
     title: "Wait for document review",
     instruction: "The Tourism Office reviews the submitted information and documents.",
-    status: "For Officer Review",
   },
   {
     title: "Respond to corrections if needed",
     instruction: "Upload corrected documents or update details when requested.",
-    status: "Needs Correction",
   },
   {
     title: "Receive certificate release notice",
     instruction: "Follow the instructions for claiming or receiving the certificate.",
-    status: "Certificate for Release",
   },
 ];
 
