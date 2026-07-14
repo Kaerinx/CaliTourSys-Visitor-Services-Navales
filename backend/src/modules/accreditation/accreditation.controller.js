@@ -29,9 +29,48 @@ function listPayload(key, result) {
   return { [key]: result.items, pagination: result.pagination };
 }
 
-async function register(req, res, next) {
+const backendRoot = path.resolve(__dirname, "../../..");
+const registrationDocumentTypes = {
+  businessPermitProof: "business_permit",
+  registrationCertificateProof: "registration_certificate",
+  representativeValidId: "representative_valid_id",
+};
+
+function registrationUploadFiles(req) {
+  return Object.values(req.files || {}).flat();
+}
+
+function registrationDocumentsFromRequest(req) {
+  return Object.entries(registrationDocumentTypes).flatMap(([fieldName, documentType]) =>
+    (req.files?.[fieldName] || []).map((file) => ({
+      documentType,
+      originalName: file.originalname,
+      filePath: path.relative(backendRoot, file.path),
+      mimeType: file.mimetype,
+      fileSize: file.size,
+    }))
+  );
+}
+
+function registrationPayload(req) {
+  if (!req.body?.payload) return req.body;
+
   try {
-    const result = await service.registerBusinessOwner(req.body);
+    return JSON.parse(req.body.payload);
+  } catch {
+    const error = new Error("The account registration payload is invalid.");
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
+async function register(req, res, next) {
+  const uploadedFiles = registrationUploadFiles(req);
+  try {
+    const result = await service.registerBusinessOwner(
+      registrationPayload(req),
+      registrationDocumentsFromRequest(req)
+    );
     await audit(req, {
       actor: result.user,
       action: "Registered business owner account",
@@ -40,6 +79,7 @@ async function register(req, res, next) {
     });
     res.status(201).json(result);
   } catch (error) {
+    removeUploadedFiles(uploadedFiles);
     next(error);
   }
 }
@@ -523,6 +563,37 @@ async function downloadDocument(req, res, next) {
   }
 }
 
+async function downloadRegistrationDocument(req, res, next) {
+  try {
+    const document = await model.getRegistrationDocumentById(req.params.id);
+    if (!document) {
+      return res.status(404).json({ message: "Registration proof not found." });
+    }
+
+    const canAccess =
+      ["tourism_staff", "admin"].includes(req.user.role) ||
+      (req.user.role === "business_owner" && document.owner_id === req.user.id);
+    if (!canAccess) {
+      return res.status(403).json({ message: "You do not have permission to view this registration proof." });
+    }
+
+    const uploadsRoot = path.resolve(backendRoot, "uploads");
+    const documentPath = path.resolve(backendRoot, document.file_path);
+    if (!documentPath.startsWith(uploadsRoot) || !fs.existsSync(documentPath)) {
+      return res.status(404).json({ message: "Registration proof file not found." });
+    }
+
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${String(document.original_name || "registration-proof").replace(/"/g, "")}"`
+    );
+    res.type(document.mime_type);
+    return res.sendFile(documentPath);
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   changePassword,
   createApplication,
@@ -531,6 +602,7 @@ module.exports = {
   deleteDraftApplication,
   deleteProfileImage,
   downloadDocument,
+  downloadRegistrationDocument,
   getApplication,
   getProfile,
   listApplications,

@@ -1,8 +1,10 @@
 <script setup>
 import PromotionNavbar from '../components/PromotionNavbar.vue'
 import PromotionFooter from '../components/PromotionFooter.vue'
-import { computed, reactive, ref } from 'vue'
+import paymentQrImage from '@/assets/payments/tourism-office-qr-temporary.png'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { getTouristBookingById } from '../services/promotionApi'
 import { submitPackagePaymentProof } from '../services/promotionService'
 
 defineProps({
@@ -13,59 +15,97 @@ defineProps({
 })
 
 const route = useRoute()
-const isInstructionsVisible = ref(false)
+const bookingRecord = ref(null)
+const isLoading = ref(false)
 const isUploading = ref(false)
 const uploadMessage = ref('')
 const uploadError = ref('')
-const uploadedProof = ref(null)
-const currentPaymentStatus = ref(String(route.query.paymentStatus || 'unpaid'))
+const selectedPaymentMethod = ref(String(route.query.paymentMethod || 'qr_instapay'))
 const proofForm = reactive({
   file: null,
   paymentReferenceNumber: '',
   paymentNotes: '',
 })
 
-const booking = computed(() => ({
-  requestId: String(route.query.requestId || ''),
+const requestId = computed(() => String(route.query.requestId || ''))
+const booking = computed(() => bookingRecord.value || {
+  id: requestId.value,
+  bookingReference: String(route.query.bookingReference || ''),
   packageName: String(route.query.packageName || 'Selected tourism package'),
   selectedPax: toPositiveInteger(route.query.selectedPax) || 1,
-  preferredDate: String(route.query.preferredDate || ''),
+  startDate: String(route.query.preferredDate || ''),
   totalAmount: toFiniteNumber(route.query.totalAmount),
-}))
+  initialPaymentAmount: toFiniteNumber(route.query.initialPaymentAmount),
+  depositDueAt: String(route.query.depositDueAt || ''),
+  balanceDueAt: String(route.query.balanceDueAt || ''),
+  paymentPlan: String(route.query.paymentPlan || 'full_payment'),
+  paymentMethod: String(route.query.paymentMethod || 'qr_instapay'),
+  paymentStatus: String(route.query.paymentStatus || 'unpaid'),
+  verifiedPaymentAmount: 0,
+  pendingPaymentAmount: 0,
+  appliedCreditAmount: 0,
+})
 
 const bookingReference = computed(() => {
-  return booking.value.requestId ? `PKG-${booking.value.requestId}` : 'Missing reference'
+  return booking.value.bookingReference || (booking.value.id ? `PKG-${booking.value.id}` : 'Missing reference')
 })
 const hasKnownTotal = computed(() => isFiniteAmount(booking.value.totalAmount))
 const totalAmountLabel = computed(() => formatCurrency(booking.value.totalAmount))
-const preferredDateLabel = computed(() => formatDisplayDate(booking.value.preferredDate))
-const paymentStatusLabel = computed(() => formatStatusLabel(currentPaymentStatus.value))
+const preferredDateLabel = computed(() => formatDisplayDate(booking.value.startDate || booking.value.preferredBookingDate))
+const paymentStatusLabel = computed(() => formatStatusLabel(booking.value.paymentStatus))
+const verifiedAmount = computed(() => Number(booking.value.verifiedPaymentAmount || 0) + Number(booking.value.appliedCreditAmount || 0))
+const pendingAmount = computed(() => Number(booking.value.pendingPaymentAmount || 0))
+const remainingAmount = computed(() => Math.max(0, Number(booking.value.totalAmount || 0) - verifiedAmount.value))
+const amountDue = computed(() => {
+  if (!hasKnownTotal.value || pendingAmount.value > 0 || remainingAmount.value <= 0) return 0
+  if (verifiedAmount.value > 0) return remainingAmount.value
+  return Math.min(Number(booking.value.initialPaymentAmount || booking.value.totalAmount || 0), remainingAmount.value)
+})
+const isDepositPayment = computed(() => booking.value.paymentPlan === 'deposit_50' && verifiedAmount.value === 0)
 const canUploadProof = computed(() => {
   return Boolean(
-    booking.value.requestId &&
+    booking.value.id &&
       hasKnownTotal.value &&
-      ['unpaid', 'rejected', 'proof_submitted'].includes(currentPaymentStatus.value),
+      amountDue.value > 0 &&
+      pendingAmount.value === 0 &&
+      !['cancelled', 'declined', 'expired'].includes(booking.value.bookingStatus),
   )
 })
-const isProofSubmitted = computed(() => currentPaymentStatus.value === 'proof_submitted')
-const isVerified = computed(() => currentPaymentStatus.value === 'verified')
+const isProofSubmitted = computed(() => pendingAmount.value > 0 || booking.value.paymentStatus === 'proof_submitted')
+const isPaid = computed(() => remainingAmount.value <= 0 && hasKnownTotal.value)
 const nextStepText = computed(() => {
-  if (!booking.value.requestId) return 'Return to the package page and start the booking flow again.'
+  if (!booking.value.id) return 'Return to the package page and start the booking flow again.'
   if (!hasKnownTotal.value) return 'This request is inquiry-based. The Tourism Office will coordinate pricing with the representative.'
-  if (isVerified.value) return 'Your payment proof has already been verified by staff.'
+  if (isPaid.value) return 'Your booking is fully paid.'
   if (isProofSubmitted.value) return 'Your proof has been submitted. Staff will verify your payment manually.'
-  return 'Send payment through GCash, then upload proof of payment for staff verification.'
+  if (verifiedAmount.value > 0) return 'Your initial payment is verified. Pay the remaining balance by the balance deadline.'
+  return `Pay ${formatCurrency(amountDue.value)} through your selected channel, then upload proof for staff verification.`
 })
 const proofSubmitLabel = computed(() => {
   if (isUploading.value) return 'Uploading...'
-  if (isProofSubmitted.value) return 'Replace proof of payment'
   return 'Upload proof of payment'
 })
+const bankName = import.meta.env.VITE_TOURISM_BANK_NAME || 'Contact the Tourism Office for bank name'
+const bankAccountName = import.meta.env.VITE_TOURISM_BANK_ACCOUNT_NAME || 'Calabanga Tourism Office'
+const bankAccountNumber = import.meta.env.VITE_TOURISM_BANK_ACCOUNT_NUMBER || 'Contact the Tourism Office for account number'
+const qrRecipientName = 'FRANCIS ARACOSTA'
+const qrAccountSuffix = '9266'
 
-function showPaymentInstructions() {
-  isInstructionsVisible.value = true
-  uploadMessage.value = ''
+onMounted(loadBooking)
+
+async function loadBooking() {
+  if (!requestId.value) return
+  isLoading.value = true
   uploadError.value = ''
+  try {
+    const response = await getTouristBookingById(requestId.value)
+    bookingRecord.value = response.data
+    selectedPaymentMethod.value = response.data.paymentMethod || selectedPaymentMethod.value
+  } catch (error) {
+    uploadError.value = error.message || 'Unable to refresh payment details.'
+  } finally {
+    isLoading.value = false
+  }
 }
 
 function handleProofFileChange(event) {
@@ -76,7 +116,7 @@ function handleProofFileChange(event) {
 }
 
 async function uploadProof() {
-  if (!booking.value.requestId) {
+  if (!booking.value.id) {
     uploadError.value = 'Booking reference is missing.'
     return
   }
@@ -85,23 +125,28 @@ async function uploadProof() {
     uploadError.value = 'Choose a proof of payment file first.'
     return
   }
+  if (!proofForm.paymentReferenceNumber.trim()) {
+    uploadError.value = 'Payment reference number is required for electronic payments.'
+    return
+  }
 
   isUploading.value = true
   uploadMessage.value = ''
   uploadError.value = ''
 
   try {
-    const updated = await submitPackagePaymentProof(booking.value.requestId, {
+    await submitPackagePaymentProof(booking.value.id, {
       file: proofForm.file,
+      amount: amountDue.value,
+      paymentMethod: selectedPaymentMethod.value,
       paymentReferenceNumber: proofForm.paymentReferenceNumber,
       paymentNotes: proofForm.paymentNotes,
     })
-    uploadedProof.value = updated.proofOfPayment || null
-    currentPaymentStatus.value = updated.paymentStatus || 'proof_submitted'
     proofForm.file = null
     proofForm.paymentReferenceNumber = ''
     proofForm.paymentNotes = ''
     uploadMessage.value = 'Proof of payment uploaded. Staff will verify your payment manually.'
+    await loadBooking()
   } catch (error) {
     uploadError.value = error.message || 'Unable to upload proof of payment.'
   } finally {
@@ -181,9 +226,9 @@ function formatStatusLabel(value) {
       <section class="payment-layout">
         <article class="payment-card">
           <p class="section-kicker">Manual payment</p>
-          <h1>GCash manual payment</h1>
+          <h1>Complete your payment</h1>
           <p>
-            Send payment manually through GCash, then upload your proof of payment.
+            Pay through QR / InstaPay or bank transfer, then upload your proof of payment.
             Staff will verify your proof before confirming the booking.
           </p>
 
@@ -197,36 +242,51 @@ function formatStatusLabel(value) {
             <p>{{ nextStepText }}</p>
           </div>
 
-          <template v-else>
+          <p v-if="isLoading" class="notice-panel">Refreshing payment totals...</p>
+          <p v-if="uploadError && !canUploadProof" class="message message--error">{{ uploadError }}</p>
+
+          <template v-if="hasKnownTotal">
             <div class="payment-method">
               <div>
-                <span>Payment method</span>
-                <h2>GCash manual payment</h2>
-                <p>Pay the exact amount due and include the booking reference in your payment note if possible.</p>
+                <span>{{ isDepositPayment ? '50% down payment' : verifiedAmount > 0 ? 'Remaining balance' : 'Full payment' }}</span>
+                <h2>Amount due now: {{ formatCurrency(amountDue) }}</h2>
+                <p>Total package price: {{ totalAmountLabel }}</p>
               </div>
-              <strong>{{ totalAmountLabel }}</strong>
+              <strong>{{ formatStatusLabel(booking.paymentPlan) }}</strong>
             </div>
 
-            <button
-              v-if="canUploadProof && !isInstructionsVisible && !isProofSubmitted"
-              class="primary-button"
-              type="button"
-              @click="showPaymentInstructions"
-            >
-              Pay now
-            </button>
+            <div v-if="canUploadProof" class="method-selector" aria-label="Payment method">
+              <label :class="{ 'is-selected': selectedPaymentMethod === 'qr_instapay' }">
+                <input v-model="selectedPaymentMethod" type="radio" value="qr_instapay" />
+                <span><strong>QR / InstaPay</strong><small>Wallet or bank app</small></span>
+              </label>
+              <label :class="{ 'is-selected': selectedPaymentMethod === 'bank_transfer' }">
+                <input v-model="selectedPaymentMethod" type="radio" value="bank_transfer" />
+                <span><strong>Bank transfer</strong><small>Tourism Office account</small></span>
+              </label>
+            </div>
 
-            <section v-if="isInstructionsVisible || isProofSubmitted || isVerified" class="manual-payment-panel">
-              <div class="qr-placeholder" aria-label="GCash QR placeholder">
-                <span>GCash QR</span>
-                <strong>Manual</strong>
-              </div>
+            <section v-if="canUploadProof" class="manual-payment-panel" :class="{ 'manual-payment-panel--bank': selectedPaymentMethod === 'bank_transfer' }">
+              <img v-if="selectedPaymentMethod === 'qr_instapay'" class="qr-image" :src="paymentQrImage" alt="Temporary QR InstaPay payment code" />
 
               <div class="instruction-copy">
                 <span>Payment instructions</span>
-                <h2>Scan or send payment using GCash</h2>
+                <template v-if="selectedPaymentMethod === 'qr_instapay'">
+                  <h2>Scan using a supported wallet or bank app</h2>
+                  <p class="placeholder-warning">
+                    Temporary receiving QR: confirm your app shows {{ qrRecipientName }} and an account ending in {{ qrAccountSuffix }} before sending.
+                  </p>
+                </template>
+                <template v-else>
+                  <h2>Transfer to the Tourism Office bank account</h2>
+                  <dl class="bank-details">
+                    <div><dt>Bank</dt><dd>{{ bankName }}</dd></div>
+                    <div><dt>Account name</dt><dd>{{ bankAccountName }}</dd></div>
+                    <div><dt>Account number</dt><dd>{{ bankAccountNumber }}</dd></div>
+                  </dl>
+                </template>
                 <ul>
-                  <li>Amount due: <strong>{{ totalAmountLabel }}</strong></li>
+                  <li>Exact amount: <strong>{{ formatCurrency(amountDue) }}</strong></li>
                   <li>Booking reference: <strong>{{ bookingReference }}</strong></li>
                   <li>Upload proof after sending payment.</li>
                   <li>Staff verification is manual and may take time.</li>
@@ -235,7 +295,7 @@ function formatStatusLabel(value) {
             </section>
 
             <form
-              v-if="canUploadProof && (isInstructionsVisible || isProofSubmitted)"
+              v-if="canUploadProof"
               class="proof-form"
               @submit.prevent="uploadProof"
             >
@@ -246,7 +306,7 @@ function formatStatusLabel(value) {
 
               <label>
                 <span>Payment reference number</span>
-                <input v-model.trim="proofForm.paymentReferenceNumber" type="text" placeholder="Optional" />
+                <input v-model.trim="proofForm.paymentReferenceNumber" type="text" required />
               </label>
 
               <label>
@@ -271,20 +331,23 @@ function formatStatusLabel(value) {
               </button>
             </form>
 
-            <div v-if="isProofSubmitted || uploadedProof" class="notice-panel notice-panel--success">
+            <div v-if="isProofSubmitted" class="notice-panel notice-panel--success">
               <span>Proof submitted</span>
               <p>{{ nextStepText }}</p>
-              <small v-if="uploadedProof">
-                Uploaded file: {{ uploadedProof.originalFilename || 'Proof of payment' }}
-              </small>
+              <small>Pending verification: {{ formatCurrency(pendingAmount) }}</small>
             </div>
 
-            <div v-else-if="isVerified" class="notice-panel notice-panel--success">
-              <span>Payment verified</span>
+            <div v-else-if="isPaid" class="notice-panel notice-panel--success">
+              <span>Fully paid</span>
               <p>{{ nextStepText }}</p>
             </div>
 
             <p v-else-if="uploadMessage" class="message message--success">{{ uploadMessage }}</p>
+
+            <div class="deadline-panel">
+              <div><span>{{ booking.paymentPlan === 'deposit_50' ? 'Deposit deadline' : 'Payment deadline' }}</span><strong>{{ formatDisplayDate(booking.depositDueAt) }}</strong></div>
+              <div v-if="booking.paymentPlan === 'deposit_50'"><span>Balance deadline</span><strong>{{ booking.balanceDueAt ? formatDisplayDate(booking.balanceDueAt) : 'Not applicable' }}</strong></div>
+            </div>
           </template>
 
           <RouterLink class="status-link" to="/package-booking-status">
@@ -309,9 +372,13 @@ function formatStatusLabel(value) {
               <dd>{{ booking.selectedPax }} pax</dd>
             </div>
             <div>
-              <dt>Amount due</dt>
+              <dt>Total price</dt>
               <dd>{{ totalAmountLabel }}</dd>
             </div>
+            <div><dt>Verified / credited</dt><dd>{{ formatCurrency(verifiedAmount) }}</dd></div>
+            <div><dt>Pending verification</dt><dd>{{ formatCurrency(pendingAmount) }}</dd></div>
+            <div><dt>Remaining balance</dt><dd>{{ formatCurrency(remainingAmount) }}</dd></div>
+            <div><dt>Due now</dt><dd>{{ formatCurrency(amountDue) }}</dd></div>
             <div>
               <dt>Payment status</dt>
               <dd>{{ paymentStatusLabel }}</dd>
@@ -420,11 +487,46 @@ function formatStatusLabel(value) {
 .manual-payment-panel span,
 .proof-form span,
 .notice-panel span,
+.deadline-panel span,
 .summary-next-step span {
   color: #6b746f;
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.method-selector {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.method-selector label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #cbd8d0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.method-selector label.is-selected {
+  border-color: #1b4332;
+  box-shadow: 0 0 0 3px rgba(27, 67, 50, 0.12);
+}
+
+.method-selector input {
+  accent-color: #1b4332;
+}
+
+.method-selector label span {
+  display: grid;
+  gap: 3px;
+}
+
+.method-selector small {
+  color: #68736d;
 }
 
 .payment-card h1,
@@ -502,6 +604,43 @@ function formatStatusLabel(value) {
   padding: 18px;
   border: 1px solid #dfe5dd;
   background: #f8f9f6;
+}
+
+.manual-payment-panel--bank {
+  grid-template-columns: 1fr;
+}
+
+.qr-image {
+  width: 100%;
+  border: 1px solid #dfe5dd;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.placeholder-warning {
+  padding: 9px;
+  border-radius: 6px;
+  background: #fff3cd;
+  color: #7a4b08 !important;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.bank-details {
+  display: grid;
+  gap: 7px;
+  margin: 4px 0;
+}
+
+.bank-details div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.bank-details dd {
+  margin: 0;
+  font-weight: 800;
 }
 
 .qr-placeholder {
@@ -626,6 +765,20 @@ function formatStatusLabel(value) {
   font-weight: 800;
 }
 
+.deadline-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.deadline-panel div {
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #f6f7f4;
+}
+
 .status-link {
   display: inline-flex;
   width: fit-content;
@@ -698,6 +851,8 @@ function formatStatusLabel(value) {
 
   .payment-method,
   .manual-payment-panel,
+  .method-selector,
+  .deadline-panel,
   .payment-summary dl > div {
     display: grid;
   }

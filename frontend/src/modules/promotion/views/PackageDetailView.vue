@@ -28,6 +28,8 @@ const baseAmount = computed(() => toFiniteNumber(tourismPackage.value?.basePrice
 const extraPaxAmount = computed(() => toFiniteNumber(tourismPackage.value?.extraPaxPrice))
 const minimumPax = computed(() => Math.max(1, toPositiveInteger(tourismPackage.value?.minPax) || 1))
 const maximumPax = computed(() => toPositiveInteger(tourismPackage.value?.maxPax))
+const durationDays = computed(() => toPositiveInteger(tourismPackage.value?.durationDays) || 1)
+const selectedEndDate = computed(() => addDays(selectedBookingDate.value, durationDays.value - 1))
 const calculationBasePax = computed(() => {
   return (
     toPositiveInteger(tourismPackage.value?.basePax) ||
@@ -89,7 +91,7 @@ const packageHighlights = computed(() => {
   if (!tourismPackage.value) return []
 
   return [
-    { label: 'Duration', value: tourismPackage.value.estimatedDuration || 'To be confirmed' },
+    { label: 'Duration', value: `${durationDays.value} ${durationDays.value === 1 ? 'day' : 'days'}` },
     { label: 'Good for', value: goodForLabel.value },
     { label: 'Target market', value: tourismPackage.value.targetMarket || 'General visitors' },
   ]
@@ -190,6 +192,7 @@ function continueToBookingInfo() {
       preferredDate: selectedBookingDate.value,
       estimatedTotal: estimatedTotal.value === null ? '' : String(estimatedTotal.value),
       paymentRequired: tourismPackage.value?.paymentRequired ? 'true' : 'false',
+      durationDays: String(durationDays.value),
     },
   })
 }
@@ -201,6 +204,18 @@ function formatCurrency(value) {
     currency: 'PHP',
     maximumFractionDigits: Number(value) % 1 === 0 ? 0 : 2,
   }).format(Number(value))
+}
+
+function addDays(value, days) {
+  if (!value) return ''
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
+}
+
+function formatDisplayDate(value) {
+  if (!value) return 'Select a start date'
+  return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+    .format(new Date(`${value}T00:00:00`))
 }
 
 onMounted(loadPackage)
@@ -289,8 +304,8 @@ onMounted(loadPackage)
                   <dd>{{ tourismPackage.targetMarket }}</dd>
                 </div>
                 <div>
-                  <dt>Estimated duration</dt>
-                  <dd>{{ tourismPackage.estimatedDuration }}</dd>
+                  <dt>Duration</dt>
+                  <dd>{{ durationDays }} {{ durationDays === 1 ? 'day' : 'days' }}</dd>
                 </div>
                 <div>
                   <dt>Package amount</dt>
@@ -473,6 +488,10 @@ onMounted(loadPackage)
             <div>
               <span>Estimated total</span>
               <strong>{{ estimatedTotalLabel }}</strong>
+            </div>
+            <div>
+              <span>Trip dates</span>
+              <strong>{{ formatDisplayDate(selectedBookingDate) }} - {{ formatDisplayDate(selectedEndDate) }}</strong>
             </div>
           </div>
 

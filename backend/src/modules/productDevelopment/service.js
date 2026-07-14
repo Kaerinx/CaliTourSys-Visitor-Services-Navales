@@ -1,5 +1,6 @@
 const repository = require('./repository')
 const { productModuleStatus, PUBLIC_PACKAGE_STATUSES } = require('./constants')
+const { deriveDurationDays } = require('../booking/bookingRules')
 
 function createError(statusCode, code, message, details) {
   const error = new Error(message)
@@ -99,6 +100,7 @@ function readinessIssues(tourismPackage) {
   if (!tourismPackage.category) issues.push('Package category is required.')
   if (!tourismPackage.targetMarket) issues.push('Target market is required.')
   if (!tourismPackage.estimatedDuration) issues.push('Estimated duration is required.')
+  if (!tourismPackage.durationDays) issues.push('Duration in days is required.')
   if (!tourismPackage.items?.some((item) => item.itemType === 'Plan')) {
     issues.push('At least one linked plan is required.')
   }
@@ -193,15 +195,24 @@ async function updateActivity(id, data) {
 
 async function createPackage(data, req) {
   await validatePackageItems(data.items)
-  return repository.createPackage(data, req.user?.id)
+  return repository.createPackage(preparePackageSchedule(data), req.user?.id)
 }
 
 async function updatePackage(id, data) {
   await requirePackage(id)
   await validatePackageItems(data.items)
-  const updated = await repository.updatePackage(id, data)
+  const updated = await repository.updatePackage(id, preparePackageSchedule(data))
   if (!updated) throw notFound('Tourism package')
   return updated
+}
+
+function preparePackageSchedule(data) {
+  const durationDays = data.durationDays || deriveDurationDays(data.estimatedDuration)
+  if (!durationDays) {
+    throw invalid('Enter the package duration as a positive number of days.')
+  }
+  const departureCapacity = data.departureCapacity || data.maxPax || null
+  return { ...data, durationDays, departureCapacity }
 }
 
 async function markPackageReady(id, body, req) {

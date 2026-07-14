@@ -22,22 +22,31 @@ const errorMessage = ref('')
 const submitMessage = ref('')
 const submittedBooking = ref(null)
 const participants = ref([])
+const totalPax = ref(1)
 const representative = reactive({
   fullName: '',
   phoneNumber: '',
   email: '',
+  gender: '',
 })
 const message = ref('')
+const paymentPlan = ref('deposit_50')
+const paymentMethod = ref('qr_instapay')
 
 const initialPax = computed(() => toPositiveInteger(route.query.selectedPax) || 1)
 const packageId = computed(() => String(route.query.packageId || tourismPackage.value?.apiId || ''))
 const packageName = computed(() => String(tourismPackage.value?.name || route.query.packageName || 'Selected tourism package'))
 const preferredDate = computed(() => String(route.query.preferredDate || ''))
-const selectedPax = computed(() => participants.value.length || initialPax.value)
+const selectedPax = computed(() => toPositiveInteger(totalPax.value) || 1)
 const maximumPax = computed(() => toPositiveInteger(tourismPackage.value?.maxPax))
-const canAddParticipant = computed(() => !maximumPax.value || selectedPax.value < maximumPax.value)
-const canRemoveParticipant = computed(() => selectedPax.value > initialPax.value)
+const minimumPax = computed(() => toPositiveInteger(tourismPackage.value?.minPax) || 1)
+const durationDays = computed(() => toPositiveInteger(tourismPackage.value?.durationDays) || 1)
+const endDate = computed(() => addDays(preferredDate.value, durationDays.value - 1))
+const canAddParticipant = computed(() => participants.value.length < Math.max(0, selectedPax.value - 1))
 const paymentRequired = computed(() => Boolean(tourismPackage.value?.paymentRequired ?? String(route.query.paymentRequired || '') === 'true'))
+const daysUntilDeparture = computed(() => calendarDayDifference(todayDate(), preferredDate.value))
+const requiresFullPayment = computed(() => daysUntilDeparture.value !== null && daysUntilDeparture.value <= 3)
+const effectivePaymentPlan = computed(() => requiresFullPayment.value ? 'full_payment' : paymentPlan.value)
 const estimatedTotal = computed(() => {
   if (!tourismPackage.value) return toFiniteNumber(route.query.estimatedTotal)
   const basePrice = toFiniteNumber(tourismPackage.value.basePrice)
@@ -61,8 +70,14 @@ const submitButtonLabel = computed(() => {
 })
 
 onMounted(async () => {
-  initializeParticipants(initialPax.value)
+  totalPax.value = initialPax.value
   await loadPackage()
+})
+const estimatedInitialDue = computed(() => {
+  if (estimatedTotal.value === null) return null
+  return effectivePaymentPlan.value === 'deposit_50'
+    ? Math.round(estimatedTotal.value * 50) / 100
+    : estimatedTotal.value
 })
 
 async function loadPackage() {
@@ -76,17 +91,11 @@ async function loadPackage() {
   }
 }
 
-function initializeParticipants(count) {
-  participants.value = Array.from({ length: Math.max(1, count) }, (_, index) => createParticipant(index + 1))
-}
-
 function createParticipant(order) {
   return {
     localId: `${Date.now()}-${order}-${Math.random().toString(16).slice(2)}`,
     fullName: '',
-    age: '',
     gender: '',
-    notes: '',
   }
 }
 
@@ -96,8 +105,15 @@ function addParticipant() {
 }
 
 function removeParticipant(index) {
-  if (!canRemoveParticipant.value) return
   participants.value.splice(index, 1)
+}
+
+function normalizeTotalPax() {
+  const maximum = maximumPax.value || 80
+  totalPax.value = Math.min(maximum, Math.max(minimumPax.value, toPositiveInteger(totalPax.value) || 1))
+  if (participants.value.length > totalPax.value - 1) {
+    participants.value.splice(Math.max(0, totalPax.value - 1))
+  }
 }
 
 function validateForm() {
@@ -106,14 +122,14 @@ function validateForm() {
   if (!representative.fullName.trim()) return 'Representative full name is required.'
   if (!representative.phoneNumber.trim()) return 'Representative contact number is required.'
   if (!representative.email.trim()) return 'Representative email address is required.'
+  if (!representative.gender) return 'Representative gender is required.'
+  if (selectedPax.value < minimumPax.value) return `This package requires at least ${minimumPax.value} participants.`
+  if (maximumPax.value && selectedPax.value > maximumPax.value) return `This package allows up to ${maximumPax.value} participants.`
 
   for (const [index, participant] of participants.value.entries()) {
-    const label = `Participant ${index + 1}`
-    if (!participant.fullName.trim()) return `${label} full name is required.`
-    if (participant.age === '' || Number.isNaN(Number(participant.age))) return `${label} age is required.`
-    const age = Number(participant.age)
-    if (!Number.isInteger(age) || age < 0 || age > 130) return `${label} age must be from 0 to 130.`
-    if (!participant.gender.trim()) return `${label} gender is required.`
+    const hasName = Boolean(participant.fullName.trim())
+    const hasGender = Boolean(participant.gender)
+    if (hasName !== hasGender) return `Other participant ${index + 1} needs both a name and M/F selection.`
   }
 
   return ''
@@ -136,9 +152,17 @@ async function submitBookingInfo() {
         fullName: representative.fullName,
         phoneNumber: representative.phoneNumber,
         email: representative.email,
+        gender: representative.gender,
       },
-      participants: participants.value,
+      participants: participants.value.some((participant) => participant.fullName.trim())
+        ? participants.value.filter((participant) => participant.fullName.trim())
+        : undefined,
       preferredBookingDate: preferredDate.value,
+      startDate: preferredDate.value,
+      endDate: endDate.value,
+      durationDays: durationDays.value,
+      paymentPlan: effectivePaymentPlan.value,
+      paymentMethod: paymentMethod.value,
       message: message.value,
     })
 
@@ -149,11 +173,17 @@ async function submitBookingInfo() {
         params: { slug: props.slug },
         query: {
           requestId: request.id,
+          bookingReference: request.bookingReference || '',
           packageName: request.packageName || packageName.value,
           selectedPax: String(request.selectedPax || selectedPax.value),
           preferredDate: request.preferredBookingDate || preferredDate.value,
           totalAmount: request.totalAmount == null ? '' : String(request.totalAmount),
           paymentStatus: request.paymentStatus || 'unpaid',
+          paymentPlan: request.paymentPlan || effectivePaymentPlan.value,
+          paymentMethod: request.paymentMethod || paymentMethod.value,
+          initialPaymentAmount: request.initialPaymentAmount == null ? '' : String(request.initialPaymentAmount),
+          depositDueAt: request.depositDueAt || '',
+          balanceDueAt: request.balanceDueAt || '',
         },
       })
       return
@@ -213,6 +243,25 @@ function formatDisplayDate(value) {
     year: 'numeric',
   }).format(date)
 }
+
+function addDays(value, days) {
+  if (!value) return ''
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day + days))
+  return date.toISOString().slice(0, 10)
+}
+
+function todayDate() {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+}
+
+function calendarDayDifference(from, to) {
+  if (!from || !to) return null
+  const fromDate = new Date(`${from}T00:00:00Z`)
+  const toDate = new Date(`${to}T00:00:00Z`)
+  return Math.round((toDate - fromDate) / 86400000)
+}
 </script>
 
 <template>
@@ -243,74 +292,17 @@ function formatDisplayDate(value) {
         <form class="booking-form-card" @submit.prevent="submitBookingInfo">
           <div class="form-heading">
             <p class="section-kicker">Enter info</p>
-            <h1>Participant details</h1>
+            <h1>Booking representative</h1>
             <p>
-              Add the people included in this booking. The participant count is used as the final pax count for pricing.
+              Only one representative needs to provide complete contact details and will be responsible for payment.
             </p>
           </div>
-
-          <section class="form-section" aria-labelledby="participants-title">
-            <div class="section-head">
-              <div>
-                <h2 id="participants-title">Participant details</h2>
-                <p>{{ selectedPax }} pax for this request</p>
-              </div>
-              <button class="secondary-button" type="button" :disabled="!canAddParticipant" @click="addParticipant">
-                + Add participant
-              </button>
-            </div>
-
-            <div class="participant-list">
-              <article
-                v-for="(participant, index) in participants"
-                :key="participant.localId"
-                class="participant-card"
-              >
-                <div class="participant-card__head">
-                  <h3>Participant {{ index + 1 }}</h3>
-                  <button
-                    v-if="index >= initialPax"
-                    type="button"
-                    :disabled="!canRemoveParticipant"
-                    @click="removeParticipant(index)"
-                  >
-                    Remove
-                  </button>
-                </div>
-
-                <div class="field-grid">
-                  <label>
-                    <span>Full name</span>
-                    <input v-model.trim="participant.fullName" type="text" autocomplete="name" required />
-                  </label>
-                  <label>
-                    <span>Age</span>
-                    <input v-model.number="participant.age" type="number" min="0" max="130" required />
-                  </label>
-                  <label>
-                    <span>Gender</span>
-                    <select v-model="participant.gender" required>
-                      <option value="" disabled>Select gender</option>
-                      <option value="Female">Female</option>
-                      <option value="Male">Male</option>
-                      <option value="Prefer not to say">Prefer not to say</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </label>
-                  <label class="field-grid__wide">
-                    <span>Notes or remarks</span>
-                    <input v-model.trim="participant.notes" type="text" placeholder="Optional" />
-                  </label>
-                </div>
-              </article>
-            </div>
-          </section>
 
           <section class="form-section" aria-labelledby="representative-title">
             <div class="section-head">
               <div>
                 <h2 id="representative-title">Representative contact</h2>
-                <p>One contact person will receive review and payment instructions.</p>
+                <p>This person is included in the total participant count.</p>
               </div>
             </div>
 
@@ -323,9 +315,17 @@ function formatDisplayDate(value) {
                 <span>Contact number</span>
                 <input v-model.trim="representative.phoneNumber" type="tel" autocomplete="tel" required />
               </label>
-              <label class="field-grid__wide">
+              <label>
                 <span>Email address</span>
                 <input v-model.trim="representative.email" type="email" autocomplete="email" required />
+              </label>
+              <label>
+                <span>Gender</span>
+                <select v-model="representative.gender" required>
+                  <option value="" disabled>Select M or F</option>
+                  <option value="M">M</option>
+                  <option value="F">F</option>
+                </select>
               </label>
               <label class="field-grid__wide">
                 <span>Message or special request</span>
@@ -334,12 +334,88 @@ function formatDisplayDate(value) {
             </div>
           </section>
 
+          <section class="form-section" aria-labelledby="participants-title">
+            <div class="section-head">
+              <div>
+                <h2 id="participants-title">Group participants</h2>
+                <p>Set the total pax. Other names are optional and use only one compact row each.</p>
+              </div>
+              <button class="secondary-button" type="button" :disabled="!canAddParticipant" @click="addParticipant">
+                + Add name
+              </button>
+            </div>
+
+            <label class="total-pax-field">
+              <span>Total participants (including representative)</span>
+              <input
+                v-model="totalPax"
+                type="number"
+                :min="minimumPax"
+                :max="maximumPax || 80"
+                step="1"
+                required
+                @blur="normalizeTotalPax"
+              />
+            </label>
+
+            <div v-if="participants.length" class="compact-participant-list">
+              <div class="compact-participant-row compact-participant-row--head" aria-hidden="true">
+                <span>Other participant name</span>
+                <span>Gender</span>
+                <span></span>
+              </div>
+              <div v-for="(participant, index) in participants" :key="participant.localId" class="compact-participant-row">
+                <input v-model.trim="participant.fullName" type="text" :placeholder="`Participant ${index + 2} (optional)`" />
+                <select v-model="participant.gender" :aria-label="`Participant ${index + 2} gender`">
+                  <option value="">M/F</option>
+                  <option value="M">M</option>
+                  <option value="F">F</option>
+                </select>
+                <button type="button" aria-label="Remove participant row" @click="removeParticipant(index)">Remove</button>
+              </div>
+            </div>
+            <p v-else class="participant-help">No other participant names added. You can still book using only the total pax count.</p>
+          </section>
+
+          <section v-if="paymentRequired && estimatedTotal !== null" class="form-section" aria-labelledby="payment-choice-title">
+            <div class="section-head">
+              <div>
+                <h2 id="payment-choice-title">Payment choice</h2>
+                <p>Select how much to pay first and which electronic channel you will use.</p>
+              </div>
+            </div>
+
+            <div class="payment-choice-grid">
+              <label class="choice-card" :class="{ 'is-selected': effectivePaymentPlan === 'deposit_50' }">
+                <input v-model="paymentPlan" type="radio" value="deposit_50" :disabled="requiresFullPayment" />
+                <span><strong>50% down payment</strong><small>{{ formatCurrency(estimatedTotal / 2) }} initially</small></span>
+              </label>
+              <label class="choice-card" :class="{ 'is-selected': effectivePaymentPlan === 'full_payment' }">
+                <input v-model="paymentPlan" type="radio" value="full_payment" />
+                <span><strong>Full payment</strong><small>{{ estimatedTotalLabel }}</small></span>
+              </label>
+            </div>
+            <p v-if="requiresFullPayment" class="participant-help">Because departure is within 3 calendar days, full payment is required.</p>
+
+            <div class="payment-choice-grid">
+              <label class="choice-card" :class="{ 'is-selected': paymentMethod === 'qr_instapay' }">
+                <input v-model="paymentMethod" type="radio" value="qr_instapay" />
+                <span><strong>QR / InstaPay</strong><small>Use a supported wallet or bank app</small></span>
+              </label>
+              <label class="choice-card" :class="{ 'is-selected': paymentMethod === 'bank_transfer' }">
+                <input v-model="paymentMethod" type="radio" value="bank_transfer" />
+                <span><strong>Bank transfer</strong><small>Transfer to the Tourism Office account</small></span>
+              </label>
+            </div>
+            <p class="participant-help">The initial online payment is due within 3 calendar days after booking. Authorized staff may extend it, but never beyond 5 calendar days from booking creation.</p>
+          </section>
+
           <p v-if="errorMessage" class="message message--error">{{ errorMessage }}</p>
           <p v-if="submitMessage" class="message message--success">{{ submitMessage }}</p>
 
           <div v-if="submittedBooking" class="submitted-panel">
             <span>Booking reference</span>
-            <strong>PKG-{{ submittedBooking.id }}</strong>
+            <strong>{{ submittedBooking.bookingReference || `PKG-${submittedBooking.id}` }}</strong>
             <RouterLink to="/package-booking-status">Check this request later</RouterLink>
           </div>
 
@@ -354,8 +430,20 @@ function formatDisplayDate(value) {
 
           <dl>
             <div>
-              <dt>Preferred date</dt>
+              <dt>Start date</dt>
               <dd>{{ preferredDateLabel }}</dd>
+            </div>
+            <div>
+              <dt>End date</dt>
+              <dd>{{ formatDisplayDate(endDate) }}</dd>
+            </div>
+            <div>
+              <dt>Duration</dt>
+              <dd>{{ durationDays }} {{ durationDays === 1 ? 'day' : 'days' }}</dd>
+            </div>
+            <div>
+              <dt>Booking source</dt>
+              <dd>Online / Website</dd>
             </div>
             <div>
               <dt>Selected pax</dt>
@@ -367,7 +455,8 @@ function formatDisplayDate(value) {
             </div>
             <div>
               <dt>Payment</dt>
-              <dd>{{ paymentRequired ? 'Required later' : 'Inquiry basis' }}</dd>
+              <dd v-if="paymentRequired && estimatedInitialDue !== null">{{ formatCurrency(estimatedInitialDue) }} initially</dd>
+              <dd v-else>{{ paymentRequired ? 'Required later' : 'Inquiry basis' }}</dd>
             </div>
           </dl>
 
@@ -518,22 +607,19 @@ function formatDisplayDate(value) {
   border-top: 1px solid #edf0ec;
 }
 
-.section-head,
-.participant-card__head {
+.section-head {
   display: flex;
   justify-content: space-between;
   gap: 16px;
   align-items: flex-start;
 }
 
-.section-head h2,
-.participant-card h3 {
+.section-head h2 {
   margin: 0;
   color: #14261f;
 }
 
-.secondary-button,
-.participant-card__head button {
+.secondary-button {
   min-height: 42px;
   padding: 0 14px;
   border: 1px solid #cbd8d0;
@@ -545,24 +631,95 @@ function formatDisplayDate(value) {
   cursor: pointer;
 }
 
-.secondary-button:disabled,
-.participant-card__head button:disabled {
+.secondary-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
 
-.participant-list {
+.compact-participant-list {
   display: grid;
-  gap: 14px;
+  gap: 8px;
 }
 
-.participant-card {
+.compact-participant-row {
   display: grid;
-  gap: 14px;
-  padding: 18px;
-  border: 1px solid #e3e9e4;
+  grid-template-columns: minmax(0, 1fr) 110px auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.compact-participant-row--head {
+  color: #6b746f;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.compact-participant-row button {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #d8b4ad;
   border-radius: 8px;
-  background: #f8f9f6;
+  background: #fff;
+  color: #9f2d20;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.total-pax-field {
+  max-width: 340px;
+}
+
+.participant-help {
+  margin: 0;
+  padding: 14px;
+  border-radius: 8px;
+  background: #f6f7f4;
+  color: #5c5c5c;
+  line-height: 1.55;
+}
+
+.payment-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.choice-card {
+  display: flex;
+  grid-template-columns: none;
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #cbd8d0;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.choice-card.is-selected {
+  border-color: #1b4332;
+  box-shadow: 0 0 0 3px rgba(27, 67, 50, 0.12);
+}
+
+.choice-card input {
+  width: 18px;
+  min-height: 18px;
+  accent-color: #1b4332;
+}
+
+.choice-card > span {
+  display: grid;
+  gap: 4px;
+  color: #14261f;
+  font-size: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.choice-card small {
+  color: #68736d;
 }
 
 .field-grid {
@@ -711,7 +868,9 @@ textarea:focus {
 @media (max-width: 920px) {
   .checkout-progress,
   .booking-info-layout,
-  .field-grid {
+  .field-grid,
+  .compact-participant-row,
+  .payment-choice-grid {
     grid-template-columns: 1fr;
   }
 
@@ -736,8 +895,7 @@ textarea:focus {
     padding: 18px;
   }
 
-  .section-head,
-  .participant-card__head {
+  .section-head {
     display: grid;
   }
 

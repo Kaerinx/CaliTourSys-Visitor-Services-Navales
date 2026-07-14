@@ -114,9 +114,8 @@
           <label class="form-field">
             <span>Sex</span>
             <select v-model="recordForm.gender">
-              <option>Female</option>
-              <option>Male</option>
-              <option>Prefer not to say</option>
+              <option value="M">M</option>
+              <option value="F">F</option>
             </select>
           </label>
           <label class="form-field">
@@ -256,7 +255,7 @@ function defaultRecordForm() {
     first_name: '',
     middle_name: '',
     last_name: '',
-    gender: 'Female',
+    gender: 'M',
     nationality: 'Filipino',
     visitor_type: 'local',
     contact_number: '',

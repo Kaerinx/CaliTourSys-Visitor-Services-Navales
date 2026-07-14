@@ -65,7 +65,47 @@ const profileImageUpload = multer({
   },
 });
 
-router.post("/auth/register", controller.register);
+const registrationProofStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const uploadDir = path.resolve(__dirname, "../../../uploads/accreditation-registration-proofs");
+    fs.mkdirSync(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: (_req, file, cb) => {
+    const extension = path.extname(file.originalname || "").toLowerCase();
+    const safeName = path
+      .basename(file.originalname || "registration-proof", extension)
+      .replace(/[^a-zA-Z0-9.-]/g, "_")
+      .slice(0, 60);
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}${extension}`);
+  },
+});
+
+const registrationProofUpload = multer({
+  storage: registrationProofStorage,
+  limits: { fileSize: 5 * 1024 * 1024, files: 3 },
+  fileFilter: (_req, file, cb) => {
+    const allowedMimeTypes = ["image/jpeg", "image/png"];
+    const allowedExtensions = [".jpg", ".jpeg", ".png"];
+    const extension = path.extname(file.originalname || "").toLowerCase();
+    if (!allowedMimeTypes.includes(file.mimetype) || !allowedExtensions.includes(extension)) {
+      const error = new Error("Registration proofs must be JPG or PNG images.");
+      error.statusCode = 400;
+      return cb(error);
+    }
+    return cb(null, true);
+  },
+});
+
+router.post(
+  "/auth/register",
+  registrationProofUpload.fields([
+    { name: "businessPermitProof", maxCount: 1 },
+    { name: "registrationCertificateProof", maxCount: 1 },
+    { name: "representativeValidId", maxCount: 1 },
+  ]),
+  controller.register
+);
 router.get("/auth/verify-email", controller.verifyEmail);
 router.post("/auth/login", controller.login);
 router.get("/auth/me", authenticate, controller.me);
@@ -126,6 +166,11 @@ router.patch(
   controller.reviewApplication
 );
 router.get("/documents/:id/download", authenticate, controller.downloadDocument);
+router.get(
+  "/registration-documents/:id/download",
+  authenticate,
+  controller.downloadRegistrationDocument
+);
 
 router.get(
   "/records",

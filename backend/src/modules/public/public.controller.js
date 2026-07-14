@@ -156,7 +156,12 @@ async function uploadPackageBookingPaymentProof(req, res, next) {
     return successResponse(
       req,
       res,
-      await service.uploadPackageBookingPaymentProof(requestId, proof, req.body || {}),
+      await service.uploadPackageBookingPaymentProof(
+        requestId,
+        proof,
+        req.body || {},
+        { touristAccountId: req.tourist?.id || null },
+      ),
     )
   } catch (error) {
     return next(error)

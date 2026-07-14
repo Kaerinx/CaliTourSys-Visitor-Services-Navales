@@ -38,6 +38,8 @@ const errors = computed(() => {
   if (form.categorySelections.length > 2) output.category = 'Select up to two package categories only.'
   if (!form.targetMarket.trim()) output.targetMarket = 'Target market is required.'
   if (!form.estimatedDuration.trim()) output.estimatedDuration = 'Estimated duration is required.'
+  if (!String(form.durationDays ?? '').trim() || !isPositiveInteger(form.durationDays)) output.durationDays = 'Duration must be at least 1 day.'
+  if (!String(form.departureCapacity ?? '').trim() || !isPositiveInteger(form.departureCapacity)) output.departureCapacity = 'Departure capacity must be at least 1.'
   if (!isNonNegativeMoney(form.basePrice)) output.basePrice = 'Base price must be zero or higher.'
   if (!isPositiveInteger(form.basePax)) output.basePax = 'Base pax must be at least 1.'
   if (!isNonNegativeMoney(form.extraPaxPrice)) output.extraPaxPrice = 'Extra person price must be zero or higher.'
@@ -46,9 +48,11 @@ const errors = computed(() => {
   const minPax = toNullableInteger(form.minPax)
   const maxPax = toNullableInteger(form.maxPax)
   const basePax = toNullableInteger(form.basePax)
+  const departureCapacity = toNullableInteger(form.departureCapacity)
   if (minPax && maxPax && maxPax < minPax) output.maxPax = 'Maximum pax must be greater than or equal to minimum pax.'
   if (basePax && minPax && basePax < minPax) output.basePax = 'Base pax must be greater than or equal to minimum pax.'
   if (basePax && maxPax && basePax > maxPax) output.basePax = 'Base pax must be less than or equal to maximum pax.'
+  if (departureCapacity && maxPax && departureCapacity < maxPax) output.departureCapacity = 'Departure capacity cannot be lower than maximum pax.'
   if (!selectedItemCount.value) output.items = 'Select at least one development plan.'
   return output
 })
@@ -72,6 +76,8 @@ function defaultForm(value = null) {
     categorySelections: parsePackageCategory(value?.category || 'Nature'),
     targetMarket: value?.targetMarket || PACKAGE_TARGET_MARKETS[0],
     estimatedDuration: value?.estimatedDuration || PACKAGE_DURATIONS[1],
+    durationDays: value?.durationDays ?? 1,
+    departureCapacity: value?.departureCapacity ?? value?.maxPax ?? '',
     basePrice: value?.basePrice ?? '',
     basePax: value?.basePax ?? '',
     extraPaxPrice: value?.extraPaxPrice ?? '',
@@ -152,6 +158,8 @@ function submitForm() {
     category: formatPackageCategory(form.categorySelections),
     targetMarket: form.targetMarket.trim(),
     estimatedDuration: form.estimatedDuration.trim(),
+    durationDays: toNullableInteger(form.durationDays),
+    departureCapacity: toNullableInteger(form.departureCapacity),
     basePrice: toNullableNumber(form.basePrice),
     basePax: toNullableInteger(form.basePax),
     extraPaxPrice: toNullableNumber(form.extraPaxPrice),
@@ -254,6 +262,32 @@ function submitForm() {
                     </option>
                   </select>
                   <small v-if="errors.estimatedDuration">{{ errors.estimatedDuration }}</small>
+                </label>
+
+                <label>
+                  <span>Duration in days</span>
+                  <input
+                    v-model="form.durationDays"
+                    type="number"
+                    min="1"
+                    step="1"
+                    :aria-invalid="Boolean(errors.durationDays)"
+                    placeholder="1"
+                  />
+                  <small v-if="errors.durationDays">{{ errors.durationDays }}</small>
+                </label>
+
+                <label>
+                  <span>Departure capacity</span>
+                  <input
+                    v-model="form.departureCapacity"
+                    type="number"
+                    min="1"
+                    step="1"
+                    :aria-invalid="Boolean(errors.departureCapacity)"
+                    placeholder="20"
+                  />
+                  <small v-if="errors.departureCapacity">{{ errors.departureCapacity }}</small>
                 </label>
               </div>
             </section>

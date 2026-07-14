@@ -1,6 +1,15 @@
 const repository = require('./public.repository')
 const { getPagination, buildPaginationMeta } = require('../../utils/pagination')
 const { createPublicSessionToken } = require('../../utils/token')
+const {
+  buildSchedule,
+  calculatePaymentTerms,
+  requireCurrentOrFutureStartDate,
+  requireGender,
+  roundMoney,
+  validateElectronicPaymentEvidence,
+  validatePaymentMethod,
+} = require('../booking/bookingRules')
 
 function createNotFoundError(message) {
   const error = new Error(message)
@@ -56,6 +65,7 @@ function optionalText(value, maxLength, fieldLabel) {
 
 function normalizeLookupReference(value) {
   const raw = String(value || '').trim()
+  if (/^\d{6}-TOUR-\d{6}$/i.test(raw)) return raw.toUpperCase()
   const withoutPrefix = raw.replace(/^pkg[-\s]*/i, '').trim()
   const uuidMatch = withoutPrefix.match(
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
@@ -82,16 +92,32 @@ function buildPublicBookingLookupResponse(request) {
 
   return {
     id: request.id,
-    bookingReference: `PKG-${request.id}`,
+    bookingReference: request.bookingReference || `PKG-${request.id}`,
     packageId: request.packageId,
     packageName: request.packageName,
+    bookingSource: request.bookingSource,
     selectedPax: request.selectedPax,
+    startDate: request.startDate || request.preferredBookingDate,
+    endDate: request.endDate || request.preferredBookingDate,
+    durationDays: request.durationDays || 1,
     preferredBookingDate: request.preferredBookingDate,
     totalAmount: request.totalAmount,
     pricingNote: request.pricingNote || (!hasComputedTotal ? 'Price upon inquiry.' : ''),
     bookingStatus: request.bookingStatus,
     paymentStatus: request.paymentStatus,
     paymentRequired: request.paymentRequired,
+    paymentPlan: request.paymentPlan,
+    initialPaymentAmount: request.initialPaymentAmount,
+    verifiedPaymentAmount: request.verifiedPaymentAmount || 0,
+    pendingPaymentAmount: request.pendingPaymentAmount || 0,
+    appliedCreditAmount: request.appliedCreditAmount || 0,
+    remainingAmount: hasComputedTotal
+      ? Math.max(0, Number(request.totalAmount) - Number(request.verifiedPaymentAmount || 0) - Number(request.appliedCreditAmount || 0))
+      : null,
+    depositDueAt: request.depositDueAt,
+    balanceDueAt: request.balanceDueAt,
+    depositStatus: request.depositStatus,
+    paymentMethod: request.paymentMethod,
     paymentInstruction: request.paymentRequired && hasComputedTotal ? request.paymentInstruction : '',
     proofOfPayment: proof,
     paymentSubmittedAt: request.paymentSubmittedAt,
@@ -200,15 +226,15 @@ async function createPackageBookingRequest(body, context = {}) {
     ? body.participants.map((participant, index) => ({
         participantOrder: index + 1,
         fullName: participant.fullName,
-        age: participant.age,
-        gender: participant.gender,
+        age: participant.age ?? null,
+        gender: requireGender(participant.gender, `Participant ${index + 1} gender`),
         notes: participant.notes || '',
       }))
     : []
   const selectedPax = toPositiveInteger(body.selectedPax)
   if (!selectedPax) throw createValidationError('Selected pax must be at least 1.')
-  if (participants.length && participants.length !== selectedPax) {
-    throw createValidationError('Participant count must match selected pax.')
+  if (participants.length > selectedPax) {
+    throw createValidationError('Participant entries cannot exceed selected pax.')
   }
 
   const pricing = buildPackageBookingPricing(tourismPackage, selectedPax)
@@ -219,6 +245,30 @@ async function createPackageBookingRequest(body, context = {}) {
     email: body.email,
     phoneNumber: body.phoneNumber,
   }
+  const bookingSource = context.bookingSource || 'online'
+  const schedule = buildSchedule({
+    startDate: body.startDate || body.preferredBookingDate,
+    durationDays: body.durationDays || tourismPackage.duration_days || 1,
+    endDate: body.endDate,
+  })
+  requireCurrentOrFutureStartDate(schedule.startDate)
+  const paymentTerms = paymentRequired && hasComputedTotal
+    ? calculatePaymentTerms({
+        totalAmount: pricing.computedTotalAmount,
+        paymentRequired,
+        paymentPlan: body.paymentPlan,
+        bookingSource,
+        paymentMethod: body.paymentMethod || (bookingSource === 'walk_in' ? 'cash' : 'qr_instapay'),
+        startDate: schedule.startDate,
+      })
+    : {
+        paymentPlan: null,
+        paymentMethod: null,
+        initialPaymentAmount: null,
+        depositDueAt: null,
+        balanceDueAt: null,
+        depositStatus: paymentRequired ? 'pending' : 'not_required',
+      }
 
   return repository.createPackageBookingRequest({
     packageId: tourismPackage.id,
@@ -231,8 +281,12 @@ async function createPackageBookingRequest(body, context = {}) {
     representativeFullName: representative.fullName,
     representativeEmail: representative.email,
     representativePhoneNumber: representative.phoneNumber,
+    representativeGender: representative.gender ? requireGender(representative.gender, 'Representative gender') : null,
     participants,
-    preferredBookingDate: body.preferredBookingDate,
+    preferredBookingDate: schedule.startDate,
+    bookingSource,
+    ...schedule,
+    ...paymentTerms,
     message: body.message || '',
     touristAccountId: context.touristAccountId || null,
     paymentRequiredSnapshot: paymentRequired,
@@ -242,11 +296,14 @@ async function createPackageBookingRequest(body, context = {}) {
   })
 }
 
-async function uploadPackageBookingPaymentProof(requestId, proof, body = {}) {
+async function uploadPackageBookingPaymentProof(requestId, proof, body = {}, context = {}) {
   if (!proof) throw createValidationError('Upload a proof of payment file.')
 
   const request = await repository.getPackageBookingRequestById(requestId)
   if (!request) throw createNotFoundError('Booking request not found.')
+  if (!context.touristAccountId || request.tourist_account_id !== context.touristAccountId) {
+    throw createNotFoundError('Booking request not found.')
+  }
 
   if (!request.payment_required_snapshot) {
     throw createValidationError('This booking request does not require payment proof.')
@@ -256,13 +313,28 @@ async function uploadPackageBookingPaymentProof(requestId, proof, body = {}) {
     throw createValidationError('This booking request is still inquiry-based and does not accept payment proof yet.')
   }
 
-  if (request.payment_status === 'verified') {
-    throw createValidationError('This payment has already been verified and can no longer be replaced.')
+  const paymentMethod = validatePaymentMethod(
+    request.booking_source || 'online',
+    body.paymentMethod || request.selected_payment_method || 'qr_instapay',
+  )
+  const paymentReferenceNumber = optionalText(body.paymentReferenceNumber, 120, 'Payment reference number')
+  validateElectronicPaymentEvidence({
+    paymentMethod,
+    transactionReference: paymentReferenceNumber,
+    proofFileUrl: proof.fileUrl,
+  })
+  const amount = roundMoney(
+    body.amount || request.initial_payment_amount || request.computed_total_amount,
+  )
+  if (amount <= 0 || amount > Number(request.computed_total_amount)) {
+    throw createValidationError('Payment amount must be greater than zero and cannot exceed the booking total.')
   }
 
   return repository.updatePackageBookingPaymentProof(requestId, {
     ...proof,
-    paymentReferenceNumber: optionalText(body.paymentReferenceNumber, 120, 'Payment reference number'),
+    amount,
+    paymentMethod,
+    paymentReferenceNumber,
     paymentNotes: optionalText(body.paymentNotes, 2000, 'Payment notes'),
   })
 }
@@ -295,6 +367,29 @@ async function getTouristPackageBookingRequest({ requestId, touristAccountId }) 
   const request = await repository.getPackageBookingRequestByTouristId({ requestId, touristAccountId })
   if (!request) throw createNotFoundError('Booking request not found.')
   return buildPublicBookingLookupResponse(request)
+}
+
+async function createTouristPackageBookingDateChangeRequest({
+  requestId,
+  touristAccountId,
+  startDate,
+  endDate,
+  durationDays,
+  reason,
+}) {
+  const request = await repository.getPackageBookingRequestByTouristId({ requestId, touristAccountId })
+  if (!request) throw createNotFoundError('Booking request not found.')
+  if (['declined', 'cancelled', 'expired'].includes(request.bookingStatus)) {
+    throw createValidationError('This booking can no longer be rescheduled.')
+  }
+  const schedule = buildSchedule({ startDate, endDate, durationDays })
+  requireCurrentOrFutureStartDate(schedule.startDate)
+  return repository.createPackageBookingDateChangeRequest({
+    requestId,
+    touristAccountId,
+    ...schedule,
+    reason,
+  })
 }
 
 async function listEvents(filters) {
@@ -530,6 +625,7 @@ module.exports = {
   listPackages,
   getPackageBySlug,
   createPackageBookingRequest,
+  createTouristPackageBookingDateChangeRequest,
   getTouristPackageBookingRequest,
   lookupPackageBookingRequest,
   listTouristPackageBookingRequests,

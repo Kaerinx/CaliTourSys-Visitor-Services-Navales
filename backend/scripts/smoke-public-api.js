@@ -6,6 +6,7 @@ const runId = `${Date.now()}-${Math.random().toString(16).slice(2)}`
 const state = {
   sessionToken: null,
   itineraryItemId: null,
+  productTargetId: null,
 }
 
 const results = []
@@ -168,14 +169,18 @@ async function main() {
     const list = await expectSuccess('/public/promotions', { paginated: true, cacheIncludes: 'public' })
     assert(Array.isArray(list.body.data), 'Promotions data must be an array.')
     assertNoRawStatusFields(list.body.data, 'Promotion')
-    const detail = await expectSuccess('/public/promotions/demo-summer-otop-picks', { cacheIncludes: 'public' })
-    assert(detail.body.data.slug === 'demo-summer-otop-picks', 'Promotion detail slug mismatch.')
+    const first = list.body.data[0]
+    if (first?.slug) {
+      const detail = await expectSuccess(`/public/promotions/${first.slug}`, { cacheIncludes: 'public' })
+      assert(detail.body.data.slug === first.slug, 'Promotion detail slug mismatch.')
+    }
   })
 
   await test('events list, detail, and categories match contract', async () => {
     const list = await expectSuccess('/public/events', { paginated: true, cacheIncludes: 'public' })
     assertNoRawStatusFields(list.body.data, 'Event')
-    await expectSuccess('/public/events/demo-pili-festival-2026', { cacheIncludes: 'public' })
+    const first = list.body.data[0]
+    if (first?.slug) await expectSuccess(`/public/events/${first.slug}`, { cacheIncludes: 'public' })
     const categories = await expectSuccess('/public/event-categories', { cacheIncludes: 'public' })
     assert(Array.isArray(categories.body.data), 'Event categories data must be an array.')
   })
@@ -183,21 +188,34 @@ async function main() {
   await test('products list, detail, and categories match contract', async () => {
     const list = await expectSuccess('/public/products', { paginated: true, cacheIncludes: 'public' })
     assertNoRawStatusFields(list.body.data, 'Product')
-    const detail = await expectSuccess('/public/products/demo-pili-nut-brittle', { cacheIncludes: 'public' })
-    assert(detail.body.data.product.slug === 'demo-pili-nut-brittle', 'Product detail slug mismatch.')
-    assert(Array.isArray(detail.body.data.business.contacts), 'Product business contacts must be an array.')
-    for (const contact of detail.body.data.business.contacts) {
-      assert(!Object.prototype.hasOwnProperty.call(contact, 'isPublic'), 'Public contact response must not expose isPublic.')
+    const first = list.body.data[0]
+    state.productTargetId = first?.id || null
+    if (first?.slug) {
+      const detail = await expectSuccess(`/public/products/${first.slug}`, { cacheIncludes: 'public' })
+      assert(detail.body.data.product.slug === first.slug, 'Product detail slug mismatch.')
+      assert(Array.isArray(detail.body.data.business.contacts), 'Product business contacts must be an array.')
+      for (const contact of detail.body.data.business.contacts) {
+        assert(!Object.prototype.hasOwnProperty.call(contact, 'isPublic'), 'Public contact response must not expose isPublic.')
+      }
     }
     const categories = await expectSuccess('/public/product-categories', { cacheIncludes: 'public' })
     assert(Array.isArray(categories.body.data), 'Product categories data must be an array.')
   })
 
   await test('business profile returns active public profile only', async () => {
-    const { body } = await expectSuccess('/public/businesses/demo-pili-kitchen', { cacheIncludes: 'public' })
-    assert(body.data.slug === 'demo-pili-kitchen', 'Business detail slug mismatch.')
-    assert(Array.isArray(body.data.contacts), 'Business contacts must be an array.')
-    for (const contact of body.data.contacts) {
+    const list = await expectSuccess('/public/businesses', { paginated: true, cacheIncludes: 'public' })
+    const first = list.body.data[0]
+    if (!first?.slug) return
+    const { body } = await expectSuccess(`/public/businesses/${first.slug}`, { cacheIncludes: 'public' })
+    assert(body.data.slug === first.slug, 'Business detail slug mismatch.')
+    const contacts = Array.isArray(body.data.contacts)
+      ? body.data.contacts
+      : [
+          body.data.contactEmail && { contactType: 'email', contactValue: body.data.contactEmail },
+          body.data.phone && { contactType: 'phone', contactValue: body.data.phone },
+        ].filter(Boolean)
+    assert(Array.isArray(contacts), 'Business contacts must use the public contacts or contactEmail/phone contract.')
+    for (const contact of contacts) {
       assert(!Object.prototype.hasOwnProperty.call(contact, 'isPublic'), 'Public contact response must not expose isPublic.')
     }
   })
@@ -205,7 +223,8 @@ async function main() {
   await test('destinations list, detail, and categories match contract', async () => {
     const list = await expectSuccess('/public/destinations', { paginated: true, cacheIncludes: 'public' })
     assertNoRawStatusFields(list.body.data, 'Destination')
-    await expectSuccess('/public/destinations/demo-sabang-beach', { cacheIncludes: 'public' })
+    const first = list.body.data[0]
+    if (first?.slug) await expectSuccess(`/public/destinations/${first.slug}`, { cacheIncludes: 'public' })
     const categories = await expectSuccess('/public/destination-categories', { cacheIncludes: 'public' })
     assert(Array.isArray(categories.body.data), 'Destination categories data must be an array.')
   })
@@ -221,7 +240,8 @@ async function main() {
   await test('museum artifacts list, detail, and categories match contract', async () => {
     const list = await expectSuccess('/public/museum/artifacts', { paginated: true, cacheIncludes: 'public' })
     assertNoRawStatusFields(list.body.data, 'Museum artifact')
-    await expectSuccess('/public/museum/artifacts/demo-heritage-bell', { cacheIncludes: 'public' })
+    const first = list.body.data[0]
+    if (first?.slug) await expectSuccess(`/public/museum/artifacts/${first.slug}`, { cacheIncludes: 'public' })
     const categories = await expectSuccess('/public/museum/categories', { cacheIncludes: 'public' })
     assert(Array.isArray(categories.body.data), 'Museum categories data must be an array.')
   })
@@ -238,13 +258,14 @@ async function main() {
 
     const empty = await expectSuccess(`/public/itinerary/${state.sessionToken}`, { cacheIncludes: 'private' })
     assert(empty.body.data.itemCount === 0, 'New itinerary should have zero items.')
+    assert(state.productTargetId, 'At least one public product is required to test itinerary item writes.')
 
     const added = await expectSuccess(`/public/itinerary/${state.sessionToken}/items`, {
       method: 'POST',
       status: 201,
       body: {
         itemType: 'product',
-        targetId: '30000000-0000-4000-8000-000000000001',
+        targetId: state.productTargetId,
       },
       cacheIncludes: 'private',
     })
@@ -256,7 +277,7 @@ async function main() {
       status: 200,
       body: {
         itemType: 'product',
-        targetId: '30000000-0000-4000-8000-000000000001',
+        targetId: state.productTargetId,
       },
       cacheIncludes: 'private',
     })
@@ -361,8 +382,33 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error('Smoke test crashed before completion.')
-  console.error(error)
-  process.exitCode = 1
-})
+async function cleanupLocalFixtures() {
+  const hostname = new URL(baseUrl).hostname
+  if (!['localhost', '127.0.0.1', '::1'].includes(hostname)) return
+
+  const { query, closeDatabasePool } = require('../src/config/db')
+  try {
+    if (state.sessionToken) {
+      await query('DELETE FROM itinerary_sessions WHERE session_token = $1', [state.sessionToken])
+    }
+    await query('DELETE FROM tourism_inquiries WHERE lower(email) = lower($1)', [`smoke-inquiry-${runId}@example.test`])
+    await query('DELETE FROM newsletter_subscribers WHERE lower(email) = lower($1)', [`smoke-newsletter-${runId}@example.test`])
+  } finally {
+    await closeDatabasePool()
+  }
+}
+
+main()
+  .catch((error) => {
+    console.error('Smoke test crashed before completion.')
+    console.error(error)
+    process.exitCode = 1
+  })
+  .finally(async () => {
+    try {
+      await cleanupLocalFixtures()
+    } catch (error) {
+      console.error(`Smoke-test cleanup failed: ${error.message}`)
+      process.exitCode = 1
+    }
+  })

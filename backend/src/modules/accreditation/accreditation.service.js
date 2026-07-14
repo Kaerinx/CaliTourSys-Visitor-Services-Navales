@@ -228,7 +228,8 @@ async function sendVerificationEmail(email, token) {
   return { verifyUrl, sent: true };
 }
 
-async function registerBusinessOwner(payload) {
+async function registerBusinessOwner(payload, registrationDocuments = []) {
+  payload = payload || {};
   const requiredFields = [
     ["firstName", "First name"],
     ["lastName", "Last name"],
@@ -239,6 +240,9 @@ async function registerBusinessOwner(payload) {
   const requiredBusinessFields = [
     ["legalStructure", "Business type"],
     ["businessName", "Business name"],
+    ["businessType", "Tourism business category"],
+    ["businessPermitNumber", "Business permit number"],
+    ["dtiSecRegistrationNumber", "DTI or SEC registration number"],
     ["region", "Region"],
     ["province", "Province"],
     ["cityMunicipality", "City / Municipality"],
@@ -259,6 +263,40 @@ async function registerBusinessOwner(payload) {
 
   if (missing.length || missingBusiness.length) {
     const error = new Error(`Please complete required fields: ${[...missing, ...missingBusiness].join(", ")}.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!["sole-proprietorship", "partnership", "corporation"].includes(business.legalStructure)) {
+    const error = new Error("Please select a valid business type.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const uploadedDocumentTypes = new Set(
+    registrationDocuments.map((document) => document.documentType)
+  );
+  const requiredDocumentTypes = ["business_permit", "registration_certificate"];
+  if (business.legalStructure === "corporation") {
+    requiredDocumentTypes.push("representative_valid_id");
+  }
+  const missingDocumentTypes = requiredDocumentTypes.filter(
+    (documentType) => !uploadedDocumentTypes.has(documentType)
+  );
+  if (missingDocumentTypes.length) {
+    const labels = {
+      business_permit: "business permit image",
+      registration_certificate:
+        business.legalStructure === "sole-proprietorship"
+          ? "DTI certificate image"
+          : "SEC certificate image",
+      representative_valid_id: "authorized representative valid ID image",
+    };
+    const error = new Error(
+      `Please upload the required registration proofs: ${missingDocumentTypes
+        .map((documentType) => labels[documentType])
+        .join(", ")}.`
+    );
     error.statusCode = 400;
     throw error;
   }
@@ -296,8 +334,8 @@ async function registerBusinessOwner(payload) {
   }
 
   if (business.legalStructure === "corporation") {
-    if (!business.company?.registrationNumber || !business.company?.representativePosition) {
-      const error = new Error("Please complete the company registration number and authorized representative position.");
+    if (!business.company?.representativePosition) {
+      const error = new Error("Please complete the authorized representative position.");
       error.statusCode = 400;
       throw error;
     }
@@ -317,7 +355,7 @@ async function registerBusinessOwner(payload) {
     passwordHash,
     status: "pending_verification",
     verificationToken: null,
-  }, business);
+  }, business, registrationDocuments);
 
   return {
     user,

@@ -258,6 +258,9 @@ function mapReadyPackage(tourismPackage, index = 0) {
     packageStatus: tourismPackage.packageStatus,
     targetMarket: tourismPackage.targetMarket || 'General visitors',
     estimatedDuration: tourismPackage.estimatedDuration || 'Duration to be confirmed',
+    durationDays: Number(tourismPackage.durationDays || 1),
+    departureCapacity:
+      tourismPackage.departureCapacity == null ? null : Number(tourismPackage.departureCapacity),
     itemCount: tourismPackage.itemCount ?? packageItems.length,
     assetCount:
       tourismPackage.assetCount ?? packageItems.filter((item) => item.itemType === 'Asset').length,
@@ -657,16 +660,24 @@ export async function submitPackageBookingRequest(tourismPackage, payload) {
         fullName: representative.fullName.trim(),
         email: representative.email.trim().toLowerCase(),
         phoneNumber: representative.phoneNumber.trim(),
+        gender: representative.gender?.trim() || undefined,
       },
       participants: Array.isArray(payload.participants)
         ? payload.participants.map((participant) => ({
             fullName: participant.fullName.trim(),
-            age: Number(participant.age),
             gender: participant.gender.trim(),
-            notes: participant.notes?.trim() || undefined,
+            ...(participant.age === '' || participant.age == null
+              ? {}
+              : { age: Number(participant.age) }),
+            ...(participant.notes?.trim() ? { notes: participant.notes.trim() } : {}),
           }))
         : undefined,
       preferredBookingDate: payload.preferredBookingDate,
+      startDate: payload.startDate || payload.preferredBookingDate,
+      endDate: payload.endDate,
+      durationDays: payload.durationDays,
+      paymentPlan: payload.paymentPlan,
+      paymentMethod: payload.paymentMethod,
       message: payload.message?.trim() || undefined,
     })
 
@@ -697,6 +708,8 @@ export async function submitPackagePaymentProof(requestId, payload) {
     if (payload.paymentReferenceNumber?.trim()) {
       formData.append('paymentReferenceNumber', payload.paymentReferenceNumber.trim())
     }
+    if (payload.paymentMethod) formData.append('paymentMethod', payload.paymentMethod)
+    if (payload.amount != null) formData.append('amount', String(payload.amount))
     if (payload.paymentNotes?.trim()) {
       formData.append('paymentNotes', payload.paymentNotes.trim())
     }
