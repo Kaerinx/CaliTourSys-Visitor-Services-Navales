@@ -413,7 +413,9 @@ async function createInquiry(payload) {
 }
 
 async function listInquiries(filters) {
-  return model.listInquiries(filters);
+  const nextFilters = { ...filters };
+  if (nextFilters.status) nextFilters.status = normalizeInquiryStatus(nextFilters.status);
+  return model.listInquiries(nextFilters);
 }
 
 async function getInquiry(id) {
@@ -430,8 +432,22 @@ async function respondInquiry(id, payload, user) {
 
 async function updateInquiryStatus(id, status) {
   required({ status }, ['status']);
-  await getInquiry(id);
-  return model.updateInquiryStatus(id, normalizeType(status));
+  const inquiry = await model.getPublicInquiry(id);
+  if (!inquiry) throw httpError(404, 'Inquiry not found.');
+  return model.updatePublicInquiryStatus(id, normalizeInquiryStatus(status));
+}
+
+function normalizeInquiryStatus(status) {
+  const normalized = normalizeType(status);
+  const aliases = {
+    pending: 'new',
+    reviewed: 'read',
+  };
+  const resolved = aliases[normalized] || normalized;
+  if (!['new', 'read', 'responded', 'archived'].includes(resolved)) {
+    throw httpError(422, 'Invalid inquiry status.');
+  }
+  return resolved;
 }
 
 async function visitorSummary(filters, user) {

@@ -322,7 +322,11 @@ async function dashboardSummary() {
       FROM visitor_records
     ) d
   `);
-  const inquiries = await query(`SELECT COUNT(*) AS pending_inquiries FROM visitor_inquiries WHERE status = 'pending'`);
+  const inquiries = await query(
+    `SELECT COUNT(*) AS pending_inquiries
+     FROM tourism_inquiries
+     WHERE status IN ('new', 'read')`
+  );
   const establishments = await query(
     `SELECT COUNT(*) AS total_destinations
      FROM visitor_establishments
@@ -398,11 +402,32 @@ async function listInquiries(filters = {}) {
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   return query(
     `SELECT i.*, TO_CHAR(i.created_at, 'YYYY-MM-DD') AS inquiry_date
-     FROM visitor_inquiries i
+     FROM tourism_inquiries i
      ${whereSql}
      ORDER BY i.created_at DESC, i.id DESC`,
     params
   );
+}
+
+async function getPublicInquiry(id) {
+  const rows = await query(
+    `SELECT i.*, TO_CHAR(i.created_at, 'YYYY-MM-DD') AS inquiry_date
+     FROM tourism_inquiries i
+     WHERE i.id = $1
+     LIMIT 1`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
+async function updatePublicInquiryStatus(id, status) {
+  await query(
+    `UPDATE tourism_inquiries
+     SET status = $1
+     WHERE id = $2`,
+    [status, id]
+  );
+  return getPublicInquiry(id);
 }
 
 async function getInquiry(id) {
@@ -614,6 +639,8 @@ module.exports = {
   receptionistSummary,
   createInquiry,
   listInquiries,
+  getPublicInquiry,
+  updatePublicInquiryStatus,
   getInquiry,
   respondInquiry,
   updateInquiryStatus,

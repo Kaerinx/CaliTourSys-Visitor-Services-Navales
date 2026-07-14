@@ -29,7 +29,7 @@ function visitorRoleFor(user) {
 function dashboardForRole(role) {
   if (role === 'admin') return '/cms/visitor/admin'
   if (role === 'receptionist') return '/cms/visitor/receptionist'
-  if (role === 'tourism_staff') return '/cms/visitor/staff'
+  if (role === 'tourism_staff') return '/cms/visitor/records'
   return ''
 }
 
