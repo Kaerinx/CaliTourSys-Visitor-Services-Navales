@@ -90,6 +90,21 @@ export async function deleteBusinessProfileImage(id) {
   return data;
 }
 
+export async function getTouristCountLogs() {
+  const { data } = await http.get("/accreditation/tourist-count-logs");
+  return data;
+}
+
+export async function createTouristCountLog(payload) {
+  const { data } = await http.post("/accreditation/tourist-count-logs", payload);
+  return data;
+}
+
+export async function updateTouristCountLog(id, payload) {
+  const { data } = await http.patch(`/accreditation/tourist-count-logs/${id}`, payload);
+  return data;
+}
+
 export async function getApplications(params = {}) {
   const { data } = await http.get("/accreditation/applications", { params });
   return data;

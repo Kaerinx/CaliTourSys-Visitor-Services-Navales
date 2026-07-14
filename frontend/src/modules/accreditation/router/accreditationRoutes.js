@@ -7,6 +7,7 @@ import DashboardRouter from "@/modules/accreditation/views/DashboardRouter.vue";
 import BusinessProfile from "@/modules/accreditation/views/BusinessProfile.vue";
 import ApplicationForm from "@/modules/accreditation/views/ApplicationForm.vue";
 import MyApplications from "@/modules/accreditation/views/MyApplications.vue";
+import TouristCountLog from "@/modules/accreditation/views/TouristCountLog.vue";
 import AdminDashboard from "@/modules/accreditation/views/AdminDashboard.vue";
 import UserManagement from "@/modules/accreditation/views/UserManagement.vue";
 import RoleManagement from "@/modules/accreditation/views/RoleManagement.vue";
@@ -57,6 +58,7 @@ export default [
       { path: "business-profile", component: BusinessProfile, meta: { allowedRoles: ["business_owner"] } },
       { path: "apply", component: ApplicationForm, meta: { allowedRoles: ["business_owner"] } },
       { path: "applications", component: MyApplications, meta: { allowedRoles: ["business_owner"] } },
+      { path: "tourist-count-log", component: TouristCountLog, meta: { allowedRoles: ["business_owner"] } },
       { path: "staff-dashboard", redirect: redirectToCmsBusinesses("/cms/businesses/applications") },
       { path: "review", redirect: redirectToCmsBusinesses("/cms/businesses/review") },
       { path: "records", redirect: redirectToCmsBusinesses("/cms/businesses/records") },

@@ -22,6 +22,19 @@ function normalizeType(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function normalizeTouristCountLogFilters(filters = {}) {
+  const touristType = normalizeType(filters.touristType || filters.tourist_type || 'all') || 'all';
+  if (!['all', 'local', 'domestic', 'international'].includes(touristType)) {
+    throw httpError(422, 'Invalid tourist type filter.');
+  }
+
+  return {
+    search: String(filters.search || '').trim(),
+    date: String(filters.date || '').trim(),
+    touristType,
+  };
+}
+
 function normalizeVisitorGenders(payload) {
   return {
     ...payload,
@@ -369,6 +382,10 @@ async function listVisitors(filters, user) {
   return model.listVisitors(scopedFilters(filters, user));
 }
 
+async function listTouristCountLogs(filters) {
+  return model.listTouristCountLogs(normalizeTouristCountLogFilters(filters));
+}
+
 async function getVisitor(id, user) {
   const visitor = await model.getVisitor(id);
   if (!visitor) throw httpError(404, 'Visitor record not found.');
@@ -596,6 +613,7 @@ module.exports = {
   dashboardSummary,
   receptionistSummary,
   createVisitor,
+  listTouristCountLogs,
   listVisitors,
   getVisitor,
   updateVisitor,

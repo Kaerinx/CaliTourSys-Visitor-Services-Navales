@@ -132,6 +132,17 @@ router.delete(
 );
 
 router
+  .route("/tourist-count-logs")
+  .get(authenticate, authorize("business_owner"), controller.listTouristCountLogs)
+  .post(authenticate, authorize("business_owner"), controller.createTouristCountLog);
+router.patch(
+  "/tourist-count-logs/:id",
+  authenticate,
+  authorize("business_owner"),
+  controller.updateTouristCountLog
+);
+
+router
   .route("/applications")
   .get(authenticate, controller.listApplications)
   .post(authenticate, authorize("business_owner"), controller.createApplication);

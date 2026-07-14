@@ -137,6 +137,45 @@ async function getProfile(req, res, next) {
   }
 }
 
+async function listTouristCountLogs(req, res, next) {
+  try {
+    const result = await service.listTouristCountLogs(req.user.id);
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function createTouristCountLog(req, res, next) {
+  try {
+    const log = await service.createTouristCountLog(req.user.id, req.body);
+    await audit(req, {
+      action: "Submitted tourist count log",
+      module: "Tourist Count Log",
+      referenceId: log.id,
+      details: `Reporting date: ${log.log_date}`,
+    });
+    return res.status(201).json({ log, message: "Tourist count log submitted successfully." });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateTouristCountLog(req, res, next) {
+  try {
+    const log = await service.updateTouristCountLog(req.user.id, req.params.id, req.body);
+    await audit(req, {
+      action: "Updated tourist count log",
+      module: "Tourist Count Log",
+      referenceId: log.id,
+      details: `Reporting date: ${log.log_date}`,
+    });
+    return res.json({ log, message: "Tourist count log updated successfully." });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function updateProfile(req, res, next) {
   try {
     const profile = await model.updateBusinessProfile(req.user.id, req.body);
@@ -597,6 +636,7 @@ async function downloadRegistrationDocument(req, res, next) {
 module.exports = {
   changePassword,
   createApplication,
+  createTouristCountLog,
   createUser,
   dashboard,
   deleteDraftApplication,
@@ -609,6 +649,7 @@ module.exports = {
   listAuditLogs,
   listNotifications,
   listRecords,
+  listTouristCountLogs,
   listUsers,
   login,
   markNotificationRead,
@@ -619,6 +660,7 @@ module.exports = {
   submitApplication,
   updateAccount,
   updateProfile,
+  updateTouristCountLog,
   updateUserStatus,
   uploadDocument,
   uploadProfileImages,

@@ -179,6 +179,62 @@ function buildVisitorWhere(filters = {}) {
   };
 }
 
+function buildTouristCountLogWhere(filters = {}) {
+  const where = [];
+  const params = [];
+
+  if (filters.search) {
+    where.push(`bp.business_name ILIKE ${placeholder(params, `%${filters.search}%`)}`);
+  }
+  if (filters.date) {
+    where.push(`tcl.log_date = ${placeholder(params, filters.date)}::date`);
+  }
+
+  const touristType = String(filters.touristType || filters.tourist_type || 'all').toLowerCase();
+  if (touristType === 'local') {
+    where.push('tcl.local_count > 0');
+  } else if (touristType === 'domestic') {
+    where.push('tcl.domestic_count > 0');
+  } else if (touristType === 'international') {
+    where.push('tcl.international_count > 0');
+  }
+
+  return {
+    whereSql: where.length ? `WHERE ${where.join(' AND ')}` : '',
+    params,
+  };
+}
+
+async function listTouristCountLogs(filters = {}) {
+  const { whereSql, params } = buildTouristCountLogWhere(filters);
+  return query(
+    `SELECT
+       tcl.id,
+       tcl.business_profile_id,
+       bp.business_name AS establishment_name,
+       TO_CHAR(tcl.log_date, 'YYYY-MM-DD') AS log_date,
+       tcl.adult_count,
+       tcl.senior_count,
+       tcl.children_count,
+       (tcl.adult_count + tcl.senior_count + tcl.children_count) AS total_count,
+       tcl.local_count,
+       tcl.domestic_count,
+       tcl.international_count,
+       tcl.visit_context,
+       tcl.status,
+       tcl.submitted_by_user_id,
+       COALESCE(u.display_name, NULLIF(CONCAT_WS(' ', u.first_name, u.last_name), ''), u.email) AS submitted_by,
+       TO_CHAR(tcl.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
+       TO_CHAR(tcl.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at
+     FROM tourist_count_logs tcl
+     JOIN business_profiles bp ON bp.id = tcl.business_profile_id
+     LEFT JOIN users u ON u.id = tcl.submitted_by_user_id
+     ${whereSql}
+     ORDER BY tcl.log_date DESC, tcl.created_at DESC`,
+    params
+  );
+}
+
 async function companionsFor(visitorId) {
   return query(
     `SELECT id, visitor_record_id, full_name, age_group, gender, nationality, created_at
@@ -630,6 +686,7 @@ module.exports = {
   createUser,
   updateUser,
   createVisitor,
+  listTouristCountLogs,
   listVisitors,
   getVisitor,
   updateVisitor,
