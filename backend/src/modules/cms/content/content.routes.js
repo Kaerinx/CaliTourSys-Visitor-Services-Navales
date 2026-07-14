@@ -39,6 +39,13 @@ router.post('/businesses', authorize('businesses.create'), controller.createBusi
 router.get('/businesses/:id', authorize('businesses.view'), controller.getBusiness)
 router.patch('/businesses/:id', authorize('businesses.update'), controller.updateBusiness)
 
+router.get('/emergency-facilities', authorize('map_locations.view'), controller.listEmergencyFacilities)
+router.post('/emergency-facilities', authorize('map_locations.create'), controller.createEmergencyFacility)
+router.get('/emergency-facilities/:id', authorize('map_locations.view'), controller.getEmergencyFacility)
+router.patch('/emergency-facilities/:id', authorize('map_locations.update'), controller.updateEmergencyFacility)
+router.patch('/emergency-facilities/:id/publish', authorize('map_locations.update'), controller.publishEmergencyFacility)
+router.patch('/emergency-facilities/:id/archive', authorize('map_locations.update'), controller.archiveEmergencyFacility)
+
 router.get('/museum/artifacts', authorize('museum.view'), controller.listMuseumArtifacts)
 router.post('/museum/artifacts', authorize('museum.create'), controller.createMuseumArtifact)
 router.get('/museum/artifacts/:id', authorize('museum.view'), controller.getMuseumArtifact)
@@ -48,8 +55,10 @@ router.patch('/museum/artifacts/:id/archive', authorize('museum.archive'), contr
 
 router.get('/map-locations', authorize('map_locations.view'), controller.listMapLocations)
 router.post('/map-locations', authorize('map_locations.create'), controller.createMapLocation)
+router.get('/map-locations/options/experience', authorize('map_locations.view'), controller.getMapLocationExperienceOptions)
 router.get('/map-locations/:id', authorize('map_locations.view'), controller.getMapLocation)
 router.patch('/map-locations/:id', authorize('map_locations.update'), controller.updateMapLocation)
+router.patch('/map-locations/:id/experience', authorize('map_locations.update'), controller.updateMapLocationExperience)
 router.delete('/map-locations/:id', authorize('map_locations.update'), controller.deleteMapLocation)
 
 router.get('/event-categories', authorize('events.view'), controller.listEventCategories)

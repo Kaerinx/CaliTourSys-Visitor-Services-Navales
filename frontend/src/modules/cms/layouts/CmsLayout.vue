@@ -21,6 +21,7 @@ const fallbackNavigation = [
   { key: 'businesses', label: 'Businesses', path: '/cms/businesses', permission: 'businesses.view', icon: 'building' },
   { key: 'business-account-verification', label: 'Account Verification', path: '/cms/businesses/account-verification', permission: 'businesses.view', icon: 'users' },
   { key: 'map', label: 'Map Locations', path: '/cms/map-locations', permission: 'map_locations.view', icon: 'map' },
+  { key: 'emergency-facilities', label: 'Emergency Facilities', path: '/cms/emergency-facilities', permission: 'map_locations.view', icon: 'alert' },
   { key: 'museum', label: 'Museum', path: '/cms/museum', permission: 'museum.view', icon: 'museum' },
   { key: 'visitor-services', label: 'Visitor Services / Inquiries', path: '/cms/visitor', permissions: ['inquiries.view', 'dashboard.view'], icon: 'users' },
   { key: 'inquiries', label: 'Inquiries', path: '/cms/visitor/inquiries', permission: 'inquiries.view', icon: 'message' },
@@ -84,6 +85,17 @@ const navigationItems = computed(() => {
     })
   }
 
+  if (!mapped.some((item) => item.key === 'emergency-facilities')) {
+    const insertIndex = mapped.findIndex((item) => ['map', 'map-locations'].includes(item.key))
+    mapped.splice(insertIndex >= 0 ? insertIndex + 1 : mapped.length, 0, {
+      key: 'emergency-facilities',
+      label: 'Emergency Facilities',
+      path: '/cms/emergency-facilities',
+      permission: 'map_locations.view',
+      icon: 'alert',
+    })
+  }
+
   return mapped.filter(
     (item) =>
       !HIDDEN_NAV.has(item.key) && !HIDDEN_NAV.has(String(item.label).trim().toLowerCase()),
@@ -129,6 +141,7 @@ function resolveNavigationIcon(item) {
     categories: 'audit',
     destinations: 'destinations',
     events: 'calendar',
+    'emergency-facilities': 'alert',
     inquiries: 'message',
     map: 'map',
     'map-locations': 'map',

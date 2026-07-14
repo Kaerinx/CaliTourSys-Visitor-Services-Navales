@@ -90,6 +90,7 @@ function categoryUpdateHandler(kind) {
 }
 
 module.exports = {
+  archiveEmergencyFacility: stateHandler(service.archiveEmergencyFacility),
   archiveDestination: stateHandler(service.archiveDestination),
   archiveEvent: stateHandler(service.archiveEvent),
   archiveMuseumArtifact: stateHandler(service.archiveMuseumArtifact),
@@ -97,6 +98,7 @@ module.exports = {
   archivePromotion: stateHandler(service.archivePromotion),
   createBusiness: bodyHandler(validators.businessBodySchema, service.createBusiness, 201),
   createEvent: bodyHandler(validators.eventBodySchema, service.createEvent, 201),
+  createEmergencyFacility: bodyHandler(validators.emergencyFacilityBodySchema, service.createEmergencyFacility, 201),
   createDestination: bodyHandler(validators.destinationBodySchema, service.createDestination, 201),
   createMapLocation: bodyHandler(validators.mapLocationBodySchema, service.createMapLocation, 201),
   createMuseumArtifact: bodyHandler(validators.museumArtifactBodySchema, service.createMuseumArtifact, 201),
@@ -106,6 +108,15 @@ module.exports = {
   getBusiness: detailHandler(service.getBusiness),
   getDestination: detailHandler(service.getDestination),
   getEvent: detailHandler(service.getEvent),
+  getEmergencyFacility: detailHandler(service.getEmergencyFacility),
+  getMapLocationExperienceOptions: async (req, res, next) => {
+    try {
+      setNoStore(res)
+      return successResponse(req, res, await service.getMapLocationExperienceOptions())
+    } catch (error) {
+      return next(error)
+    }
+  },
   getMapLocation: detailHandler(service.getMapLocation),
   getMuseumArtifact: detailHandler(service.getMuseumArtifact),
   getProduct: detailHandler(service.getProduct),
@@ -114,11 +125,13 @@ module.exports = {
   listBusinesses: paginatedHandler(validators.businessListQuerySchema, service.listBusinesses),
   listDestinations: paginatedHandler(validators.destinationListQuerySchema, service.listDestinations),
   listEvents: paginatedHandler(validators.eventListQuerySchema, service.listEvents),
+  listEmergencyFacilities: paginatedHandler(validators.emergencyFacilityListQuerySchema, service.listEmergencyFacilities),
   listMapLocations: paginatedHandler(validators.mapLocationListQuerySchema, service.listMapLocations),
   listMuseumArtifacts: paginatedHandler(validators.museumArtifactListQuerySchema, service.listMuseumArtifacts),
   listProducts: paginatedHandler(validators.productListQuerySchema, service.listProducts),
   listPromotions: paginatedHandler(validators.promotionListQuerySchema, service.listPromotions),
   publishDestination: stateHandler(service.publishDestination),
+  publishEmergencyFacility: stateHandler(service.publishEmergencyFacility),
   publishEvent: stateHandler(service.publishEvent),
   publishMuseumArtifact: stateHandler(service.publishMuseumArtifact),
   publishProduct: stateHandler(service.publishProduct),
@@ -126,6 +139,8 @@ module.exports = {
   updateBusiness: idBodyHandler(validators.businessPatchSchema, service.updateBusiness),
   updateDestination: idBodyHandler(validators.destinationPatchSchema, service.updateDestination),
   updateEvent: idBodyHandler(validators.eventPatchSchema, service.updateEvent),
+  updateEmergencyFacility: idBodyHandler(validators.emergencyFacilityPatchSchema, service.updateEmergencyFacility),
+  updateMapLocationExperience: idBodyHandler(validators.mapLocationExperienceBodySchema, service.updateMapLocationExperience),
   updateMapLocation: idBodyHandler(validators.mapLocationPatchSchema, service.updateMapLocation),
   updateMuseumArtifact: idBodyHandler(validators.museumArtifactPatchSchema, service.updateMuseumArtifact),
   updateProduct: idBodyHandler(validators.productPatchSchema, service.updateProduct),

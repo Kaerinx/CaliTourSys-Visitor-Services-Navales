@@ -468,7 +468,11 @@ async function createMapLocation(data, req) {
 async function getMapLocation(id) {
   const location = await repository.getMapLocationById(id)
   if (!location) throw createNotFoundError('Map location')
-  return location
+  if (location.locationType === 'event') return location
+  return {
+    ...location,
+    experience: await repository.getMapLocationExperience(id),
+  }
 }
 
 async function updateMapLocation(id, data, req) {
@@ -498,7 +502,92 @@ async function deleteMapLocation(id, req) {
   return { id: result.before.id, deleted: true }
 }
 
+async function getMapLocationExperienceOptions() {
+  return repository.getMapLocationExperienceOptions()
+}
+
+async function updateMapLocationExperience(id, data, req) {
+  const result = await repository.replaceMapLocationExperience(id, data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'update',
+    entityType: 'map_location',
+    entityId: id,
+    entityLabel: result.location.label,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function listEmergencyFacilities(filters) {
+  const pagination = getPagination(filters)
+  return withPagination(filters, await repository.listEmergencyFacilities(filters, pagination))
+}
+
+async function createEmergencyFacility(data, req) {
+  const facility = await repository.createEmergencyFacility(data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'create',
+    entityType: 'emergency_facility',
+    entityId: facility.id,
+    entityLabel: facility.name,
+    afterValues: facility,
+  })
+  return facility
+}
+
+async function getEmergencyFacility(id) {
+  const facility = await repository.getEmergencyFacilityById(id)
+  if (!facility) throw createNotFoundError('Emergency facility')
+  return facility
+}
+
+async function updateEmergencyFacility(id, data, req) {
+  const result = await repository.updateEmergencyFacility(id, data, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'update',
+    entityType: 'emergency_facility',
+    entityId: result.after.id,
+    entityLabel: result.after.name,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function publishEmergencyFacility(id, req) {
+  const result = await repository.publishEmergencyFacility(id, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'publish',
+    entityType: 'emergency_facility',
+    entityId: result.after.id,
+    entityLabel: result.after.name,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
+async function archiveEmergencyFacility(id, req) {
+  const result = await repository.archiveEmergencyFacility(id, req.user.id)
+  await logCmsContentAudit({
+    req,
+    action: 'archive',
+    entityType: 'emergency_facility',
+    entityId: result.after.id,
+    entityLabel: result.after.name,
+    beforeValues: result.before,
+    afterValues: result.after,
+  })
+  return result.after
+}
+
 module.exports = {
+  archiveEmergencyFacility,
   archiveDestination,
   archiveEvent,
   archiveMuseumArtifact,
@@ -508,6 +597,7 @@ module.exports = {
   createCategory,
   createDestination,
   createEvent,
+  createEmergencyFacility,
   createMapLocation,
   createMuseumArtifact,
   createProduct,
@@ -516,6 +606,8 @@ module.exports = {
   getBusiness,
   getDestination,
   getEvent,
+  getEmergencyFacility,
+  getMapLocationExperienceOptions,
   getMapLocation,
   getMuseumArtifact,
   getProduct,
@@ -525,11 +617,13 @@ module.exports = {
   listCategories,
   listDestinations,
   listEvents,
+  listEmergencyFacilities,
   listMapLocations,
   listMuseumArtifacts,
   listProducts,
   listPromotions,
   publishDestination,
+  publishEmergencyFacility,
   publishEvent,
   publishMuseumArtifact,
   publishProduct,
@@ -538,6 +632,8 @@ module.exports = {
   updateCategory,
   updateDestination,
   updateEvent,
+  updateEmergencyFacility,
+  updateMapLocationExperience,
   updateMapLocation,
   updateMuseumArtifact,
   updateProduct,

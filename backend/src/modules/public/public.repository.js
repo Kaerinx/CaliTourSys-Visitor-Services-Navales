@@ -2062,6 +2062,106 @@ function mapMapLocation(row) {
   }
 }
 
+function mapEmergencyFacility(row) {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    facilityType: row.facility_type,
+    description: row.description,
+    addressLine: row.address_line,
+    barangay: row.barangay,
+    municipality: row.municipality,
+    province: row.province,
+    latitude: toNumber(row.latitude),
+    longitude: toNumber(row.longitude),
+    openingHours: row.opening_hours && typeof row.opening_hours === 'object'
+      ? row.opening_hours
+      : {},
+    contacts: {
+      publicPhone: row.public_phone,
+      emergencyHotline: row.emergency_hotline,
+      email: row.email,
+    },
+    accessibilityFeatures: Array.isArray(row.accessibility_features)
+      ? row.accessibility_features
+      : [],
+    amenities: Array.isArray(row.amenities) ? row.amenities : [],
+    verification: {
+      source: row.verification_source,
+      verifiedAt: row.verified_at,
+    },
+  }
+}
+
+function mapRichGalleryImage(row) {
+  return {
+    id: row.id,
+    url: row.url,
+    altText: row.alt_text,
+    displayOrder: Number(row.display_order || 0),
+    isPrimary: toBoolean(row.is_primary),
+    source: row.source,
+  }
+}
+
+function mapLinkedActivity(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    duration: row.duration,
+    targetMarket: row.target_market,
+    displayOrder: Number(row.display_order || 0),
+    imageUrl: row.image_url,
+  }
+}
+
+function mapLinkedPackage(row) {
+  return {
+    id: row.id,
+    slug: packageSlug(row),
+    name: row.name,
+    description: row.description,
+    category: {
+      slug: slugify(row.category),
+      name: row.category,
+    },
+    targetMarket: row.target_market,
+    estimatedDuration: row.estimated_duration,
+    durationDays: row.duration_days == null ? null : Number(row.duration_days),
+    basePrice: toNumber(row.base_price),
+    currency: 'PHP',
+    minPax: row.min_pax == null ? null : Number(row.min_pax),
+    maxPax: row.max_pax == null ? null : Number(row.max_pax),
+    displayOrder: Number(row.display_order || 0),
+    isPrimary: toBoolean(row.is_primary),
+    primaryImage: {
+      url: row.image_url || packageCategoryImage(row.category),
+      altText: `${row.name} package image`,
+    },
+  }
+}
+
+function mapOvernightOption(row) {
+  return {
+    id: row.id,
+    optionType: row.option_type,
+    name: row.name,
+    description: row.description,
+    capacityMin: row.capacity_min == null ? null : Number(row.capacity_min),
+    capacityMax: row.capacity_max == null ? null : Number(row.capacity_max),
+    rate: {
+      amount: toNumber(row.rate_amount),
+      currency: row.currency,
+      unit: row.rate_unit,
+    },
+    inclusions: Array.isArray(row.inclusions) ? row.inclusions : [],
+    notes: row.notes,
+    displayOrder: Number(row.display_order || 0),
+  }
+}
+
 async function listMapLocations(filters) {
   const params = []
   const where = ["ml.status = 'published'"]
@@ -2127,6 +2227,293 @@ async function listMapLocations(filters) {
     params,
   )
   return result.rows.map(mapMapLocation)
+}
+
+async function listEmergencyFacilities() {
+  const result = await query(`
+    SELECT
+      id,
+      slug,
+      name,
+      facility_type,
+      description,
+      address_line,
+      barangay,
+      municipality,
+      province,
+      latitude,
+      longitude,
+      opening_hours,
+      public_phone,
+      emergency_hotline,
+      email,
+      accessibility_features,
+      amenities,
+      verification_source,
+      verified_at
+    FROM emergency_facilities
+    WHERE status = 'published'
+      AND (published_at IS NULL OR published_at <= now())
+    ORDER BY sort_priority ASC, name ASC
+  `)
+
+  return result.rows.map(mapEmergencyFacility)
+}
+
+async function getFallbackMapLocationGallery(location) {
+  if (location.location_type === 'destination') {
+    const result = await query(
+      `
+        SELECT
+          di.id,
+          COALESCE(di.image_url, ma.file_url) AS url,
+          COALESCE(di.alt_text, ma.alt_text, $2 || ' photo') AS alt_text,
+          di.display_order,
+          di.is_primary,
+          'destination'::text AS source
+        FROM destination_images di
+        LEFT JOIN media_assets ma
+          ON ma.id = di.media_asset_id
+         AND ma.status = 'active'
+        WHERE di.destination_id = $1
+          AND COALESCE(di.image_url, ma.file_url) IS NOT NULL
+        ORDER BY di.is_primary DESC, di.display_order ASC, di.created_at ASC
+      `,
+      [location.target_id, location.name],
+    )
+    return result.rows.map(mapRichGalleryImage)
+  }
+
+  const result = await query(
+    `
+      SELECT
+        pi.id,
+        COALESCE(pi.image_url, ma.file_url) AS url,
+        COALESCE(pi.alt_text, ma.alt_text, p.name || ' photo') AS alt_text,
+        row_number() OVER (
+          ORDER BY p.is_featured DESC, pi.is_primary DESC, pi.display_order ASC, pi.created_at ASC
+        ) - 1 AS display_order,
+        pi.is_primary,
+        'business_product'::text AS source
+      FROM products p
+      JOIN product_images pi ON pi.product_id = p.id
+      LEFT JOIN media_assets ma
+        ON ma.id = pi.media_asset_id
+       AND ma.status = 'active'
+      WHERE p.business_id = $1
+        AND p.status = 'published'
+        AND (p.published_at IS NULL OR p.published_at <= now())
+        AND COALESCE(pi.image_url, ma.file_url) IS NOT NULL
+      ORDER BY p.is_featured DESC, pi.is_primary DESC, pi.display_order ASC, pi.created_at ASC
+      LIMIT 12
+    `,
+    [location.target_id],
+  )
+  return result.rows.map(mapRichGalleryImage)
+}
+
+async function getMapLocationDetails(id) {
+  const locationResult = await query(
+    `
+      SELECT
+        ml.id,
+        ml.location_type,
+        ml.latitude,
+        ml.longitude,
+        COALESCE(d.id, b.id) AS target_id,
+        COALESCE(d.slug, b.slug) AS slug,
+        COALESCE(d.name, b.name, ml.label) AS name,
+        COALESCE(dc.slug, NULL) AS category_slug,
+        COALESCE(dc.name, b.business_type) AS category_name,
+        COALESCE(
+          NULLIF(trim(mld.overview), ''),
+          NULLIF(trim(d.description), ''),
+          NULLIF(trim(b.description), ''),
+          d.short_description
+        ) AS overview,
+        COALESCE(NULLIF(trim(mld.opening_hours_text), ''), d.opening_hours_text) AS opening_hours_text,
+        COALESCE(NULLIF(trim(mld.admission_information), ''), d.entrance_fee_text) AS admission_information,
+        COALESCE(NULLIF(trim(mld.best_time_to_visit), ''), d.best_time_to_visit) AS best_time_to_visit,
+        COALESCE(NULLIF(trim(mld.accessibility_notes), ''), d.accessibility_notes) AS accessibility_notes,
+        mld.how_to_visit,
+        mld.how_to_book,
+        COALESCE(d.address_line, b.address_line) AS address_line,
+        COALESCE(d.barangay, b.barangay) AS barangay,
+        COALESCE(d.municipality, b.municipality) AS municipality,
+        COALESCE(d.province, b.province) AS province
+      FROM map_locations ml
+      LEFT JOIN destinations d ON d.id = ml.destination_id
+      LEFT JOIN destination_categories dc
+        ON dc.id = d.category_id
+       AND dc.status = 'published'
+      LEFT JOIN businesses b ON b.id = ml.business_id
+      LEFT JOIN map_location_details mld ON mld.map_location_id = ml.id
+      WHERE ml.id = $1
+        AND ml.status = 'published'
+        AND (
+          (
+            ml.location_type = 'destination'
+            AND d.status = 'published'
+            AND (d.published_at IS NULL OR d.published_at <= now())
+            AND dc.id IS NOT NULL
+          )
+          OR
+          (ml.location_type = 'business' AND b.status = 'active')
+        )
+      LIMIT 1
+    `,
+    [id],
+  )
+  const location = locationResult.rows[0]
+  if (!location) return null
+
+  const [customGalleryResult, activitiesResult, packagesResult, overnightResult] = await Promise.all([
+    query(
+      `
+        SELECT
+          mlgi.id,
+          COALESCE(NULLIF(trim(mlgi.image_url), ''), ma.file_url) AS url,
+          COALESCE(mlgi.alt_text, ma.alt_text, $2 || ' photo') AS alt_text,
+          mlgi.display_order,
+          mlgi.is_primary,
+          'map_location'::text AS source
+        FROM map_location_gallery_images mlgi
+        LEFT JOIN media_assets ma
+          ON ma.id = mlgi.media_asset_id
+         AND ma.status = 'active'
+        WHERE mlgi.map_location_id = $1
+          AND COALESCE(NULLIF(trim(mlgi.image_url), ''), ma.file_url) IS NOT NULL
+        ORDER BY mlgi.is_primary DESC, mlgi.display_order ASC, mlgi.created_at ASC
+      `,
+      [id, location.name],
+    ),
+    query(
+      `
+        SELECT
+          activity.id,
+          activity.name,
+          activity.description,
+          activity.duration,
+          activity.target_market,
+          link.display_order,
+          asset.image_url
+        FROM map_location_activity_links link
+        JOIN tourism_activities activity
+          ON activity.id = link.activity_id
+         AND activity.activity_status = 'Ready for Promotion'
+        LEFT JOIN tourism_assets asset ON asset.id = activity.asset_id
+        WHERE link.map_location_id = $1
+        ORDER BY link.display_order ASC, link.created_at ASC, activity.name ASC
+      `,
+      [id],
+    ),
+    query(
+      `
+        SELECT
+          package.id,
+          package.name,
+          package.description,
+          package.category,
+          package.target_market,
+          package.estimated_duration,
+          package.duration_days,
+          package.base_price,
+          package.min_pax,
+          package.max_pax,
+          link.display_order,
+          link.is_primary,
+          first_asset.image_url
+        FROM map_location_package_links link
+        JOIN tourism_packages package
+          ON package.id = link.package_id
+         AND package.package_status = ANY($2::text[])
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(direct_asset.image_url, plan_asset.image_url, activity_asset.image_url) AS image_url
+          FROM package_items item
+          LEFT JOIN tourism_assets direct_asset
+            ON item.item_type = 'Asset'
+           AND direct_asset.id = item.item_reference_id
+          LEFT JOIN development_plans plan
+            ON item.item_type = 'Plan'
+           AND plan.id = item.item_reference_id
+          LEFT JOIN tourism_assets plan_asset ON plan_asset.id = plan.asset_id
+          LEFT JOIN tourism_activities activity
+            ON item.item_type = 'Activity'
+           AND activity.id = item.item_reference_id
+          LEFT JOIN tourism_assets activity_asset ON activity_asset.id = activity.asset_id
+          WHERE item.package_id = package.id
+            AND COALESCE(direct_asset.image_url, plan_asset.image_url, activity_asset.image_url) IS NOT NULL
+          ORDER BY item.sort_order ASC
+          LIMIT 1
+        ) first_asset ON true
+        WHERE link.map_location_id = $1
+        ORDER BY link.is_primary DESC, link.display_order ASC, link.created_at ASC, package.name ASC
+      `,
+      [id, [...PUBLIC_PACKAGE_STATUSES]],
+    ),
+    query(
+      `
+        SELECT
+          id,
+          option_type,
+          name,
+          description,
+          capacity_min,
+          capacity_max,
+          rate_amount,
+          currency,
+          rate_unit,
+          inclusions,
+          notes,
+          display_order
+        FROM map_location_overnight_options
+        WHERE map_location_id = $1
+          AND is_active = true
+        ORDER BY display_order ASC, created_at ASC, name ASC
+      `,
+      [id],
+    ),
+  ])
+
+  const gallery = customGalleryResult.rows.length
+    ? customGalleryResult.rows.map(mapRichGalleryImage)
+    : await getFallbackMapLocationGallery(location)
+  const packages = packagesResult.rows.map(mapLinkedPackage)
+
+  return {
+    id: location.id,
+    locationType: location.location_type,
+    slug: location.slug,
+    name: location.name,
+    coordinates: {
+      latitude: toNumber(location.latitude),
+      longitude: toNumber(location.longitude),
+    },
+    category: location.category_name
+      ? {
+          slug: location.category_slug || slugify(location.category_name),
+          name: location.category_name,
+        }
+      : null,
+    overview: location.overview,
+    visitInformation: {
+      addressLine: location.address_line,
+      barangay: location.barangay,
+      municipality: location.municipality,
+      province: location.province,
+      openingHoursText: location.opening_hours_text,
+      admissionInformation: location.admission_information,
+      bestTimeToVisit: location.best_time_to_visit,
+      accessibilityNotes: location.accessibility_notes,
+    },
+    howToVisit: location.how_to_visit,
+    howToBook: location.how_to_book,
+    gallery,
+    activities: activitiesResult.rows.map(mapLinkedActivity),
+    packages,
+    primaryPackage: packages.find((item) => item.isPrimary) || packages[0] || null,
+    overnightOptions: overnightResult.rows.map(mapOvernightOption),
+  }
 }
 
 async function getHome() {
@@ -2597,6 +2984,8 @@ module.exports = {
   listAccreditedBusinesses,
   getBusinessBySlug,
   listMapLocations,
+  listEmergencyFacilities,
+  getMapLocationDetails,
   listCategories,
   getHome,
   createItinerarySession,

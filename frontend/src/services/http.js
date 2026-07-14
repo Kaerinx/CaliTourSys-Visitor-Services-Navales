@@ -115,7 +115,7 @@ async function parseJsonSafely(response) {
   }
 }
 
-async function apiRequest(method, path, { params, body, headers, auth = false, retryOnExpiredToken = true } = {}) {
+async function apiRequest(method, path, { params, body, headers, signal, auth = false, retryOnExpiredToken = true } = {}) {
   let response
   const token = auth ? authTokenGetter() || getVisitorToken() : getVisitorToken()
   const isFormData = body instanceof FormData
@@ -123,6 +123,7 @@ async function apiRequest(method, path, { params, body, headers, auth = false, r
   try {
     response = await fetch(buildUrl(path, params), {
       method,
+      signal,
       cache: method === 'GET' ? 'no-store' : 'default',
       credentials: 'include',
       headers: {
@@ -133,7 +134,8 @@ async function apiRequest(method, path, { params, body, headers, auth = false, r
       },
       body: body !== undefined && !isFormData ? JSON.stringify(body) : body,
     })
-  } catch {
+  } catch (error) {
+    if (error?.name === 'AbortError') throw error
     throw new ApiError('Unable to connect to the tourism API. Please try again later.', {
       code: 'NETWORK_ERROR',
     })
@@ -196,8 +198,8 @@ async function apiRequest(method, path, { params, body, headers, auth = false, r
 }
 
 export const http = {
-  get(path, params) {
-    return apiRequest('GET', path, { params })
+  get(path, params, options = {}) {
+    return apiRequest('GET', path, { params, ...options })
   },
   patch(path, body, options = {}) {
     return apiRequest('PATCH', path, { body, ...options })

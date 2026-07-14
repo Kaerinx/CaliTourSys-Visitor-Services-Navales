@@ -165,6 +165,12 @@ const cmsRoutes = [
         meta: { permission: 'map_locations.view' },
       },
       {
+        path: 'emergency-facilities',
+        name: 'cms-emergency-facilities',
+        component: () => import('./views/content/CmsEmergencyFacilitiesView.vue'),
+        meta: { permission: 'map_locations.view' },
+      },
+      {
         path: 'media',
         name: 'cms-media',
         component: () => import('./views/content/CmsMediaView.vue'),

@@ -105,6 +105,11 @@ Phase 07E-2 remaining content permissions:
 | `GET /cms/map-locations`, `GET /cms/map-locations/:id` | `map_locations.view` |
 | `POST /cms/map-locations` | `map_locations.create` |
 | `PATCH /cms/map-locations/:id`, `DELETE /cms/map-locations/:id` | `map_locations.update` |
+| `GET /cms/map-locations/options/experience` | `map_locations.view` |
+| `PATCH /cms/map-locations/:id/experience` | `map_locations.update` |
+| `GET /cms/emergency-facilities`, `GET /cms/emergency-facilities/:id` | `map_locations.view` |
+| `POST /cms/emergency-facilities` | `map_locations.create` |
+| `PATCH /cms/emergency-facilities/:id`, `/publish`, `/archive` | `map_locations.update` |
 
 Phase 07E-3 operations permissions:
 
@@ -531,7 +536,28 @@ User creation remains intentionally limited to the bootstrap script. Password ha
 
 Audit detail recursively strips sensitive keys containing password, token, secret, or hash.
 
-## 14. Planned Endpoints for Later Phases
+## 14. Emergency Facilities and Map Experience Authoring
+
+Emergency infrastructure reuses the established `map_locations.*` permission family so current map editors can manage the layer without a role migration.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/cms/emergency-facilities` | Paginated emergency facility list with status, type, search, and sort filters. |
+| `POST` | `/api/v1/cms/emergency-facilities` | Create a draft emergency facility. Status changes use the dedicated state endpoints. |
+| `GET` | `/api/v1/cms/emergency-facilities/:id` | Get one facility for editing. |
+| `PATCH` | `/api/v1/cms/emergency-facilities/:id` | Update facility identity, coordinates, hours, contacts, access data, or verification metadata. |
+| `PATCH` | `/api/v1/cms/emergency-facilities/:id/publish` | Publish the facility and record publisher/time metadata. |
+| `PATCH` | `/api/v1/cms/emergency-facilities/:id/archive` | Archive the facility and record archiver/time metadata. |
+| `GET` | `/api/v1/cms/map-locations/options/experience` | List non-archived activities/packages and active managed-media assets available to the editor. |
+| `PATCH` | `/api/v1/cms/map-locations/:id/experience` | Transactionally replace optional details, gallery, activity links, package links, and overnight rows. |
+
+The experience endpoint accepts only destination and business map locations. Event pins keep their existing summary model. All experience collections accept empty arrays; sending an empty experience is the supported CMS empty state and does not create fabricated public content.
+
+Each gallery row must contain exactly one `mediaAssetId` or `imageUrl`, and at most one row can be primary. Activity/package IDs cannot repeat, and at most one linked package can be primary. Overnight `optionType` and `rateUnit` values follow the database constraints; prices use `PHP`.
+
+Emergency facility creates/updates are audited as `emergency_facility`. Experience replacements are audited as `map_location` updates with before/after snapshots.
+
+## 15. Planned Endpoints for Later Phases
 
 Dashboard:
 

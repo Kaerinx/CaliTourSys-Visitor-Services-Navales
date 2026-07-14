@@ -1,15 +1,16 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
-import { useVisitorSession } from '../composables/useVisitorSession'
-import { getReviews, submitReview } from '../services/reviewsService'
+import { useVisitorSession } from "../composables/useVisitorSession";
+import { getReviews, submitReview } from "../services/reviewsService";
 
 const props = defineProps({
   targetType: {
     type: String,
     required: true,
-    validator: (value) => ['product', 'destination'].includes(value),
+    validator: (value) =>
+      ["product", "destination", "business"].includes(value),
   },
   targetId: {
     type: [String, Number],
@@ -17,112 +18,118 @@ const props = defineProps({
   },
   targetName: {
     type: String,
-    default: 'this place',
+    default: "this place",
   },
-})
+});
 
-const route = useRoute()
-const router = useRouter()
-const { isAuthenticated, visitorName } = useVisitorSession()
+const route = useRoute();
+const router = useRouter();
+const { isAuthenticated, visitorName } = useVisitorSession();
 
-const summary = reactive({ average: 0, count: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } })
-const reviews = ref([])
-const isLoading = ref(true)
-const loadError = ref('')
+const summary = reactive({
+  average: 0,
+  count: 0,
+  distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+});
+const reviews = ref([]);
+const isLoading = ref(true);
+const loadError = ref("");
 
-const form = reactive({ rating: 0, comment: '' })
-const hoverRating = ref(0)
-const isSubmitting = ref(false)
-const formError = ref('')
-const formSuccess = ref('')
+const form = reactive({ rating: 0, comment: "" });
+const hoverRating = ref(0);
+const isSubmitting = ref(false);
+const formError = ref("");
+const formSuccess = ref("");
 
-const hasReviews = computed(() => reviews.value.length > 0)
+const hasReviews = computed(() => reviews.value.length > 0);
 
 function starsForRow(rating) {
-  return [1, 2, 3, 4, 5].map((position) => position <= Math.round(rating))
+  return [1, 2, 3, 4, 5].map((position) => position <= Math.round(rating));
 }
 
 function distributionPercent(star) {
-  if (!summary.count) return 0
-  return Math.round((summary.distribution[star] / summary.count) * 100)
+  if (!summary.count) return 0;
+  return Math.round((summary.distribution[star] / summary.count) * 100);
 }
 
 function formatDate(value) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return new Intl.DateTimeFormat('en-PH', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(date)
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-PH", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 }
 
 async function loadReviews() {
-  isLoading.value = true
-  loadError.value = ''
+  isLoading.value = true;
+  loadError.value = "";
   try {
-    const data = await getReviews(props.targetType, props.targetId)
-    summary.average = data.average
-    summary.count = data.count
-    summary.distribution = data.distribution
-    reviews.value = data.reviews
+    const data = await getReviews(props.targetType, props.targetId);
+    summary.average = data.average;
+    summary.count = data.count;
+    summary.distribution = data.distribution;
+    reviews.value = data.reviews;
   } catch {
-    loadError.value = 'We could not load reviews right now. Please try again later.'
+    loadError.value =
+      "We could not load reviews right now. Please try again later.";
   } finally {
-    isLoading.value = false
+    isLoading.value = false;
   }
 }
 
 function setRating(value) {
-  form.rating = value
-  if (formError.value) formError.value = ''
+  form.rating = value;
+  if (formError.value) formError.value = "";
 }
 
-function openAuth(mode = 'login') {
+function openAuth(mode = "login") {
   router.replace({
     path: route.path,
     query: { ...route.query, auth: mode },
-  })
+  });
 }
 
 async function handleSubmit() {
-  formError.value = ''
-  formSuccess.value = ''
+  formError.value = "";
+  formSuccess.value = "";
 
   if (!isAuthenticated.value) {
-    openAuth('login')
-    return
+    openAuth("login");
+    return;
   }
   if (!form.rating) {
-    formError.value = 'Please choose a star rating.'
-    return
+    formError.value = "Please choose a star rating.";
+    return;
   }
 
-  isSubmitting.value = true
+  isSubmitting.value = true;
   try {
     await submitReview(props.targetType, props.targetId, {
       rating: form.rating,
       comment: form.comment,
       author: visitorName.value,
-    })
-    form.rating = 0
-    form.comment = ''
-    hoverRating.value = 0
-    formSuccess.value = 'Thanks! Your review has been posted.'
-    await loadReviews()
+    });
+    form.rating = 0;
+    form.comment = "";
+    hoverRating.value = 0;
+    formSuccess.value = "Thanks! Your review has been posted.";
+    await loadReviews();
   } catch (error) {
-    formError.value = error?.message || 'Your review could not be posted. Please try again.'
+    formError.value =
+      error?.message || "Your review could not be posted. Please try again.";
   } finally {
-    isSubmitting.value = false
+    isSubmitting.value = false;
   }
 }
 
 watch(
   () => [props.targetType, props.targetId],
   () => loadReviews(),
-)
+);
 
-onMounted(loadReviews)
+onMounted(loadReviews);
 </script>
 
 <template>
@@ -151,14 +158,18 @@ onMounted(loadReviews)
           </svg>
         </span>
         <span class="reviews__count"
-          >{{ summary.count }} review{{ summary.count === 1 ? '' : 's' }}</span
+          >{{ summary.count }} review{{ summary.count === 1 ? "" : "s" }}</span
         >
       </div>
     </header>
 
     <!-- Rating distribution -->
     <div v-if="summary.count" class="reviews__distribution">
-      <div v-for="star in [5, 4, 3, 2, 1]" :key="star" class="reviews__dist-row">
+      <div
+        v-for="star in [5, 4, 3, 2, 1]"
+        :key="star"
+        class="reviews__dist-row"
+      >
         <span class="reviews__dist-label">{{ star }}★</span>
         <span class="reviews__dist-track">
           <span
@@ -166,15 +177,23 @@ onMounted(loadReviews)
             :style="{ width: `${distributionPercent(star)}%` }"
           ></span>
         </span>
-        <span class="reviews__dist-value">{{ summary.distribution[star] }}</span>
+        <span class="reviews__dist-value">{{
+          summary.distribution[star]
+        }}</span>
       </div>
     </div>
 
     <!-- Write a review (gated) -->
     <div class="reviews__write">
       <template v-if="isAuthenticated">
-        <h3 class="reviews__write-title">Share your experience of {{ targetName }}</h3>
-        <div class="reviews__rating-input" role="radiogroup" aria-label="Your rating">
+        <h3 class="reviews__write-title">
+          Share your experience of {{ targetName }}
+        </h3>
+        <div
+          class="reviews__rating-input"
+          role="radiogroup"
+          aria-label="Your rating"
+        >
           <button
             v-for="position in 5"
             :key="position"
@@ -191,7 +210,9 @@ onMounted(loadReviews)
               width="28"
               height="28"
               viewBox="0 0 24 24"
-              :fill="position <= (hoverRating || form.rating) ? '#D4AC0D' : 'none'"
+              :fill="
+                position <= (hoverRating || form.rating) ? '#D4AC0D' : 'none'
+              "
             >
               <path
                 d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"
@@ -211,8 +232,13 @@ onMounted(loadReviews)
           placeholder="What did you love? Share tips for other visitors (optional)."
         ></textarea>
 
-        <p v-if="formError" class="reviews__message reviews__message--error">{{ formError }}</p>
-        <p v-if="formSuccess" class="reviews__message reviews__message--success">
+        <p v-if="formError" class="reviews__message reviews__message--error">
+          {{ formError }}
+        </p>
+        <p
+          v-if="formSuccess"
+          class="reviews__message reviews__message--success"
+        >
           {{ formSuccess }}
         </p>
 
@@ -222,14 +248,20 @@ onMounted(loadReviews)
           :disabled="isSubmitting"
           @click="handleSubmit"
         >
-          {{ isSubmitting ? 'Posting…' : 'Post review' }}
+          {{ isSubmitting ? "Posting…" : "Post review" }}
         </button>
       </template>
 
       <div v-else class="reviews__gate">
         <p>Registered visitors can rate and review this {{ targetType }}.</p>
         <div class="reviews__gate-actions">
-          <button type="button" class="reviews__submit" @click="openAuth('login')">Log in</button>
+          <button
+            type="button"
+            class="reviews__submit"
+            @click="openAuth('login')"
+          >
+            Log in
+          </button>
           <button
             type="button"
             class="reviews__submit reviews__submit--ghost"
@@ -253,13 +285,16 @@ onMounted(loadReviews)
         <li v-for="review in reviews" :key="review.id" class="reviews__item">
           <div class="reviews__item-head">
             <span class="reviews__avatar" aria-hidden="true">{{
-              (review.author || 'G')[0].toUpperCase()
+              (review.author || "G")[0].toUpperCase()
             }}</span>
             <div>
               <p class="reviews__author">{{ review.author }}</p>
               <p class="reviews__date">{{ formatDate(review.createdAt) }}</p>
             </div>
-            <span class="reviews__item-stars" aria-label="`${review.rating} out of 5`">
+            <span
+              class="reviews__item-stars"
+              aria-label="`${review.rating} out of 5`"
+            >
               <svg
                 v-for="(filled, i) in starsForRow(review.rating)"
                 :key="i"
@@ -277,11 +312,12 @@ onMounted(loadReviews)
               </svg>
             </span>
           </div>
-          <p v-if="review.comment" class="reviews__comment">{{ review.comment }}</p>
+          <p v-if="review.comment" class="reviews__comment">
+            {{ review.comment }}
+          </p>
         </li>
       </ul>
     </div>
-
   </section>
 </template>
 
@@ -294,7 +330,7 @@ onMounted(loadReviews)
   display: flex;
   flex-direction: column;
   gap: 20px;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: "Inter", system-ui, sans-serif;
 }
 
 .reviews__header {
@@ -307,7 +343,7 @@ onMounted(loadReviews)
 
 .reviews__title {
   margin: 0;
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   font-weight: 600;
   font-size: 24px;
   line-height: 1.2;
@@ -321,7 +357,7 @@ onMounted(loadReviews)
 }
 
 .reviews__score {
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   font-size: 28px;
   font-weight: 700;
   color: #1a1a1a;
@@ -387,7 +423,7 @@ onMounted(loadReviews)
 
 .reviews__write-title {
   margin: 0;
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   font-size: 16px;
   font-weight: 600;
   color: #1a1a1a;
