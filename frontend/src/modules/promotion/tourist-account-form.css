@@ -1,0 +1,120 @@
+.account-form {
+  max-width: 620px;
+  display: grid;
+  gap: 20px;
+}
+
+.account-form header {
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e8e4dc;
+}
+
+.account-form h2 {
+  margin: 0;
+  color: #1a1a1a;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 26px;
+}
+
+.account-form header p {
+  margin: 8px 0 0;
+  color: #5c5c5c;
+  line-height: 1.6;
+}
+
+.account-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.account-form label > span {
+  color: #1a1a1a;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.account-form label > span small {
+  color: #5c5c5c;
+  font-weight: 400;
+}
+
+.account-form input {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid #e8e4dc;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1a1a1a;
+  font: inherit;
+}
+
+.account-form input[readonly] {
+  background: #f2f0eb;
+  color: #5c5c5c;
+}
+
+.account-form input:focus {
+  border-color: #1b4332;
+  outline: 3px solid rgba(27, 67, 50, 0.16);
+}
+
+.account-form input[aria-invalid='true'] {
+  border-color: #c0392b;
+}
+
+.account-form label > small {
+  color: #c0392b;
+  font-size: 12px;
+}
+
+.account-form label > small.field-help {
+  color: #5c5c5c;
+}
+
+.account-form > button {
+  width: max-content;
+  min-width: 150px;
+  min-height: 48px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 8px;
+  background: #1b4332;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.account-form > button:hover {
+  background: #14532d;
+}
+
+.account-form > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.form-message {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.form-message--success {
+  background: #d8f3dc;
+  color: #1b4332;
+}
+
+.form-message--error {
+  background: #fdecea;
+  color: #9f2d20;
+}
+
+@media (max-width: 480px) {
+  .account-form > button {
+    width: 100%;
+  }
+}

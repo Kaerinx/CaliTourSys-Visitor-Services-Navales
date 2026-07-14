@@ -10,6 +10,10 @@ export const useTouristAuthStore = defineStore('touristAuth', () => {
   const tourist = ref(readStoredTourist())
   const isLoading = ref(false)
   const error = ref('')
+  const isProfileLoading = ref(false)
+  const isPasswordLoading = ref(false)
+  const profileError = ref('')
+  const passwordError = ref('')
 
   const isAuthenticated = computed(() => Boolean(accessToken.value && tourist.value))
 
@@ -85,17 +89,53 @@ export const useTouristAuthStore = defineStore('touristAuth', () => {
     }
   }
 
+  async function updateProfile(payload) {
+    isProfileLoading.value = true
+    profileError.value = ''
+    try {
+      const { data } = await touristAuthApi.updateProfile(payload)
+      tourist.value = data
+      localStorage.setItem(USER_KEY, JSON.stringify(data))
+      return data
+    } catch (err) {
+      profileError.value = friendlyError(err)
+      throw err
+    } finally {
+      isProfileLoading.value = false
+    }
+  }
+
+  async function changePassword(payload) {
+    isPasswordLoading.value = true
+    passwordError.value = ''
+    try {
+      const { data } = await touristAuthApi.changePassword(payload)
+      return data
+    } catch (err) {
+      passwordError.value = friendlyError(err)
+      throw err
+    } finally {
+      isPasswordLoading.value = false
+    }
+  }
+
   return {
     accessToken,
+    changePassword,
     clearSession,
     error,
     fetchMe,
     isAuthenticated,
     isLoading,
+    isPasswordLoading,
+    isProfileLoading,
     login,
     logout,
+    passwordError,
+    profileError,
     register,
     tourist,
+    updateProfile,
   }
 })
 
@@ -112,6 +152,8 @@ function friendlyError(error) {
   if (error?.code === 'EMAIL_ALREADY_REGISTERED') return 'An account already exists for this email address.'
   if (error?.code === 'INVALID_CREDENTIALS') return 'Invalid email or password.'
   if (error?.code === 'ACCOUNT_INACTIVE') return 'This account is not active.'
+  if (error?.code === 'INVALID_CURRENT_PASSWORD') return 'Current password is incorrect.'
   if (error?.status === 429) return 'Too many attempts. Please try again later.'
+  if (Array.isArray(error?.details) && error.details[0]?.message) return error.details[0].message
   return error?.message || 'Unable to continue. Please try again.'
 }

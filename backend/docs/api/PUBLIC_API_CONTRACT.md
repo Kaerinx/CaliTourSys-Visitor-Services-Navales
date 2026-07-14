@@ -282,6 +282,8 @@ Public contact and accreditation rules:
 | `GET` | `/api/v1/public/destinations/:slug` | Destination detail. |
 | `GET` | `/api/v1/public/destination-categories` | Destination categories. |
 | `GET` | `/api/v1/public/map/locations` | Map/list or GeoJSON locations. |
+| `GET` | `/api/v1/public/map/emergency-facilities` | Published emergency facilities as GeoJSON. |
+| `GET` | `/api/v1/public/map/locations/:id/details` | Rich destination/business map detail. |
 | `GET` | `/api/v1/public/museum/artifacts` | Paginated museum artifacts. |
 | `GET` | `/api/v1/public/museum/artifacts/:slug` | Museum artifact detail. |
 | `GET` | `/api/v1/public/museum/categories` | Museum categories. |
@@ -538,6 +540,23 @@ For `format=geojson`, `data` is a GeoJSON FeatureCollection:
 }
 ```
 
+### GET `/api/v1/public/map/emergency-facilities`
+
+Returns published emergency facilities as a GeoJSON `FeatureCollection`. Emergency facilities are an independent map layer and are not included in tourism search/filter results. Each feature uses `[longitude, latitude]` coordinates and exposes public address, opening-hours, contact, accessibility, amenity, and verification metadata under `properties`.
+
+### GET `/api/v1/public/map/locations/:id/details`
+
+`id` is the UUID from `GET /public/map/locations`. The endpoint supports published destination and active business locations; event locations return `404` and retain their existing summary UI.
+
+Response data includes:
+
+- normalized location identity, coordinates, category, overview, and visit information;
+- `gallery`, preferring map-location images and falling back to destination or business-product images;
+- linked `activities` and `packages` only when their workflow status is `Ready for Promotion`;
+- `primaryPackage`, using the explicit primary link or the first linked package by display order;
+- active `overnightOptions`, with PHP rate amount and one of `per_person_per_night`, `per_tent_per_night`, `per_site_per_night`, or `flat_rate`;
+- empty arrays and nullable copy fields when the CMS has not populated optional content.
+
 ### GET `/api/v1/public/museum/artifacts`
 
 Query params:
@@ -739,6 +758,12 @@ This contract is based on:
 - `destinations`
 - `destination_images`
 - `map_locations`
+- `emergency_facilities`
+- `map_location_details`
+- `map_location_gallery_images`
+- `map_location_activity_links`
+- `map_location_package_links`
+- `map_location_overnight_options`
 - `artifact_categories`
 - `museum_artifacts`
 - `artifact_images`

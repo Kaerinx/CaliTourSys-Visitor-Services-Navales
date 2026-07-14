@@ -68,6 +68,25 @@ async function listMapLocations(req, res, next) {
   }
 }
 
+async function listEmergencyFacilities(req, res, next) {
+  try {
+    setMapCache(res)
+    return successResponse(req, res, await service.listEmergencyFacilities())
+  } catch (error) {
+    return next(error)
+  }
+}
+
+async function getMapLocationDetails(req, res, next) {
+  try {
+    const { id } = parse(validators.mapLocationParamsSchema, req.params)
+    setMapCache(res)
+    return successResponse(req, res, await service.getMapLocationDetails(id))
+  } catch (error) {
+    return next(error)
+  }
+}
+
 async function createItinerarySession(req, res, next) {
   try {
     const body = parse(validators.createItinerarySessionBodySchema, req.body || {})
@@ -205,6 +224,8 @@ module.exports = {
   getDestinationBySlug: detailHandler(service.getDestinationBySlug),
   listDestinationCategories: categoryHandler(service.listDestinationCategories),
   listMapLocations,
+  listEmergencyFacilities,
+  getMapLocationDetails,
   listMuseumArtifacts: paginatedHandler(
     validators.museumArtifactListQuerySchema,
     service.listMuseumArtifacts,

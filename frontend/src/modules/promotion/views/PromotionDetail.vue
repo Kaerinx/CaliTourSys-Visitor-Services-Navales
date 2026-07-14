@@ -14,11 +14,12 @@ import {
 } from '../services/promotionService'
 import { validateInquiryForm } from '../utils/formValidation'
 import ReviewsSection from '../components/ReviewsSection.vue'
+import { useVisitorSession } from '../composables/useVisitorSession'
 
-const VISITOR_SESSION_KEY = 'calitoursys_public_visitor'
 const PENDING_SAVE_KEY = 'calitoursys_pending_product_save'
 const route = useRoute()
 const router = useRouter()
+const { isAuthenticated: isVisitorAuthenticated } = useVisitorSession()
 const product = ref(null)
 const business = ref(null)
 const isLoading = ref(true)
@@ -31,7 +32,6 @@ const isContactSubmitting = ref(false)
 const contactTouched = ref(false)
 const contactMessage = ref('')
 const selectedGalleryIndex = ref(0)
-const isVisitorAuthenticated = ref(hasVisitorSession())
 const contactForm = reactive({
   fullName: '',
   email: '',
@@ -199,14 +199,6 @@ async function refreshSavedProduct() {
   }
 }
 
-function hasVisitorSession() {
-  try {
-    return Boolean(window.localStorage.getItem(VISITOR_SESSION_KEY))
-  } catch {
-    return false
-  }
-}
-
 function promptForSaveAuth() {
   if (!product.value) return
   sessionStorage.setItem(PENDING_SAVE_KEY, product.value.id)
@@ -217,7 +209,6 @@ function promptForSaveAuth() {
 }
 
 async function resumePendingSave() {
-  isVisitorAuthenticated.value = hasVisitorSession()
   if (!isVisitorAuthenticated.value) return
   await refreshSavedProduct()
 

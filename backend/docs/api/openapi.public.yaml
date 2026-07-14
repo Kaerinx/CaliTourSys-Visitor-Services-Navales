@@ -360,6 +360,49 @@ paths:
                             items:
                               $ref: "#/components/schemas/MapLocationListItem"
                           - $ref: "#/components/schemas/GeoJsonFeatureCollection"
+  /public/map/emergency-facilities:
+    get:
+      tags: [Map]
+      summary: List published emergency facilities as GeoJSON
+      description: Emergency facilities are an independent, always-visible map layer and are not included in tourism search results.
+      responses:
+        "200":
+          description: GeoJSON FeatureCollection of published emergency facilities
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EmergencyFacilityFeatureCollection"
+  /public/map/locations/{id}/details:
+    get:
+      tags: [Map]
+      summary: Get rich destination or business map-location detail
+      description: Returns normalized rich content for a published destination or active business map location. Event locations are intentionally unsupported.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Normalized map-location detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MapLocationDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /public/museum/artifacts:
     get:
       tags: [Museum]
@@ -1131,6 +1174,294 @@ components:
               maxItems: 2
         properties:
           type: object
+    EmergencyFacilityFeatureCollection:
+      type: object
+      required: [type, features]
+      properties:
+        type:
+          type: string
+          enum: [FeatureCollection]
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmergencyFacilityFeature"
+    EmergencyFacilityFeature:
+      type: object
+      required: [type, geometry, properties]
+      properties:
+        type:
+          type: string
+          enum: [Feature]
+        geometry:
+          type: object
+          required: [type, coordinates]
+          properties:
+            type:
+              type: string
+              enum: [Point]
+            coordinates:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items:
+                type: number
+        properties:
+          $ref: "#/components/schemas/EmergencyFacilityProperties"
+    EmergencyFacilityProperties:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        facilityType:
+          type: string
+        description:
+          type: string
+          nullable: true
+        addressLine:
+          type: string
+        barangay:
+          type: string
+          nullable: true
+        municipality:
+          type: string
+        province:
+          type: string
+        openingHours:
+          type: object
+          additionalProperties: true
+        contacts:
+          type: object
+          properties:
+            publicPhone:
+              type: string
+              nullable: true
+            emergencyHotline:
+              type: string
+              nullable: true
+            email:
+              type: string
+              format: email
+              nullable: true
+        accessibilityFeatures:
+          type: array
+          items:
+            type: string
+        amenities:
+          type: array
+          items:
+            type: string
+        verification:
+          type: object
+          properties:
+            source:
+              type: string
+              nullable: true
+            verifiedAt:
+              type: string
+              format: date-time
+              nullable: true
+    RichMapGalleryImage:
+      allOf:
+        - $ref: "#/components/schemas/Image"
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            displayOrder:
+              type: integer
+            isPrimary:
+              type: boolean
+            source:
+              type: string
+              enum: [map_location, destination, business_product]
+    MapLinkedActivity:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        duration:
+          type: string
+        targetMarket:
+          type: string
+        displayOrder:
+          type: integer
+        imageUrl:
+          type: string
+          nullable: true
+    MapLinkedPackage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          $ref: "#/components/schemas/Category"
+        targetMarket:
+          type: string
+        estimatedDuration:
+          type: string
+        durationDays:
+          type: integer
+          nullable: true
+        basePrice:
+          type: number
+          nullable: true
+        currency:
+          type: string
+          enum: [PHP]
+        minPax:
+          type: integer
+          nullable: true
+        maxPax:
+          type: integer
+          nullable: true
+        displayOrder:
+          type: integer
+        isPrimary:
+          type: boolean
+        primaryImage:
+          $ref: "#/components/schemas/Image"
+    MapOvernightOption:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        optionType:
+          type: string
+          enum: [camping, tent_rental, other]
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        capacityMin:
+          type: integer
+          nullable: true
+        capacityMax:
+          type: integer
+          nullable: true
+        rate:
+          type: object
+          properties:
+            amount:
+              type: number
+              nullable: true
+            currency:
+              type: string
+              enum: [PHP]
+            unit:
+              type: string
+              enum: [per_person_per_night, per_tent_per_night, per_site_per_night, flat_rate]
+        inclusions:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+          nullable: true
+        displayOrder:
+          type: integer
+    MapLocationDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        locationType:
+          type: string
+          enum: [destination, business]
+        slug:
+          type: string
+        name:
+          type: string
+        coordinates:
+          type: object
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+        category:
+          $ref: "#/components/schemas/Category"
+        overview:
+          type: string
+          nullable: true
+        visitInformation:
+          type: object
+          properties:
+            addressLine:
+              type: string
+              nullable: true
+            barangay:
+              type: string
+              nullable: true
+            municipality:
+              type: string
+              nullable: true
+            province:
+              type: string
+              nullable: true
+            openingHoursText:
+              type: string
+              nullable: true
+            admissionInformation:
+              type: string
+              nullable: true
+            bestTimeToVisit:
+              type: string
+              nullable: true
+            accessibilityNotes:
+              type: string
+              nullable: true
+        howToVisit:
+          type: string
+          nullable: true
+        howToBook:
+          type: string
+          nullable: true
+        gallery:
+          type: array
+          description: Uses the map-location gallery first, then destination or business-product images. An empty array signals the UI to render its placeholder.
+          items:
+            $ref: "#/components/schemas/RichMapGalleryImage"
+        activities:
+          type: array
+          description: Only activities with Ready for Promotion status.
+          items:
+            $ref: "#/components/schemas/MapLinkedActivity"
+        packages:
+          type: array
+          description: Only packages with Ready for Promotion status.
+          items:
+            $ref: "#/components/schemas/MapLinkedPackage"
+        primaryPackage:
+          description: Explicit primary package, otherwise the first package by display order, or null.
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/MapLinkedPackage"
+        overnightOptions:
+          type: array
+          description: Active overnight pricing rows only.
+          items:
+            $ref: "#/components/schemas/MapOvernightOption"
     MuseumArtifactListItem:
       type: object
       properties:

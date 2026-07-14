@@ -25,7 +25,7 @@ const VisitorAdministration = () => import('@/modules/visitor/views/Administrati
 const VisitorEstablishmentManagement = () => import('@/modules/visitor/views/EstablishmentManagement.vue')
 const VisitorProfile = () => import('@/modules/visitor/views/ProfileView.vue')
 
-const visitorLoginRedirect = { path: '/login', query: { as: 'staff', redirect: '/cms/visitor' } }
+const visitorLoginRedirect = { path: '/cms/login', query: { redirect: '/cms/visitor' } }
 
 function redirectToCmsVisitor(path) {
   return (to) => ({
@@ -236,13 +236,13 @@ router.beforeEach(async (to) => {
   if (to.matched.some((route) => route.meta.touristRequiresAuth)) {
     const touristAuth = useTouristAuthStore()
     if (!touristAuth.isAuthenticated) {
-      return { path: '/login', query: { as: 'tourist', redirect: to.fullPath } }
+      return { path: '/', query: { auth: 'login', redirect: to.fullPath } }
     }
 
     try {
       await touristAuth.fetchMe()
     } catch {
-      return { path: '/login', query: { as: 'tourist', redirect: to.fullPath } }
+      return { path: '/', query: { auth: 'login', redirect: to.fullPath } }
     }
   }
 
@@ -279,7 +279,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.visitorRequiresAuth && !visitorAuth.isAuthenticated) {
-    return { path: '/login', query: { as: 'staff', redirect: to.fullPath } }
+    return { path: '/cms/login', query: { redirect: to.fullPath } }
   }
 
   const visitorRoles = to.meta.visitorRoles
@@ -288,7 +288,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.productRequiresAuth && !auth.isAuthenticated) {
-    return { path: '/login', query: { as: 'staff', redirect: to.fullPath } }
+    return { path: '/cms/login', query: { redirect: to.fullPath } }
   }
 
   return true
@@ -309,8 +309,8 @@ setAuthFailureHandler(() => {
 
   router
     .replace({
-      path: '/login',
-      query: { as: 'staff', redirect, sessionExpired: '1' },
+      path: '/cms/login',
+      query: { redirect, sessionExpired: '1' },
     })
     .catch(() => {})
     .finally(() => {

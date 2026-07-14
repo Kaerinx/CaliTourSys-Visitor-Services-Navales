@@ -37,6 +37,10 @@ const slugParamsSchema = z.object({
   slug: slugSchema,
 })
 
+const mapLocationParamsSchema = z.object({
+  id: z.uuid('id must be a valid map location UUID.'),
+})
+
 const sessionTokenParamsSchema = z.object({
   sessionToken: z
     .string()
@@ -227,6 +231,7 @@ const mapLocationsQuerySchema = z.object({
 
 module.exports = {
   slugParamsSchema,
+  mapLocationParamsSchema,
   productListQuerySchema,
   packageListQuerySchema,
   tourismAssetListQuerySchema,

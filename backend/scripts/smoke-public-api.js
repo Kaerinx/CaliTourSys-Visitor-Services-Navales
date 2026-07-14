@@ -235,6 +235,29 @@ async function main() {
     const geojson = await expectSuccess('/public/map/locations?format=geojson', { cacheIncludes: 'public' })
     assert(geojson.body.data.type === 'FeatureCollection', 'GeoJSON response must be a FeatureCollection.')
     assert(Array.isArray(geojson.body.data.features), 'GeoJSON features must be an array.')
+
+    const emergency = await expectSuccess('/public/map/emergency-facilities', { cacheIncludes: 'public' })
+    assert(emergency.body.data.type === 'FeatureCollection', 'Emergency data must be a FeatureCollection.')
+    assert(Array.isArray(emergency.body.data.features), 'Emergency GeoJSON features must be an array.')
+    for (const feature of emergency.body.data.features) {
+      assert(feature.geometry?.type === 'Point', 'Emergency feature geometry must be Point.')
+      assert(feature.geometry.coordinates.length === 2, 'Emergency Point must contain two coordinates.')
+      assert(feature.properties?.id, 'Emergency feature properties must include id.')
+    }
+
+    const richLocation = list.body.data.find((location) =>
+      ['destination', 'business'].includes(location.locationType),
+    )
+    if (richLocation) {
+      const detail = await expectSuccess(`/public/map/locations/${richLocation.id}/details`, {
+        cacheIncludes: 'public',
+      })
+      assert(detail.body.data.id === richLocation.id, 'Map detail id mismatch.')
+      assert(Array.isArray(detail.body.data.gallery), 'Map detail gallery must be an array.')
+      assert(Array.isArray(detail.body.data.activities), 'Map detail activities must be an array.')
+      assert(Array.isArray(detail.body.data.packages), 'Map detail packages must be an array.')
+      assert(Array.isArray(detail.body.data.overnightOptions), 'Map detail overnightOptions must be an array.')
+    }
   })
 
   await test('museum artifacts list, detail, and categories match contract', async () => {
@@ -332,6 +355,7 @@ async function main() {
 
   await test('validation errors use standard envelope', async () => {
     await expectError('/public/products/INVALID-SLUG', { status: 400, code: 'VALIDATION_ERROR' })
+    await expectError('/public/map/locations/not-a-uuid/details', { status: 400, code: 'VALIDATION_ERROR' })
     await expectError(`/public/itinerary/${state.sessionToken}/items`, {
       method: 'POST',
       status: 400,

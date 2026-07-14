@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import CmsCoordinateField from './CmsCoordinateField.vue'
 import CmsMapPicker from './CmsMapPicker.vue'
+import CmsMapLocationExperienceEditor from './CmsMapLocationExperienceEditor.vue'
 import CmsRelationSelect from './CmsRelationSelect.vue'
 import { toNullable, validateRequired } from './formUtils'
 import { useCmsAuthStore } from '../../stores/authStore'
@@ -15,6 +16,9 @@ const props = defineProps({
   destinations: { type: Array, default: () => [] },
   businesses: { type: Array, default: () => [] },
   events: { type: Array, default: () => [] },
+  activities: { type: Array, default: () => [] },
+  packages: { type: Array, default: () => [] },
+  mediaAssets: { type: Array, default: () => [] },
   initialCoordinates: { type: Object, default: null },
   busy: { type: Boolean, default: false },
   serverError: { type: String, default: '' },
@@ -26,6 +30,7 @@ const submitted = reactive({ value: false })
 const form = reactive(defaultForm())
 const pickerOpen = ref(false)
 const lastAutoLabel = ref('')
+const experienceEditor = ref(null)
 const title = computed(() => (props.value?.id ? 'Edit map location' : 'Create map location'))
 const canUseAdvancedMapSettings = computed(() =>
   auth.roles.some((role) => {
@@ -131,23 +136,27 @@ function applyPickedCoordinates(coordinates) {
 function submitForm() {
   submitted.value = true
   if (Object.keys(errors.value).length) return
+  if (form.locationType !== 'event' && !experienceEditor.value?.validate()) return
   emit('submit', {
-    locationType: form.locationType,
-    destinationId: form.destinationId || null,
-    businessId: form.businessId || null,
-    eventId: form.eventId || null,
-    label: form.label.trim(),
-    latitude: Number(form.latitude),
-    longitude: Number(form.longitude),
-    mapboxPlaceId: toNullable(form.mapboxPlaceId),
-    markerColor: toNullable(form.markerColor),
-    markerIcon: toNullable(form.markerIcon),
-    clusterGroup: toNullable(form.clusterGroup),
-    geojsonProperties: parseGeoJsonProperties(),
-    isPrimary: form.isPrimary,
-    isClusterable: form.isClusterable,
-    sortPriority: Number(form.sortPriority || 0),
-    status: form.status,
+    location: {
+      locationType: form.locationType,
+      destinationId: form.destinationId || null,
+      businessId: form.businessId || null,
+      eventId: form.eventId || null,
+      label: form.label.trim(),
+      latitude: Number(form.latitude),
+      longitude: Number(form.longitude),
+      mapboxPlaceId: toNullable(form.mapboxPlaceId),
+      markerColor: toNullable(form.markerColor),
+      markerIcon: toNullable(form.markerIcon),
+      clusterGroup: toNullable(form.clusterGroup),
+      geojsonProperties: parseGeoJsonProperties(),
+      isPrimary: form.isPrimary,
+      isClusterable: form.isClusterable,
+      sortPriority: Number(form.sortPriority || 0),
+      status: form.status,
+    },
+    experience: form.locationType === 'event' ? null : experienceEditor.value.getPayload(),
   })
 }
 </script>
@@ -276,6 +285,15 @@ function submitForm() {
                 </label>
               </div>
             </details>
+
+            <CmsMapLocationExperienceEditor
+              v-if="form.locationType !== 'event'"
+              ref="experienceEditor"
+              :value="value?.experience"
+              :activities="activities"
+              :packages="packages"
+              :media-assets="mediaAssets"
+            />
 
             <div v-if="serverError" class="cms-map-location-modal__error" role="alert">{{ serverError }}</div>
           </div>

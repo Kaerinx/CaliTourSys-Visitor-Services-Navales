@@ -28,6 +28,12 @@ WHERE table_schema = 'public'
     'destinations',
     'destination_images',
     'map_locations',
+    'emergency_facilities',
+    'map_location_details',
+    'map_location_gallery_images',
+    'map_location_activity_links',
+    'map_location_package_links',
+    'map_location_overnight_options',
     'artifact_categories',
     'museum_artifacts',
     'artifact_images',
@@ -55,6 +61,12 @@ UNION ALL SELECT 'destination_categories', COUNT(*) FROM destination_categories
 UNION ALL SELECT 'destinations', COUNT(*) FROM destinations
 UNION ALL SELECT 'destination_images', COUNT(*) FROM destination_images
 UNION ALL SELECT 'map_locations', COUNT(*) FROM map_locations
+UNION ALL SELECT 'emergency_facilities', COUNT(*) FROM emergency_facilities
+UNION ALL SELECT 'map_location_details', COUNT(*) FROM map_location_details
+UNION ALL SELECT 'map_location_gallery_images', COUNT(*) FROM map_location_gallery_images
+UNION ALL SELECT 'map_location_activity_links', COUNT(*) FROM map_location_activity_links
+UNION ALL SELECT 'map_location_package_links', COUNT(*) FROM map_location_package_links
+UNION ALL SELECT 'map_location_overnight_options', COUNT(*) FROM map_location_overnight_options
 UNION ALL SELECT 'artifact_categories', COUNT(*) FROM artifact_categories
 UNION ALL SELECT 'museum_artifacts', COUNT(*) FROM museum_artifacts
 UNION ALL SELECT 'artifact_images', COUNT(*) FROM artifact_images

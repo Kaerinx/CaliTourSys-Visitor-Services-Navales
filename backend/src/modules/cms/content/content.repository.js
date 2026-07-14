@@ -1,4 +1,4 @@
-const { query } = require('../../../config/db')
+const { pool, query } = require('../../../config/db')
 const {
   mapBusiness,
   mapCategory,
@@ -2303,12 +2303,396 @@ async function deleteMapLocation(id) {
   return { before: existing }
 }
 
+function mapEmergencyFacility(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    facilityType: row.facility_type,
+    description: row.description,
+    addressLine: row.address_line,
+    barangay: row.barangay,
+    municipality: row.municipality,
+    province: row.province,
+    latitude: row.latitude == null ? null : Number(row.latitude),
+    longitude: row.longitude == null ? null : Number(row.longitude),
+    openingHours: row.opening_hours || {},
+    publicPhone: row.public_phone,
+    emergencyHotline: row.emergency_hotline,
+    email: row.email,
+    accessibilityFeatures: row.accessibility_features || [],
+    amenities: row.amenities || [],
+    verificationSource: row.verification_source,
+    verifiedAt: row.verified_at,
+    sortPriority: row.sort_priority,
+    status: row.status,
+    publishedAt: row.published_at,
+    archivedAt: row.archived_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    publishedBy: row.published_by,
+    archivedBy: row.archived_by,
+  }
+}
+
+async function listEmergencyFacilities(filters, pagination) {
+  const listParams = [
+    pagination.limit,
+    pagination.offset,
+    filters.search || null,
+    filters.status || null,
+    filters.facilityType || null,
+  ]
+  const countParams = [filters.search || null, filters.status || null, filters.facilityType || null]
+  const where = `
+    WHERE ($3::text IS NULL OR ef.name ILIKE '%' || $3 || '%' OR ef.slug ILIKE '%' || $3 || '%' OR ef.address_line ILIKE '%' || $3 || '%')
+      AND ($4::content_status IS NULL OR ef.status = $4)
+      AND ($5::text IS NULL OR ef.facility_type = $5)
+  `
+  const countWhere = `
+    WHERE ($1::text IS NULL OR ef.name ILIKE '%' || $1 || '%' OR ef.slug ILIKE '%' || $1 || '%' OR ef.address_line ILIKE '%' || $1 || '%')
+      AND ($2::content_status IS NULL OR ef.status = $2)
+      AND ($3::text IS NULL OR ef.facility_type = $3)
+  `
+  const normalizedSort = filters.sort === 'displayOrder'
+    ? 'sortPriority'
+    : filters.sort === '-displayOrder'
+      ? '-sortPriority'
+      : filters.sort
+  const orderBy = sortClause(normalizedSort, 'sortPriority', 'ef')
+  const [itemsResult, countResult] = await Promise.all([
+    query(`SELECT ef.* FROM emergency_facilities ef ${where} ORDER BY ${orderBy}, ef.id ASC LIMIT $1 OFFSET $2`, listParams),
+    query(`SELECT COUNT(*)::integer AS total_items FROM emergency_facilities ef ${countWhere}`, countParams),
+  ])
+  return {
+    items: itemsResult.rows.map(mapEmergencyFacility),
+    totalItems: countResult.rows[0]?.total_items || 0,
+  }
+}
+
+async function getEmergencyFacilityById(id) {
+  const result = await query('SELECT * FROM emergency_facilities WHERE id = $1 LIMIT 1', [id])
+  return mapEmergencyFacility(result.rows[0])
+}
+
+async function createEmergencyFacility(data, userId) {
+  try {
+    const result = await query(
+      `
+        INSERT INTO emergency_facilities (
+          slug, name, facility_type, description, address_line, barangay, municipality,
+          province, latitude, longitude, opening_hours, public_phone, emergency_hotline,
+          email, accessibility_features, amenities, verification_source, verified_at,
+          sort_priority, status, published_at, archived_at, created_by, updated_by,
+          published_by, archived_by
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14,
+          $15::jsonb, $16::jsonb, $17, $18, $19, $20::content_status,
+          CASE WHEN $20::content_status = 'published' THEN now() ELSE NULL END,
+          CASE WHEN $20::content_status = 'archived' THEN now() ELSE NULL END,
+          $21::uuid, $21::uuid,
+          CASE WHEN $20::content_status = 'published' THEN $21::uuid ELSE NULL END,
+          CASE WHEN $20::content_status = 'archived' THEN $21::uuid ELSE NULL END
+        )
+        RETURNING *
+      `,
+      [
+        data.slug, data.name, data.facilityType, data.description ?? null,
+        data.addressLine ?? null, data.barangay ?? null, data.municipality || 'Calabanga',
+        data.province || 'Camarines Sur', data.latitude, data.longitude,
+        JSON.stringify(data.openingHours || {}), data.publicPhone ?? null,
+        data.emergencyHotline ?? null, data.email ?? null,
+        JSON.stringify(data.accessibilityFeatures || []), JSON.stringify(data.amenities || []),
+        data.verificationSource ?? null, data.verifiedAt ?? null, data.sortPriority ?? 0,
+        'draft', userId,
+      ],
+    )
+    return mapEmergencyFacility(result.rows[0])
+  } catch (error) {
+    throw createDatabaseWriteError(error)
+  }
+}
+
+async function updateEmergencyFacility(id, data, userId) {
+  const existing = await getEmergencyFacilityById(id)
+  if (!existing) throw createNotFoundError('Emergency facility')
+
+  const columns = {
+    slug: ['slug', null],
+    name: ['name', null],
+    facilityType: ['facility_type', null],
+    description: ['description', null],
+    addressLine: ['address_line', null],
+    barangay: ['barangay', null],
+    municipality: ['municipality', null],
+    province: ['province', null],
+    latitude: ['latitude', null],
+    longitude: ['longitude', null],
+    openingHours: ['opening_hours', 'jsonb'],
+    publicPhone: ['public_phone', null],
+    emergencyHotline: ['emergency_hotline', null],
+    email: ['email', null],
+    accessibilityFeatures: ['accessibility_features', 'jsonb'],
+    amenities: ['amenities', 'jsonb'],
+    verificationSource: ['verification_source', null],
+    verifiedAt: ['verified_at', null],
+    sortPriority: ['sort_priority', null],
+  }
+  const assignments = []
+  const values = [id]
+  Object.entries(columns).forEach(([key, [column, cast]]) => {
+    if (!Object.prototype.hasOwnProperty.call(data, key)) return
+    const value = cast === 'jsonb' ? JSON.stringify(data[key] ?? (key === 'openingHours' ? {} : [])) : data[key]
+    values.push(value)
+    assignments.push(`${column} = $${values.length}${cast ? `::${cast}` : ''}`)
+  })
+  values.push(userId)
+  assignments.push(`updated_by = $${values.length}::uuid`)
+
+  try {
+    const result = await query(
+      `UPDATE emergency_facilities SET ${assignments.join(', ')} WHERE id = $1 RETURNING *`,
+      values,
+    )
+    return { before: existing, after: mapEmergencyFacility(result.rows[0]) }
+  } catch (error) {
+    throw createDatabaseWriteError(error)
+  }
+}
+
+async function setEmergencyFacilityStatus(id, status, userId) {
+  const existing = await getEmergencyFacilityById(id)
+  if (!existing) throw createNotFoundError('Emergency facility')
+  const isPublished = status === 'published'
+  const result = await query(
+    `
+      UPDATE emergency_facilities
+      SET status = $2::content_status,
+          published_at = CASE WHEN $2 = 'published' THEN now() ELSE published_at END,
+          archived_at = CASE WHEN $2 = 'archived' THEN now() ELSE archived_at END,
+          published_by = CASE WHEN $2 = 'published' THEN $3::uuid ELSE published_by END,
+          archived_by = CASE WHEN $2 = 'archived' THEN $3::uuid ELSE archived_by END,
+          updated_by = $3::uuid
+      WHERE id = $1
+      RETURNING *
+    `,
+    [id, status, userId],
+  )
+  return { before: existing, after: mapEmergencyFacility(result.rows[0]), isPublished }
+}
+
+function mapExperienceDetails(row) {
+  return {
+    overview: row?.overview ?? null,
+    openingHoursText: row?.opening_hours_text ?? null,
+    admissionInformation: row?.admission_information ?? null,
+    bestTimeToVisit: row?.best_time_to_visit ?? null,
+    accessibilityNotes: row?.accessibility_notes ?? null,
+    howToVisit: row?.how_to_visit ?? null,
+    howToBook: row?.how_to_book ?? null,
+  }
+}
+
+async function getMapLocationExperience(id, executor = query) {
+  const [details, gallery, activities, packages, overnight] = await Promise.all([
+    executor('SELECT * FROM map_location_details WHERE map_location_id = $1 LIMIT 1', [id]),
+    executor(
+      `SELECT gli.*, ma.file_url AS media_url FROM map_location_gallery_images gli LEFT JOIN media_assets ma ON ma.id = gli.media_asset_id WHERE gli.map_location_id = $1 ORDER BY gli.display_order ASC, gli.created_at ASC`,
+      [id],
+    ),
+    executor(
+      `SELECT l.activity_id, l.display_order, a.name, a.description, a.duration, a.activity_status FROM map_location_activity_links l JOIN tourism_activities a ON a.id = l.activity_id WHERE l.map_location_id = $1 ORDER BY l.display_order ASC, a.name ASC`,
+      [id],
+    ),
+    executor(
+      `SELECT l.package_id, l.display_order, l.is_primary, p.name, p.description, p.estimated_duration, p.package_status FROM map_location_package_links l JOIN tourism_packages p ON p.id = l.package_id WHERE l.map_location_id = $1 ORDER BY l.is_primary DESC, l.display_order ASC, p.name ASC`,
+      [id],
+    ),
+    executor(
+      `SELECT * FROM map_location_overnight_options WHERE map_location_id = $1 ORDER BY display_order ASC, created_at ASC`,
+      [id],
+    ),
+  ])
+  return {
+    details: mapExperienceDetails(details.rows[0]),
+    galleryImages: gallery.rows.map((row) => ({
+      id: row.id,
+      mediaAssetId: row.media_asset_id,
+      imageUrl: row.image_url,
+      resolvedUrl: row.image_url || row.media_url,
+      altText: row.alt_text,
+      displayOrder: row.display_order,
+      isPrimary: row.is_primary,
+    })),
+    activityLinks: activities.rows.map((row) => ({
+      activityId: row.activity_id,
+      displayOrder: row.display_order,
+      name: row.name,
+      description: row.description,
+      duration: row.duration,
+      status: row.activity_status,
+    })),
+    packageLinks: packages.rows.map((row) => ({
+      packageId: row.package_id,
+      displayOrder: row.display_order,
+      isPrimary: row.is_primary,
+      name: row.name,
+      description: row.description,
+      estimatedDuration: row.estimated_duration,
+      status: row.package_status,
+    })),
+    overnightOptions: overnight.rows.map((row) => ({
+      id: row.id,
+      optionType: row.option_type,
+      name: row.name,
+      description: row.description,
+      capacityMin: row.capacity_min,
+      capacityMax: row.capacity_max,
+      rateAmount: row.rate_amount == null ? null : Number(row.rate_amount),
+      currency: row.currency,
+      rateUnit: row.rate_unit,
+      inclusions: row.inclusions || [],
+      notes: row.notes,
+      isActive: row.is_active,
+      displayOrder: row.display_order,
+    })),
+  }
+}
+
+async function getMapLocationExperienceOptions() {
+  const [activities, packages, mediaAssets] = await Promise.all([
+    query(`SELECT id, name, description, duration, activity_status FROM tourism_activities WHERE activity_status != 'Archived' ORDER BY name ASC`),
+    query(`SELECT id, name, description, estimated_duration, package_status FROM tourism_packages WHERE package_status != 'Archived' ORDER BY name ASC`),
+    query(`SELECT id, file_url, file_name, alt_text FROM media_assets WHERE status = 'active' AND (mime_type IS NULL OR mime_type LIKE 'image/%') ORDER BY COALESCE(file_name, alt_text, file_url) ASC, id ASC LIMIT 500`),
+  ])
+  return {
+    activities: activities.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      duration: row.duration,
+      status: row.activity_status,
+    })),
+    packages: packages.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      estimatedDuration: row.estimated_duration,
+      status: row.package_status,
+    })),
+    mediaAssets: mediaAssets.rows.map((row) => ({
+      id: row.id,
+      fileUrl: row.file_url,
+      fileName: row.file_name,
+      altText: row.alt_text,
+    })),
+  }
+}
+
+async function replaceMapLocationExperience(id, data, userId) {
+  const client = await pool.connect()
+  const execute = client.query.bind(client)
+  try {
+    await execute('BEGIN')
+    const locationResult = await execute('SELECT id, label, location_type FROM map_locations WHERE id = $1 FOR UPDATE', [id])
+    const location = locationResult.rows[0]
+    if (!location) throw createNotFoundError('Map location')
+    if (location.location_type === 'event') {
+      throw createInvalidReferenceError('Rich map content is only available for destinations and businesses.')
+    }
+
+    const before = await getMapLocationExperience(id, execute)
+    const details = data.details || {}
+    await execute(
+      `
+        INSERT INTO map_location_details (
+          map_location_id, overview, opening_hours_text, admission_information,
+          best_time_to_visit, accessibility_notes, how_to_visit, how_to_book,
+          created_by, updated_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::uuid, $9::uuid)
+        ON CONFLICT (map_location_id) DO UPDATE SET
+          overview = EXCLUDED.overview,
+          opening_hours_text = EXCLUDED.opening_hours_text,
+          admission_information = EXCLUDED.admission_information,
+          best_time_to_visit = EXCLUDED.best_time_to_visit,
+          accessibility_notes = EXCLUDED.accessibility_notes,
+          how_to_visit = EXCLUDED.how_to_visit,
+          how_to_book = EXCLUDED.how_to_book,
+          updated_by = EXCLUDED.updated_by
+      `,
+      [
+        id, details.overview ?? null, details.openingHoursText ?? null,
+        details.admissionInformation ?? null, details.bestTimeToVisit ?? null,
+        details.accessibilityNotes ?? null, details.howToVisit ?? null,
+        details.howToBook ?? null, userId,
+      ],
+    )
+
+    await execute('DELETE FROM map_location_gallery_images WHERE map_location_id = $1', [id])
+    for (const image of data.galleryImages || []) {
+      await execute(
+        `INSERT INTO map_location_gallery_images (map_location_id, media_asset_id, image_url, alt_text, display_order, is_primary, created_by, updated_by) VALUES ($1, $2, $3, $4, $5, $6, $7::uuid, $7::uuid)`,
+        [id, image.mediaAssetId ?? null, image.imageUrl ?? null, image.altText ?? null, image.displayOrder ?? 0, image.isPrimary ?? false, userId],
+      )
+    }
+
+    await execute('DELETE FROM map_location_activity_links WHERE map_location_id = $1', [id])
+    for (const link of data.activityLinks || []) {
+      await execute(
+        `INSERT INTO map_location_activity_links (map_location_id, activity_id, display_order, created_by) VALUES ($1, $2, $3, $4::uuid)`,
+        [id, link.activityId, link.displayOrder ?? 0, userId],
+      )
+    }
+
+    await execute('DELETE FROM map_location_package_links WHERE map_location_id = $1', [id])
+    for (const link of data.packageLinks || []) {
+      await execute(
+        `INSERT INTO map_location_package_links (map_location_id, package_id, display_order, is_primary, created_by) VALUES ($1, $2, $3, $4, $5::uuid)`,
+        [id, link.packageId, link.displayOrder ?? 0, link.isPrimary ?? false, userId],
+      )
+    }
+
+    await execute('DELETE FROM map_location_overnight_options WHERE map_location_id = $1', [id])
+    for (const option of data.overnightOptions || []) {
+      await execute(
+        `
+          INSERT INTO map_location_overnight_options (
+            map_location_id, option_type, name, description, capacity_min, capacity_max,
+            rate_amount, currency, rate_unit, inclusions, notes, is_active,
+            display_order, created_by, updated_by
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14::uuid, $14::uuid)
+        `,
+        [
+          id, option.optionType, option.name, option.description ?? null,
+          option.capacityMin ?? null, option.capacityMax ?? null, option.rateAmount,
+          option.currency || 'PHP', option.rateUnit, JSON.stringify(option.inclusions || []),
+          option.notes ?? null, option.isActive ?? true, option.displayOrder ?? 0, userId,
+        ],
+      )
+    }
+
+    const after = await getMapLocationExperience(id, execute)
+    await execute('COMMIT')
+    return { location, before, after }
+  } catch (error) {
+    await execute('ROLLBACK')
+    throw createDatabaseWriteError(error)
+  } finally {
+    client.release()
+  }
+}
+
 module.exports = {
+  archiveEmergencyFacility: (id, userId) => setEmergencyFacilityStatus(id, 'archived', userId),
   archiveDestination,
   createCategory,
   createBusiness,
   createDestination,
   createEvent,
+  createEmergencyFacility,
   createMapLocation,
   createMuseumArtifact,
   createProduct,
@@ -2319,6 +2703,9 @@ module.exports = {
   getCategoryConfig,
   getDestinationById,
   getEventById,
+  getEmergencyFacilityById,
+  getMapLocationExperience,
+  getMapLocationExperienceOptions,
   getMapLocationById,
   getMuseumArtifactById,
   getProductById,
@@ -2328,6 +2715,7 @@ module.exports = {
   listCategories,
   listDestinations,
   listEvents,
+  listEmergencyFacilities,
   listMapLocations,
   listMuseumArtifacts,
   listProducts,
@@ -2337,6 +2725,7 @@ module.exports = {
   archiveProduct,
   archivePromotion,
   publishDestination,
+  publishEmergencyFacility: (id, userId) => setEmergencyFacilityStatus(id, 'published', userId),
   publishEvent,
   publishMuseumArtifact,
   publishProduct,
@@ -2345,6 +2734,8 @@ module.exports = {
   updateCategory,
   updateDestination,
   updateEvent,
+  updateEmergencyFacility,
+  replaceMapLocationExperience,
   updateMapLocation,
   updateMuseumArtifact,
   updateProduct,

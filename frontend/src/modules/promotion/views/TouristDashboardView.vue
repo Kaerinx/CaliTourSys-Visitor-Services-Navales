@@ -5,10 +5,8 @@ import { useTouristAuthStore } from '../stores/touristAuthStore'
 import { getTouristBookings } from '../services/promotionApi'
 import { submitPackagePaymentProof } from '../services/promotionService'
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
 
 const auth = useTouristAuthStore()
-const router = useRouter()
 
 const bookings = ref([])
 const isLoading = ref(false)
@@ -42,11 +40,6 @@ async function loadBookings() {
   } finally {
     isLoading.value = false
   }
-}
-
-async function logout() {
-  await auth.logout()
-  router.push({ path: '/login', query: { as: 'tourist' } })
 }
 
 function stateFor(bookingId) {
@@ -204,29 +197,10 @@ function formatDisplayDate(value) {
     <main class="page-shell">
       <section class="dashboard-hero">
         <div>
-          <p class="eyebrow">Tourist dashboard</p>
-          <h1>Hello, {{ auth.tourist?.fullName }}</h1>
+          <p class="eyebrow">Booking history</p>
+          <h1>Your trips, {{ auth.tourist?.fullName }}</h1>
           <p>Track package booking requests, payment proof, and Tourism Office review updates in one place.</p>
         </div>
-
-        <aside class="profile-card">
-          <h2>Profile</h2>
-          <dl>
-            <div>
-              <dt>Full name</dt>
-              <dd>{{ auth.tourist?.fullName }}</dd>
-            </div>
-            <div>
-              <dt>Email address</dt>
-              <dd>{{ auth.tourist?.email }}</dd>
-            </div>
-            <div>
-              <dt>Phone number</dt>
-              <dd>{{ auth.tourist?.phoneNumber || 'Not provided' }}</dd>
-            </div>
-          </dl>
-          <button type="button" @click="logout">Sign out</button>
-        </aside>
       </section>
 
       <section class="stats-grid" aria-label="Booking request summary">
@@ -416,9 +390,6 @@ function formatDisplayDate(value) {
 }
 
 .dashboard-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 24px;
   padding: 34px;
 }
 

@@ -512,6 +512,43 @@ async function listMapLocations(filters) {
   return locations
 }
 
+async function listEmergencyFacilities() {
+  const facilities = await repository.listEmergencyFacilities()
+
+  return {
+    type: 'FeatureCollection',
+    features: facilities.map((facility) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [facility.longitude, facility.latitude],
+      },
+      properties: {
+        id: facility.id,
+        slug: facility.slug,
+        name: facility.name,
+        facilityType: facility.facilityType,
+        description: facility.description,
+        addressLine: facility.addressLine,
+        barangay: facility.barangay,
+        municipality: facility.municipality,
+        province: facility.province,
+        openingHours: facility.openingHours,
+        contacts: facility.contacts,
+        accessibilityFeatures: facility.accessibilityFeatures,
+        amenities: facility.amenities,
+        verification: facility.verification,
+      },
+    })),
+  }
+}
+
+async function getMapLocationDetails(id) {
+  const details = await repository.getMapLocationDetails(id)
+  if (!details) throw createNotFoundError('Map location details not found.')
+  return details
+}
+
 function listProductCategories() {
   return repository.listCategories('product_categories')
 }
@@ -642,6 +679,8 @@ module.exports = {
   listAccreditedBusinesses,
   getBusinessBySlug,
   listMapLocations,
+  listEmergencyFacilities,
+  getMapLocationDetails,
   listProductCategories,
   listEventCategories,
   listDestinationCategories,

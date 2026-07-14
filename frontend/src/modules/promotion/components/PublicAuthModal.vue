@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useTouristAuthStore } from '../stores/touristAuthStore'
 
 const props = defineProps({
@@ -18,13 +18,16 @@ const emit = defineEmits(['authenticated', 'close', 'change-mode'])
 const auth = useTouristAuthStore()
 const submitted = ref(false)
 const message = ref('')
+const dialogRef = ref(null)
 const form = reactive({
   name: '',
   email: '',
-  phoneNumber: '',
   password: '',
   confirmPassword: '',
 })
+
+let previouslyFocused = null
+let previousBodyOverflow = ''
 
 const isRegister = computed(() => props.mode === 'register')
 const isSaveIntent = computed(() => props.intent === 'save')
@@ -52,6 +55,10 @@ const passwordError = computed(() => {
   if (!submitted.value) return ''
   if (!form.password) return 'Password is required.'
   if (isRegister.value && form.password.length < 12) return 'Use at least 12 characters.'
+  if (isRegister.value && !/[A-Z]/.test(form.password)) return 'Include an uppercase letter.'
+  if (isRegister.value && !/[a-z]/.test(form.password)) return 'Include a lowercase letter.'
+  if (isRegister.value && !/[0-9]/.test(form.password)) return 'Include a number.'
+  if (isRegister.value && !/[^A-Za-z0-9]/.test(form.password)) return 'Include a symbol.'
   return ''
 })
 
@@ -83,7 +90,7 @@ async function submitAuth() {
     const payload = {
       fullName: form.name.trim(),
       email: form.email.trim().toLowerCase(),
-      phoneNumber: form.phoneNumber.trim(),
+      phoneNumber: '',
       password: form.password,
     }
     const tourist = isRegister.value
@@ -104,7 +111,28 @@ function switchMode(nextMode) {
 }
 
 function handleKeydown(event) {
-  if (event.key === 'Escape') emit('close')
+  if (event.key === 'Escape') {
+    emit('close')
+    return
+  }
+
+  if (event.key !== 'Tab' || !dialogRef.value) return
+  const focusable = Array.from(
+    dialogRef.value.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    ),
+  )
+  if (!focusable.length) return
+
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
 }
 
 watch(
@@ -116,19 +144,24 @@ watch(
 )
 
 onMounted(() => {
+  previouslyFocused = document.activeElement
+  previousBodyOverflow = document.body.style.overflow
   window.addEventListener('keydown', handleKeydown)
   document.body.style.overflow = 'hidden'
+  nextTick(() => dialogRef.value?.querySelector('input')?.focus())
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
-  document.body.style.overflow = ''
+  document.body.style.overflow = previousBodyOverflow
+  previouslyFocused?.focus?.()
 })
 </script>
 
 <template>
   <div class="public-auth" role="presentation" @click.self="$emit('close')">
     <section
+      ref="dialogRef"
       class="public-auth__dialog"
       role="dialog"
       aria-modal="true"
@@ -178,26 +211,12 @@ onBeforeUnmount(() => {
           <small v-if="emailError" id="public-auth-email-error">{{ emailError }}</small>
         </label>
 
-        <label v-if="isRegister" class="public-auth__field" for="public-auth-phone">
-          <span>Phone number</span>
-          <input
-            id="public-auth-phone"
-            v-model="form.phoneNumber"
-            autocomplete="tel"
-            placeholder="09XX XXX XXXX"
-            type="tel"
-          />
-        </label>
-
         <label class="public-auth__field" for="public-auth-password">
-          <span>
-            Password
-            <button v-if="!isRegister" type="button">Forgot password?</button>
-          </span>
+          <span>Password</span>
           <input
             id="public-auth-password"
             v-model="form.password"
-            autocomplete="current-password"
+            :autocomplete="isRegister ? 'new-password' : 'current-password'"
             placeholder="********"
             type="password"
             :aria-invalid="Boolean(passwordError)"
@@ -222,7 +241,7 @@ onBeforeUnmount(() => {
           }}</small>
         </label>
 
-        <p v-if="message" class="public-auth__message" role="status">{{ message }}</p>
+        <p v-if="message" class="public-auth__message" role="alert">{{ message }}</p>
 
         <button class="public-auth__submit" type="submit" :disabled="auth.isLoading">
           {{ auth.isLoading ? 'Please wait...' : isRegister ? 'Create Account' : isSaveIntent ? 'Login' : 'Log in' }}
@@ -277,7 +296,9 @@ onBeforeUnmount(() => {
 
 .public-auth__dialog {
   position: relative;
-  width: min(512px, 100%);
+  width: 512px;
+  max-width: calc(100vw - 48px);
+  min-width: 0;
   max-height: calc(100vh - 48px);
   overflow-y: auto;
   overflow-x: hidden;
@@ -339,6 +360,7 @@ onBeforeUnmount(() => {
 }
 
 .public-auth__form {
+  min-width: 0;
   display: grid;
   gap: 16px;
   margin-top: 40px;
@@ -371,6 +393,7 @@ onBeforeUnmount(() => {
 
 .public-auth__field input {
   width: 100%;
+  min-width: 0;
   height: 44px;
   padding: 0 16px;
   border: 1px solid #e8e4dc;
@@ -402,10 +425,10 @@ onBeforeUnmount(() => {
 .public-auth__message {
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid #d8f3dc;
+  border: 1px solid #f2b8b5;
   border-radius: 8px;
-  background: #f2fbf4;
-  color: #1b4332;
+  background: #fff7f6;
+  color: #9f2d20;
   font-size: 13px;
   line-height: 1.45;
 }
@@ -445,17 +468,45 @@ onBeforeUnmount(() => {
   font-size: 13px;
 }
 
+.public-auth__footer > span {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 8px;
+}
+
 @media (max-width: 560px) {
   .public-auth {
     padding: 18px;
   }
 
   .public-auth__dialog {
+    max-width: calc(100vw - 36px);
     padding: 28px 20px;
   }
 
   .public-auth__header {
     padding: 0 24px;
+  }
+}
+
+@media (max-width: 360px) {
+  .public-auth {
+    padding: 12px;
+  }
+
+  .public-auth__dialog {
+    max-width: calc(100vw - 24px);
+    padding: 26px 16px;
+  }
+
+  .public-auth__header {
+    padding: 0 20px;
+  }
+
+  .public-auth__header h2 {
+    font-size: 23px;
+    overflow-wrap: anywhere;
   }
 }
 </style>

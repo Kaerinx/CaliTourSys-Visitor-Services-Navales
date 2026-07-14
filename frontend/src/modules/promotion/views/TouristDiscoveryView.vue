@@ -1,153 +1,252 @@
 ﻿<script setup>
-import AccreditationBadge from '../components/AccreditationBadge.vue'
-import PromotionNavbar from '../components/PromotionNavbar.vue'
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import AccreditationBadge from "../components/AccreditationBadge.vue";
+import LocationImageCarousel from "../components/LocationImageCarousel.vue";
+import PromotionNavbar from "../components/PromotionNavbar.vue";
 import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
+import { useRoute, useRouter } from "vue-router";
+import {
+  getEmergencyFacilitiesGeoJson,
   getMapLocationGeoJson,
+  getMapLocationDetails,
   getTourismAssets,
-  loadItinerary,
-  removeFromItinerary,
-  saveToItinerary,
-  sharePublicItem,
-} from '../services/promotionService'
-import { formatRouteDistance, formatRouteDuration, getRoute } from '../services/mapboxDirections'
-import { useGeolocationStore } from '@/stores/geolocation'
-import { mapboxAccessToken } from '@/config/mapbox'
+} from "../services/promotionService";
+import { formatRouteDuration, getRoute } from "../services/mapboxDirections";
+import {
+  getTravelEstimates,
+  hasTravelEstimate,
+} from "../services/travelEstimates";
+import { useGeolocationStore } from "@/stores/geolocation";
+import { mapboxAccessToken } from "@/config/mapbox";
 
-const TouristMapBox = defineAsyncComponent(() => import('../components/TouristMapBox.vue'))
-const ReviewsSection = defineAsyncComponent(() => import('../components/ReviewsSection.vue'))
-const NearbySuggestions = defineAsyncComponent(() => import('../components/NearbySuggestions.vue'))
+const TouristMapBox = defineAsyncComponent(
+  () => import("../components/TouristMapBox.vue"),
+);
+const ReviewsSection = defineAsyncComponent(
+  () => import("../components/ReviewsSection.vue"),
+);
+const NearbySuggestions = defineAsyncComponent(
+  () => import("../components/NearbySuggestions.vue"),
+);
 
-const mapboxToken = mapboxAccessToken
-const VISITOR_SESSION_KEY = 'calitoursys_public_visitor'
-const PENDING_SAVE_KEY = 'calitoursys_pending_destination_save'
+const mapboxToken = mapboxAccessToken;
 
-const route = useRoute()
-const router = useRouter()
-const geo = useGeolocationStore()
+const route = useRoute();
+const router = useRouter();
+const geo = useGeolocationStore();
 
-const routeGeoJson = ref(null)
-const isRouting = ref(false)
+const routeGeoJson = ref(null);
+const routeEstimates = ref(null);
+const isRouting = ref(false);
+let routeRequestId = 0;
+let routingController = null;
+
+const detailCache = new Map();
+const selectedDetails = ref(null);
+const isDetailLoading = ref(false);
+const detailError = ref("");
+let detailRequestId = 0;
+let detailController = null;
+const detailDrawer = ref(null);
+let detailPreviouslyFocused = null;
 
 // Fixed public discovery filter taxonomy. Counts are derived from live data,
 // but the set of categories (and their order/colors) is curated here.
 const FILTER_CATEGORIES = [
-  { key: 'Faith & Religious', color: '#7c3aed' },
-  { key: 'Food', color: '#d97706' },
-  { key: 'Nature', color: '#1b7a4a' },
-  { key: 'Beach', color: '#2563eb' },
-  { key: 'Cafe', color: '#92400e' },
-]
+  { key: "Faith & Religious", color: "#7c3aed" },
+  { key: "Food", color: "#d97706" },
+  { key: "Nature", color: "#1b7a4a" },
+  { key: "Beach", color: "#2563eb" },
+  { key: "Cafe", color: "#92400e" },
+];
 
-const locations = ref([])
+const locations = ref([]);
 
 const categories = computed(() => {
-  const knownCategories = new Set(FILTER_CATEGORIES.map((category) => category.key))
-  const extraCategories = []
+  const knownCategories = new Set(
+    FILTER_CATEGORIES.map((category) => category.key),
+  );
+  const extraCategories = [];
 
   locations.value.forEach((location) => {
-    if (!location.category || knownCategories.has(location.category)) return
-    knownCategories.add(location.category)
+    if (!location.category || knownCategories.has(location.category)) return;
+    knownCategories.add(location.category);
     extraCategories.push({
       key: location.category,
-      color: location.color || '#1b4332',
-    })
-  })
+      color: location.color || "#1b4332",
+    });
+  });
 
   return [...FILTER_CATEGORIES, ...extraCategories].map((category) => ({
     ...category,
-    count: locations.value.filter((location) => location.category === category.key).length,
-  }))
-})
+    count: locations.value.filter(
+      (location) => location.category === category.key,
+    ).length,
+  }));
+});
 
-const searchQuery = ref('')
-const selectedId = ref('')
-const enabledCategories = ref({})
-const hasFilterInteraction = ref(false)
-const showDetail = ref(false)
-const mobileListCollapsed = ref(false)
-const savedIds = ref(new Set())
-const isSaving = ref(false)
-const feedbackMessage = ref('')
-const isLoading = ref(true)
-const errorMessage = ref('')
-const mapRuntimeError = ref('')
-const mapGeoJson = ref({ type: 'FeatureCollection', features: [] })
-const isVisitorAuthenticated = ref(hasVisitorSession())
+const searchQuery = ref("");
+const selectedId = ref("");
+const enabledCategories = ref({});
+const hasFilterInteraction = ref(false);
+const showDetail = ref(false);
+const mobileListCollapsed = ref(false);
+const feedbackMessage = ref("");
+const isLoading = ref(true);
+const errorMessage = ref("");
+const mapRuntimeError = ref("");
+const mapGeoJson = ref({ type: "FeatureCollection", features: [] });
+const emergencyGeoJson = ref({ type: "FeatureCollection", features: [] });
 
 const visibleLocations = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase()
+  const query = searchQuery.value.trim().toLowerCase();
 
   return locations.value.filter((location) => {
-    const matchesCategory = enabledCategories.value[location.category]
+    const matchesCategory = enabledCategories.value[location.category];
     const matchesQuery =
       !query ||
-      [location.name, location.category, location.distance].join(' ').toLowerCase().includes(query)
+      [location.name, location.category, location.distance]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
 
-    return matchesCategory && matchesQuery
-  })
-})
+    return matchesCategory && matchesQuery;
+  });
+});
 
 const hasActiveFilters = computed(() => {
   const allCategoriesChecked = categories.value.every(
     (category) => enabledCategories.value[category.key],
-  )
-  return Boolean(searchQuery.value.trim()) || !allCategoriesChecked
-})
+  );
+  return Boolean(searchQuery.value.trim()) || !allCategoriesChecked;
+});
 
 const selectedLocation = computed(
   () =>
-    visibleLocations.value.find((location) => location.id === selectedId.value) ||
-    visibleLocations.value[0],
-)
-
-const selectedCanBeSaved = computed(() => Boolean(selectedLocation.value?.apiId))
+    visibleLocations.value.find(
+      (location) => location.id === selectedId.value,
+    ) || visibleLocations.value[0],
+);
 
 const selectedLocationTypeLabel = computed(() =>
   selectedLocation.value?.locationType
-    ? selectedLocation.value.locationType.replace('-', ' ')
-    : 'map location',
-)
+    ? selectedLocation.value.locationType.replace("-", " ")
+    : "map location",
+);
+
+const supportsRichDetails = computed(() =>
+  ["destination", "business"].includes(selectedLocation.value?.locationType),
+);
+
+const detailGallery = computed(() => {
+  if (supportsRichDetails.value && selectedDetails.value?.gallery?.length) {
+    return selectedDetails.value.gallery;
+  }
+  return selectedLocation.value?.imageUrl
+    ? [
+        {
+          id: "summary-image",
+          url: selectedLocation.value.imageUrl,
+          alt: selectedLocation.value.name,
+        },
+      ]
+    : [];
+});
+
+const detailOverview = computed(
+  () =>
+    selectedDetails.value?.overview ||
+    selectedLocation.value?.description ||
+    "",
+);
+
+const primaryBookPackage = computed(
+  () => selectedDetails.value?.primaryPackage || null,
+);
+
+const hasEmergencyFacilities = computed(
+  () => (emergencyGeoJson.value.features || []).length > 0,
+);
+
+const reviewTargetType = computed(() =>
+  selectedLocation.value?.locationType === "business"
+    ? "business"
+    : "destination",
+);
+
+function displayValue(value) {
+  if (Array.isArray(value)) return value.filter(Boolean).join(", ");
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .filter(
+        ([, entry]) => entry !== undefined && entry !== null && entry !== "",
+      )
+      .map(
+        ([key, entry]) =>
+          `${key.replace(/([A-Z])/g, " $1")}: ${displayValue(entry)}`,
+      )
+      .join(" · ");
+  }
+  return value ? String(value) : "";
+}
 
 const visibleMapGeoJson = computed(() => {
-  const visibleIds = new Set(visibleLocations.value.map((location) => location.id))
+  const visibleIds = new Set(
+    visibleLocations.value.map((location) => location.id),
+  );
 
   return {
-    type: 'FeatureCollection',
+    type: "FeatureCollection",
     features: (mapGeoJson.value.features || []).filter((feature) =>
-      visibleIds.has(String(feature.properties?.slug || feature.properties?.id || '')),
+      visibleIds.has(
+        String(feature.properties?.slug || feature.properties?.id || ""),
+      ),
     ),
-  }
-})
+  };
+});
 
 function locationFromFeature(feature, index, destinationBySlug) {
-  const properties = feature.properties || {}
-  const coordinates = feature.geometry?.coordinates || []
-  const slug = String(properties.slug || properties.id || `map-location-${index}`)
-  const destination = destinationBySlug.get(slug)
-  const longitude = Number(coordinates[0])
-  const latitude = Number(coordinates[1])
-  const color = properties.markerColor || destination?.color || '#1b4332'
+  const properties = feature.properties || {};
+  const coordinates = feature.geometry?.coordinates || [];
+  const slug = String(
+    properties.slug || properties.id || `map-location-${index}`,
+  );
+  const destination = destinationBySlug.get(slug);
+  const longitude = Number(coordinates[0]);
+  const latitude = Number(coordinates[1]);
+  const color = properties.markerColor || destination?.color || "#1b4332";
 
   return {
     id: slug,
     apiId: destination?.apiId || null,
     mapLocationId: properties.id,
     slug,
-    name: properties.label || destination?.name || 'Tourism location',
-    category: properties.category || destination?.category || properties.locationType || 'Tourism',
+    name: properties.label || destination?.name || "Tourism location",
+    category:
+      properties.category ||
+      destination?.category ||
+      properties.locationType ||
+      "Tourism",
     color,
-    distance: properties.locationType ? properties.locationType.replace('-', ' ') : 'Map-ready',
+    distance: properties.locationType
+      ? properties.locationType.replace("-", " ")
+      : "Map-ready",
     address:
       Number.isFinite(latitude) && Number.isFinite(longitude)
         ? `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
-        : 'Calabanga, Camarines Sur',
-    hours: destination?.hours || 'Visiting information to be confirmed',
+        : "Calabanga, Camarines Sur",
+    hours: destination?.hours || "Visiting information to be confirmed",
     description:
       properties.description ||
       destination?.description ||
-      'Public map discovery details are being prepared.',
+      "Public map discovery details are being prepared.",
     x: 24 + ((index * 17) % 58),
     y: 24 + ((index * 23) % 52),
     latitude,
@@ -155,41 +254,46 @@ function locationFromFeature(feature, index, destinationBySlug) {
     locationType: properties.locationType,
     imageUrl: properties.primaryImage || destination?.imageUrl,
     accredited: properties.accredited ?? destination?.accredited ?? true,
-  }
+  };
 }
 
 function locationFromTourismAsset(asset, index) {
-  const latitude = Number(asset.latitude)
-  const longitude = Number(asset.longitude)
+  const latitude = Number(asset.latitude);
+  const longitude = Number(asset.longitude);
 
   return {
     id: asset.id,
     apiId: null,
     slug: asset.slug || asset.id,
     name: asset.name,
-    category: asset.category || 'Tourism',
-    color: asset.color || '#1b4332',
-    distance: asset.distance || 'Product Development asset',
-    address: asset.address || 'Calabanga, Camarines Sur',
-    hours: asset.hours || 'Visiting information to be confirmed',
-    description: asset.description || 'Tourism asset details are being prepared.',
+    category: asset.category || "Tourism",
+    color: asset.color || "#1b4332",
+    distance: asset.distance || "Product Development asset",
+    address: asset.address || "Calabanga, Camarines Sur",
+    hours: asset.hours || "Visiting information to be confirmed",
+    description:
+      asset.description || "Tourism asset details are being prepared.",
     x: 24 + ((index * 17) % 58),
     y: 24 + ((index * 23) % 52),
     latitude: Number.isFinite(latitude) ? latitude : null,
     longitude: Number.isFinite(longitude) ? longitude : null,
-    locationType: 'tourism asset',
+    locationType: "tourism asset",
     imageUrl: asset.imageUrl,
     accredited: asset.accredited ?? true,
-  }
+  };
 }
 
 function featureFromAssetLocation(location) {
-  if (!Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) return null
+  if (
+    !Number.isFinite(location.latitude) ||
+    !Number.isFinite(location.longitude)
+  )
+    return null;
 
   return {
-    type: 'Feature',
+    type: "Feature",
     geometry: {
-      type: 'Point',
+      type: "Point",
       coordinates: [location.longitude, location.latitude],
     },
     properties: {
@@ -203,266 +307,333 @@ function featureFromAssetLocation(location) {
       accredited: location.accredited,
       description: location.description,
     },
+  };
+}
+
+function detailKey(location) {
+  return String(location?.mapLocationId || "");
+}
+
+function invalidateDetailRequest() {
+  detailRequestId += 1;
+  detailController?.abort();
+  detailController = null;
+  isDetailLoading.value = false;
+}
+
+async function loadLocationDetails(location) {
+  invalidateDetailRequest();
+  selectedDetails.value = null;
+  detailError.value = "";
+
+  if (!["destination", "business"].includes(location?.locationType)) return;
+
+  const key = detailKey(location);
+  if (!key) {
+    detailError.value =
+      "More information for this location has not been linked yet.";
+    return;
+  }
+
+  if (detailCache.has(key)) {
+    selectedDetails.value = detailCache.get(key);
+    return;
+  }
+
+  const requestId = ++detailRequestId;
+  const controller = new AbortController();
+  detailController = controller;
+  isDetailLoading.value = true;
+
+  try {
+    const details = await getMapLocationDetails(key, {
+      signal: controller.signal,
+    });
+    if (
+      requestId !== detailRequestId ||
+      selectedLocation.value?.id !== location.id
+    )
+      return;
+    detailCache.set(key, details);
+    selectedDetails.value = details;
+  } catch (error) {
+    if (error?.name === "AbortError") return;
+    if (
+      requestId !== detailRequestId ||
+      selectedLocation.value?.id !== location.id
+    )
+      return;
+    detailError.value =
+      error.message || "Detailed visitor information is unavailable right now.";
+  } finally {
+    if (requestId === detailRequestId) {
+      isDetailLoading.value = false;
+      detailController = null;
+    }
   }
 }
 
 function selectLocation(id) {
-  if (id !== selectedId.value) clearRoute()
-  selectedId.value = id
-  if (!id) return
+  if (id !== selectedId.value) {
+    clearRoute();
+    invalidateDetailRequest();
+    selectedDetails.value = null;
+    detailError.value = "";
+  }
+  selectedId.value = id;
+  if (!id) return;
   router.replace({
     path: route.path,
     query: {
       ...route.query,
       location: id,
     },
-  })
+  });
+
+  if (showDetail.value) {
+    const location = locations.value.find((item) => item.id === id);
+    if (location) loadLocationDetails(location);
+  }
 }
 
 function openLocationDetail(id) {
-  if (id) selectLocation(id)
-  showDetail.value = true
+  const wasOpen = showDetail.value;
+  if (id) selectLocation(id);
+  showDetail.value = true;
+  if (!wasOpen && selectedLocation.value)
+    loadLocationDetails(selectedLocation.value);
+}
+
+function closeLocationDetail() {
+  showDetail.value = false;
+  invalidateDetailRequest();
+}
+
+function detailFocusableElements() {
+  if (!detailDrawer.value) return [];
+  return [
+    ...detailDrawer.value.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ].filter((element) => !element.hidden && element.offsetParent !== null);
+}
+
+function handleDetailKeydown(event) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeLocationDetail();
+    return;
+  }
+  if (event.key !== "Tab") return;
+
+  const focusable = detailFocusableElements();
+  if (!focusable.length) {
+    event.preventDefault();
+    detailDrawer.value?.focus();
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (
+    event.shiftKey &&
+    (document.activeElement === first ||
+      !detailDrawer.value?.contains(document.activeElement))
+  ) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function toggleMobileList() {
-  mobileListCollapsed.value = !mobileListCollapsed.value
+  mobileListCollapsed.value = !mobileListCollapsed.value;
 }
 
 function toggleCategory(category) {
-  hasFilterInteraction.value = true
+  hasFilterInteraction.value = true;
   enabledCategories.value = {
     ...enabledCategories.value,
     [category]: !enabledCategories.value[category],
-  }
+  };
 }
 
 function resetFilters() {
-  hasFilterInteraction.value = true
-  searchQuery.value = ''
+  hasFilterInteraction.value = true;
+  searchQuery.value = "";
   enabledCategories.value = Object.fromEntries(
     categories.value.map((category) => [category.key, true]),
-  )
+  );
 }
 
 function clearCategories() {
-  hasFilterInteraction.value = true
+  hasFilterInteraction.value = true;
   enabledCategories.value = Object.fromEntries(
     categories.value.map((category) => [category.key, false]),
-  )
-}
-
-function hasVisitorSession() {
-  try {
-    return Boolean(window.localStorage.getItem(VISITOR_SESSION_KEY))
-  } catch {
-    return false
-  }
+  );
 }
 
 async function loadLocations() {
-  isLoading.value = true
-  errorMessage.value = ''
-  mapRuntimeError.value = ''
+  isLoading.value = true;
+  errorMessage.value = "";
+  mapRuntimeError.value = "";
 
   try {
-    const [tourismAssetData, mapLocationData] = await Promise.all([
-      getTourismAssets({ limit: 50, sort: '-updatedAt' }),
-      getMapLocationGeoJson(),
-    ])
-    const mapFeatures = Array.isArray(mapLocationData?.features) ? mapLocationData.features : []
-    const destinationBySlug = new Map()
+    const [tourismAssetData, mapLocationData, emergencyFacilityData] =
+      await Promise.all([
+        getTourismAssets({ limit: 50, sort: "-updatedAt" }),
+        getMapLocationGeoJson(),
+        getEmergencyFacilitiesGeoJson(),
+      ]);
+    const mapFeatures = Array.isArray(mapLocationData?.features)
+      ? mapLocationData.features
+      : [];
+    const destinationBySlug = new Map();
     tourismAssetData.forEach((asset) => {
-      if (asset.id) destinationBySlug.set(String(asset.id), asset)
-      if (asset.slug) destinationBySlug.set(String(asset.slug), asset)
-    })
+      if (asset.id) destinationBySlug.set(String(asset.id), asset);
+      if (asset.slug) destinationBySlug.set(String(asset.slug), asset);
+    });
 
     const locationData = mapFeatures.length
-      ? mapFeatures.map((feature, index) => locationFromFeature(feature, index, destinationBySlug))
-      : tourismAssetData.map((asset, index) => locationFromTourismAsset(asset, index))
+      ? mapFeatures.map((feature, index) =>
+          locationFromFeature(feature, index, destinationBySlug),
+        )
+      : tourismAssetData.map((asset, index) =>
+          locationFromTourismAsset(asset, index),
+        );
 
     mapGeoJson.value = mapFeatures.length
       ? mapLocationData
       : {
-          type: 'FeatureCollection',
+          type: "FeatureCollection",
           features: locationData.map(featureFromAssetLocation).filter(Boolean),
-        }
-    locations.value = locationData
+        };
+    emergencyGeoJson.value = emergencyFacilityData;
+    locations.value = locationData;
     enabledCategories.value = Object.fromEntries(
       categories.value.map((category) => [category.key, true]),
-    )
-    selectedId.value = String(route.query.location || locationData[0]?.id || '')
-    await refreshSavedDestinations()
+    );
+    selectedId.value = String(
+      route.query.location || locationData[0]?.id || "",
+    );
   } catch (error) {
-    errorMessage.value = error.message || 'Unable to load public map locations.'
+    errorMessage.value =
+      error.message || "Unable to load public map locations.";
   } finally {
-    isLoading.value = false
+    isLoading.value = false;
   }
-}
-
-async function toggleItinerary(location) {
-  if (!location) return
-  if (!location.apiId) {
-    feedbackMessage.value = 'This map location is not available for itinerary saving yet.'
-    return
-  }
-
-  if (!isVisitorAuthenticated.value) {
-    promptForSaveAuth(location)
-    return
-  }
-
-  await performItineraryToggle(location)
-}
-
-async function performItineraryToggle(location) {
-  if (!location?.apiId) return
-
-  isSaving.value = true
-  feedbackMessage.value = ''
-
-  if (savedIds.value.has(location.id)) {
-    try {
-      await removeFromItinerary({ id: location.id, apiId: location.apiId, type: 'destination' })
-      const next = new Set(savedIds.value)
-      next.delete(location.id)
-      savedIds.value = next
-      feedbackMessage.value = 'Removed from itinerary'
-    } catch (error) {
-      feedbackMessage.value = error.message || 'Unable to update itinerary'
-    }
-  } else {
-    try {
-      await saveToItinerary({
-        id: location.id,
-        apiId: location.apiId,
-        type: 'destination',
-        title: location.name,
-      })
-      savedIds.value = new Set([...savedIds.value, location.id])
-      feedbackMessage.value = 'Saved to itinerary'
-    } catch (error) {
-      feedbackMessage.value = error.message || 'Unable to update itinerary'
-    }
-  }
-
-  isSaving.value = false
-}
-
-async function refreshSavedDestinations() {
-  if (!isVisitorAuthenticated.value) {
-    savedIds.value = new Set()
-    return
-  }
-
-  try {
-    const itinerary = await loadItinerary()
-    savedIds.value = new Set(
-      itinerary.items
-        .filter((item) => item.itemType === 'destination')
-        .map((item) => item.summary?.slug || item.itemId || item.targetId),
-    )
-  } catch {
-    savedIds.value = new Set()
-  }
-}
-
-function promptForSaveAuth(location) {
-  sessionStorage.setItem(PENDING_SAVE_KEY, location.id)
-  selectedId.value = location.id
-  router.replace({
-    path: route.path,
-    query: {
-      ...route.query,
-      auth: 'login',
-      authIntent: 'save',
-      location: location.id,
-    },
-  })
-}
-
-async function resumePendingSave() {
-  isVisitorAuthenticated.value = hasVisitorSession()
-  if (!isVisitorAuthenticated.value) return
-
-  await refreshSavedDestinations()
-
-  const pendingId = sessionStorage.getItem(PENDING_SAVE_KEY)
-  if (!pendingId) return
-
-  const pendingLocation = locations.value.find((location) => location.id === pendingId)
-  if (!pendingLocation) return
-
-  sessionStorage.removeItem(PENDING_SAVE_KEY)
-  selectedId.value = pendingId
-  await performItineraryToggle(pendingLocation)
-}
-
-async function shareLocation(location) {
-  if (!location) return
-
-  const result = await sharePublicItem({
-    title: location.name,
-    text: `Explore ${location.name} in Calabanga.`,
-    path: `/destinations?location=${location.id}`,
-  })
-
-  feedbackMessage.value = result.method === 'clipboard' ? 'Share link copied' : 'Share action ready'
 }
 
 function clearRoute() {
-  routeGeoJson.value = null
+  routeRequestId += 1;
+  routingController?.abort();
+  routingController = null;
+  routeGeoJson.value = null;
+  routeEstimates.value = null;
+  isRouting.value = false;
+  feedbackMessage.value = "";
+}
+
+function bookPrimaryPackage() {
+  if (!primaryBookPackage.value?.slug) return;
+  router.push(`/packages/${encodeURIComponent(primaryBookPackage.value.slug)}`);
 }
 
 async function getDirections(location) {
-  if (!location) return
+  if (!location) return;
 
-  if (!Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) {
-    feedbackMessage.value = 'This place has no map coordinates yet, so directions are unavailable.'
-    return
-  }
-
-  isRouting.value = true
-  feedbackMessage.value = 'Getting your location…'
-
-  // 1. Ask for the visitor's live location (Phase 1.1 geolocation store).
-  const origin = await geo.requestLocation()
-  if (!origin) {
-    isRouting.value = false
+  if (
+    !Number.isFinite(location.latitude) ||
+    !Number.isFinite(location.longitude)
+  ) {
     feedbackMessage.value =
-      geo.error || 'Enable location access to get directions from where you are.'
-    return
+      "This place has no map coordinates yet, so directions are unavailable.";
+    return;
   }
 
-  // 2. Fetch a real route from the visitor to the landmark.
-  feedbackMessage.value = 'Calculating the best route…'
-  const result = await getRoute(origin, location, { profile: 'driving' })
+  routingController?.abort();
+  const requestId = ++routeRequestId;
+  routingController = new AbortController();
+  const { signal } = routingController;
+  routeGeoJson.value = null;
+  routeEstimates.value = null;
+  isRouting.value = true;
+  feedbackMessage.value = "Getting your location…";
 
-  isRouting.value = false
+  const origin = await geo.requestLocation();
+  if (requestId !== routeRequestId || signal.aborted) return;
 
-  if (!result) {
-    feedbackMessage.value = 'We could not calculate a route right now. Please try again.'
-    return
+  if (!origin) {
+    isRouting.value = false;
+    routingController = null;
+    feedbackMessage.value =
+      geo.error ||
+      "Enable location access to get directions from where you are.";
+    return;
   }
 
-  // 3. Draw it on the map and keep the map visible.
-  routeGeoJson.value = result
-  feedbackMessage.value =
-    `Route to ${location.name} · ${formatRouteDistance(result.distance)} · ` +
-    `${formatRouteDuration(result.duration)} drive`
+  feedbackMessage.value = "Calculating walking, car, and motorcycle estimates…";
+  const estimates = await getTravelEstimates(origin, location, {
+    routeClient: getRoute,
+    signal,
+  });
+
+  if (requestId !== routeRequestId || signal.aborted) return;
+
+  isRouting.value = false;
+  routingController = null;
+
+  if (!hasTravelEstimate(estimates)) {
+    feedbackMessage.value =
+      "We could not calculate a route right now. Please try again.";
+    return;
+  }
+
+  // Only the regular driving route owns map geometry. ETA state is deliberately
+  // separate so partial profile responses never redraw or refit the route.
+  routeGeoJson.value = estimates.driving;
+  routeEstimates.value = {
+    destinationName: location.name,
+    ...estimates,
+  };
+  feedbackMessage.value = "";
+  showDetail.value = false;
+  invalidateDetailRequest();
 }
 
 watch(searchQuery, () => {
-  if (searchQuery.value.trim()) hasFilterInteraction.value = true
-})
+  if (searchQuery.value.trim()) hasFilterInteraction.value = true;
+});
+
+watch(showDetail, async (isOpen) => {
+  if (isOpen) {
+    detailPreviouslyFocused = document.activeElement;
+    await nextTick();
+    if (!showDetail.value) return;
+    const firstFocusable = detailFocusableElements()[0];
+    if (firstFocusable) firstFocusable.focus();
+    else detailDrawer.value?.focus();
+    return;
+  }
+
+  await nextTick();
+  if (showDetail.value) return;
+  if (detailPreviouslyFocused?.isConnected) detailPreviouslyFocused.focus();
+  detailPreviouslyFocused = null;
+});
 
 onMounted(() => {
-  loadLocations()
-  window.addEventListener('calitoursys:visitor-authenticated', resumePendingSave)
-})
+  loadLocations();
+});
 
 onBeforeUnmount(() => {
-  window.removeEventListener('calitoursys:visitor-authenticated', resumePendingSave)
-})
+  routeRequestId += 1;
+  routingController?.abort();
+  invalidateDetailRequest();
+  if (detailPreviouslyFocused?.isConnected) detailPreviouslyFocused.focus();
+});
 </script>
 
 <template>
@@ -473,6 +644,8 @@ onBeforeUnmount(() => {
       <aside
         class="discovery-sidebar"
         :class="{ 'discovery-sidebar--collapsed': mobileListCollapsed }"
+        :inert="showDetail"
+        :aria-hidden="showDetail ? 'true' : undefined"
       >
         <button
           type="button"
@@ -490,7 +663,10 @@ onBeforeUnmount(() => {
               <circle cx="11" cy="11" r="7" />
               <path d="m20 20-3.2-3.2" />
             </svg>
-            <input v-model="searchQuery" placeholder="Search places, food, crafts..." />
+            <input
+              v-model="searchQuery"
+              placeholder="Search places, food, crafts..."
+            />
           </label>
         </section>
 
@@ -517,13 +693,18 @@ onBeforeUnmount(() => {
             >
               <span
                 class="fake-checkbox"
-                :class="{ 'fake-checkbox--off': !enabledCategories[category.key] }"
+                :class="{
+                  'fake-checkbox--off': !enabledCategories[category.key],
+                }"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m5 12 4 4L19 6" />
                 </svg>
               </span>
-              <span class="category-dot" :style="{ backgroundColor: category.color }"></span>
+              <span
+                class="category-dot"
+                :style="{ backgroundColor: category.color }"
+              ></span>
               <span>{{ category.key }}</span>
               <small>{{ category.count }}</small>
             </label>
@@ -546,18 +727,28 @@ onBeforeUnmount(() => {
               <strong>No locations match your filters.</strong>
               <span>Try selecting more categories.</span>
             </div>
-            <div v-else-if="!isLoading && visibleLocations.length === 0" class="map-empty-state">
+            <div
+              v-else-if="!isLoading && visibleLocations.length === 0"
+              class="map-empty-state"
+            >
               <strong>No published map locations yet</strong>
-              <span>Published tourism places will appear here once available.</span>
+              <span
+                >Published tourism places will appear here once available.</span
+              >
             </div>
             <button
               v-for="location in visibleLocations"
               :key="location.id"
               class="result-card"
-              :class="{ 'result-card--selected': location.id === selectedLocation?.id }"
+              :class="{
+                'result-card--selected': location.id === selectedLocation?.id,
+              }"
               @click="selectLocation(location.id)"
             >
-              <span class="result-thumb" :style="{ '--thumb-color': location.color }"></span>
+              <span
+                class="result-thumb"
+                :style="{ '--thumb-color': location.color }"
+              ></span>
               <span class="result-card__copy">
                 <strong>{{ location.name }}</strong>
                 <span class="category-badge">{{ location.category }}</span>
@@ -570,16 +761,30 @@ onBeforeUnmount(() => {
         </section>
       </aside>
 
-      <section class="map-area" aria-label="Interactive tourist map">
+      <section
+        class="map-area"
+        aria-label="Interactive tourist map"
+        :inert="showDetail"
+        :aria-hidden="showDetail ? 'true' : undefined"
+      >
         <TouristMapBox
           :access-token="mapboxToken"
           :feature-collection="visibleMapGeoJson"
+          :emergency-feature-collection="emergencyGeoJson"
           :selected-id="selectedLocation?.id || ''"
           :route="routeGeoJson"
           :loading="isLoading"
           :error="errorMessage"
-          :empty-title="hasFilterInteraction || hasActiveFilters ? 'No locations match your filters.' : 'Asset coordinates not set yet'"
-          :empty-text="hasFilterInteraction || hasActiveFilters ? 'Try selecting more categories.' : 'Product Development assets are listed here. Add map coordinates later to place them on the map.'"
+          :empty-title="
+            hasFilterInteraction || hasActiveFilters
+              ? 'No locations match your filters.'
+              : 'Asset coordinates not set yet'
+          "
+          :empty-text="
+            hasFilterInteraction || hasActiveFilters
+              ? 'Try selecting more categories.'
+              : 'Product Development assets are listed here. Add map coordinates later to place them on the map.'
+          "
           @select="selectLocation"
           @request-details="openLocationDetail"
           @map-error="mapRuntimeError = $event"
@@ -591,14 +796,23 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="map-actions">
-          <button type="button" disabled title="Map layers will be refined in a later phase">
+          <button
+            type="button"
+            disabled
+            title="Map layers will be refined in a later phase"
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 5h16l-6.5 7.2V18l-3 1v-6.8L4 5Z" />
             </svg>
             Mapbox
           </button>
           <RouterLink to="/products">Browse Products</RouterLink>
-          <button v-if="routeGeoJson" type="button" class="map-actions__clear" @click="clearRoute">
+          <button
+            v-if="routeGeoJson || routeEstimates"
+            type="button"
+            class="map-actions__clear"
+            @click="clearRoute"
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6 6 18" />
             </svg>
@@ -611,92 +825,439 @@ onBeforeUnmount(() => {
             <i :style="{ backgroundColor: category.color }"></i>
             {{ category.key }}
           </span>
+          <span v-if="hasEmergencyFacilities">
+            <i class="map-legend__emergency">+</i>
+            Emergency services
+          </span>
         </div>
 
-        <div v-if="mapRuntimeError" class="feedback-toast feedback-toast--warning">
+        <section
+          v-if="routeEstimates"
+          class="travel-estimates"
+          aria-label="Estimated travel times"
+          aria-live="polite"
+        >
+          <header class="travel-estimates__header">
+            <div>
+              <span>Estimated travel time</span>
+              <strong>{{ routeEstimates.destinationName }}</strong>
+            </div>
+            <button
+              type="button"
+              aria-label="Clear route and travel times"
+              @click="clearRoute"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </header>
+          <div class="travel-estimates__modes">
+            <article>
+              <span class="travel-estimates__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="12" cy="4" r="2" />
+                  <path d="m10 22 1-7-3-3 2-5 4 3 3 1M14 22l-2-7 2-5" />
+                </svg>
+              </span>
+              <span>Walking</span>
+              <strong>{{
+                routeEstimates.walking
+                  ? formatRouteDuration(routeEstimates.walking.duration)
+                  : "Unavailable"
+              }}</strong>
+            </article>
+            <article>
+              <span class="travel-estimates__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="m5 17-1-5 2-5h12l2 5-1 5M6 12h12M7 17v2M17 17v2" />
+                  <circle cx="7" cy="15" r="1" />
+                  <circle cx="17" cy="15" r="1" />
+                </svg>
+              </span>
+              <span>Car</span>
+              <strong>{{
+                routeEstimates.driving
+                  ? formatRouteDuration(routeEstimates.driving.duration)
+                  : "Unavailable"
+              }}</strong>
+            </article>
+            <article>
+              <span class="travel-estimates__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="6" cy="17" r="3" />
+                  <circle cx="18" cy="17" r="3" />
+                  <path d="m9 17 3-7h4l2 7M10 13H7l-2-3M14 7h3" />
+                </svg>
+              </span>
+              <span>Motorcycle estimate</span>
+              <strong>{{
+                routeEstimates.motorcycle
+                  ? formatRouteDuration(routeEstimates.motorcycle.duration)
+                  : "Unavailable"
+              }}</strong>
+            </article>
+          </div>
+          <p>Motorcycle time uses Mapbox's live-traffic driving estimate.</p>
+        </section>
+
+        <div
+          v-if="mapRuntimeError"
+          class="feedback-toast feedback-toast--warning"
+        >
           {{ mapRuntimeError }}
         </div>
-        <div v-if="feedbackMessage" class="feedback-toast">{{ feedbackMessage }}</div>
+        <div v-if="feedbackMessage" class="feedback-toast">
+          {{ feedbackMessage }}
+        </div>
       </section>
 
       <div
         v-if="showDetail && selectedLocation"
         class="detail-backdrop"
-        @click="showDetail = false"
+        @click="closeLocationDetail"
       ></div>
 
-      <aside v-if="showDetail && selectedLocation" class="detail-drawer">
-        <div
-          class="detail-drawer__hero"
-          :style="{
-            '--drawer-color': selectedLocation.color,
-            backgroundImage: selectedLocation.imageUrl
-              ? `url(${selectedLocation.imageUrl})`
-              : undefined,
-          }"
-        >
-          <button type="button" aria-label="Close details" @click="showDetail = false">
+      <aside
+        v-if="showDetail && selectedLocation"
+        ref="detailDrawer"
+        class="detail-drawer"
+        role="dialog"
+        aria-modal="true"
+        tabindex="-1"
+        :aria-label="`${selectedLocation.name} details`"
+        @keydown="handleDetailKeydown"
+      >
+        <div class="detail-drawer__gallery">
+          <LocationImageCarousel
+            :images="detailGallery"
+            :label="selectedLocation.name"
+            :accent="selectedLocation.color"
+          />
+          <button
+            type="button"
+            class="detail-drawer__close"
+            aria-label="Close details"
+            @click="closeLocationDetail"
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6 6 18" />
             </svg>
           </button>
           <AccreditationBadge floating />
         </div>
+
         <div class="detail-drawer__body">
           <div class="detail-drawer__meta">
             <span class="category-badge">{{ selectedLocation.category }}</span>
             <span>{{ selectedLocationTypeLabel }}</span>
           </div>
           <h2>{{ selectedLocation.name }}</h2>
-          <p>{{ selectedLocation.description }}</p>
-          <div class="detail-drawer__facts">
-            <p>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 21s7-6.3 7-12A7 7 0 0 0 5 9c0 5.7 7 12 7 12Z" />
-                <circle cx="12" cy="9" r="2.3" />
-              </svg>
-              {{ selectedLocation.address }}
+
+          <p
+            v-if="isDetailLoading"
+            class="detail-drawer__load-state"
+            aria-live="polite"
+          >
+            Loading visitor information…
+          </p>
+          <p v-else-if="detailError" class="detail-drawer__error" role="alert">
+            {{ detailError }} The available map summary is shown below.
+          </p>
+
+          <template v-if="supportsRichDetails">
+            <section class="detail-section detail-section--overview">
+              <h3>Overview &amp; visit information</h3>
+              <p>
+                {{
+                  detailOverview ||
+                  "An overview will be added by the tourism team."
+                }}
+              </p>
+              <div class="detail-drawer__facts">
+                <p>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M12 21s7-6.3 7-12A7 7 0 0 0 5 9c0 5.7 7 12 7 12Z"
+                    />
+                    <circle cx="12" cy="9" r="2.3" />
+                  </svg>
+                  <span
+                    ><strong>Address</strong
+                    >{{
+                      selectedDetails?.address || selectedLocation.address
+                    }}</span
+                  >
+                </p>
+                <p>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3 2" />
+                  </svg>
+                  <span
+                    ><strong>Hours</strong
+                    >{{
+                      displayValue(selectedDetails?.openingHours) ||
+                      selectedLocation.hours
+                    }}</span
+                  >
+                </p>
+                <p v-if="selectedDetails?.admissionInformation">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 7h16v10H4zM8 7v10M16 7v10" />
+                  </svg>
+                  <span
+                    ><strong>Admission</strong
+                    >{{
+                      displayValue(selectedDetails.admissionInformation)
+                    }}</span
+                  >
+                </p>
+                <p v-if="selectedDetails?.bestTime">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4" />
+                    <path
+                      d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"
+                    />
+                  </svg>
+                  <span
+                    ><strong>Best time to visit</strong
+                    >{{ displayValue(selectedDetails.bestTime) }}</span
+                  >
+                </p>
+                <p v-if="selectedDetails?.accessibilityNotes">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="4" r="2" />
+                    <path
+                      d="M10 8h4v5h-3l-2 7M14 10l3 3 3 1M8 13a5 5 0 1 0 7 5"
+                    />
+                  </svg>
+                  <span
+                    ><strong>Accessibility</strong
+                    >{{
+                      displayValue(selectedDetails.accessibilityNotes)
+                    }}</span
+                  >
+                </p>
+              </div>
+            </section>
+
+            <section class="detail-section">
+              <h3>Activities</h3>
+              <ul
+                v-if="selectedDetails?.activities?.length"
+                class="detail-activity-list"
+              >
+                <li
+                  v-for="activity in selectedDetails.activities"
+                  :key="activity.id"
+                >
+                  <img
+                    v-if="activity.imageUrl"
+                    :src="activity.imageUrl"
+                    :alt="activity.name"
+                    loading="lazy"
+                  />
+                  <div>
+                    <strong>{{ activity.name }}</strong>
+                    <span v-if="activity.duration || activity.targetMarket">
+                      {{
+                        [activity.duration, activity.targetMarket]
+                          .filter(Boolean)
+                          .join(" · ")
+                      }}
+                    </span>
+                    <p v-if="activity.description">
+                      {{ activity.description }}
+                    </p>
+                  </div>
+                </li>
+              </ul>
+              <p v-else class="detail-section__empty">
+                Activities will appear here once linked by the tourism team.
+              </p>
+            </section>
+
+            <section class="detail-section">
+              <h3>How to visit</h3>
+              <p>
+                {{
+                  selectedDetails?.howToVisit ||
+                  "Travel instructions are being prepared."
+                }}
+              </p>
+            </section>
+
+            <section class="detail-section">
+              <h3>How to book</h3>
+              <p>
+                {{
+                  selectedDetails?.howToBook ||
+                  "Booking instructions are being prepared."
+                }}
+              </p>
+            </section>
+
+            <section class="detail-section">
+              <h3>Available packages</h3>
+              <div
+                v-if="selectedDetails?.packages?.length"
+                class="detail-package-list"
+              >
+                <RouterLink
+                  v-for="tourismPackage in selectedDetails.packages"
+                  :key="tourismPackage.id"
+                  :to="`/packages/${tourismPackage.slug}`"
+                  class="detail-package-card"
+                >
+                  <img
+                    v-if="tourismPackage.primaryImage"
+                    :src="tourismPackage.primaryImage"
+                    :alt="tourismPackage.name"
+                    loading="lazy"
+                  />
+                  <span>
+                    <small v-if="tourismPackage.isPrimary">Recommended</small>
+                    <strong>{{ tourismPackage.name }}</strong>
+                    <em>{{
+                      [tourismPackage.duration, tourismPackage.priceLabel]
+                        .filter(Boolean)
+                        .join(" · ")
+                    }}</em>
+                  </span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </RouterLink>
+              </div>
+              <p v-else class="detail-section__empty">
+                No bookable package is linked to this location yet.
+              </p>
+            </section>
+
+            <section class="detail-section">
+              <h3>Overnight stays</h3>
+              <div
+                v-if="selectedDetails?.overnightOptions?.length"
+                class="overnight-table-wrap"
+              >
+                <table class="overnight-table">
+                  <thead>
+                    <tr>
+                      <th>Option</th>
+                      <th>Capacity</th>
+                      <th>Rate</th>
+                      <th>Inclusions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="option in selectedDetails.overnightOptions"
+                      :key="option.id"
+                    >
+                      <td>
+                        <strong>{{ option.name }}</strong
+                        ><span v-if="option.description">{{
+                          option.description
+                        }}</span>
+                      </td>
+                      <td>{{ option.capacity || "Ask host" }}</td>
+                      <td>
+                        <strong>{{ option.priceLabel }}</strong
+                        ><span>{{ option.billingUnit }}</span>
+                      </td>
+                      <td>
+                        <span>{{
+                          option.inclusions.length
+                            ? option.inclusions.join(", ")
+                            : "Confirm with host"
+                        }}</span>
+                        <small v-if="option.notes">{{ option.notes }}</small>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p v-else class="detail-section__empty">
+                Camping and tent-rental options will appear here when published.
+              </p>
+            </section>
+
+            <div class="detail-drawer__actions">
+              <button
+                class="detail-drawer__primary-action"
+                type="button"
+                :disabled="!primaryBookPackage"
+                :title="
+                  primaryBookPackage
+                    ? `Book ${primaryBookPackage.name}`
+                    : 'No ready package is linked yet'
+                "
+                @click="bookPrimaryPackage"
+              >
+                Book Now
+              </button>
+              <button
+                class="detail-drawer__secondary-action"
+                type="button"
+                :disabled="isRouting"
+                @click="getDirections(selectedLocation)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 18 3 15V5l6 3 6-3 6 3v10l-6-3-6 3Z" />
+                  <path d="M9 8v10M15 5v10" />
+                </svg>
+                {{ isRouting ? "Finding route…" : "Get directions" }}
+              </button>
+            </div>
+            <p v-if="!primaryBookPackage" class="detail-drawer__booking-note">
+              Booking opens when the tourism team links a ready package.
             </p>
-            <p>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 7v5l3 2" />
-              </svg>
-              {{ selectedLocation.hours }}
-            </p>
-          </div>
-          <div class="detail-drawer__actions">
-            <button
-              class="detail-drawer__primary-action"
-              type="button"
-              :disabled="isRouting"
-              @click="getDirections(selectedLocation)"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M9 18 3 15V5l6 3 6-3 6 3v10l-6-3-6 3Z" />
-                <path d="M9 8v10M15 5v10" />
-              </svg>
-              {{ isRouting ? 'Finding route…' : 'Get directions' }}
-            </button>
-            <button
-              class="detail-drawer__secondary-action"
-              type="button"
-              :disabled="isSaving || !selectedCanBeSaved"
-              @click="toggleItinerary(selectedLocation)"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 4h12v17l-6-3-6 3V4Z" />
-              </svg>
-              {{
-                !selectedCanBeSaved
-                  ? 'Save unavailable'
-                  : isSaving
-                    ? 'Saving...'
-                    : savedIds.has(selectedLocation.id)
-                      ? 'Saved to itinerary'
-                      : 'Save to itinerary'
-              }}
-            </button>
+          </template>
+
+          <template v-else>
+            <section class="detail-section detail-section--overview">
+              <h3>About this location</h3>
+              <p>{{ selectedLocation.description }}</p>
+              <div class="detail-drawer__facts">
+                <p>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M12 21s7-6.3 7-12A7 7 0 0 0 5 9c0 5.7 7 12 7 12Z"
+                    />
+                    <circle cx="12" cy="9" r="2.3" /></svg
+                  ><span
+                    ><strong>Address</strong
+                    >{{ selectedLocation.address }}</span
+                  >
+                </p>
+                <p>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3 2" /></svg
+                  ><span
+                    ><strong>Hours</strong>{{ selectedLocation.hours }}</span
+                  >
+                </p>
+              </div>
+            </section>
+            <div class="detail-drawer__actions detail-drawer__actions--single">
+              <button
+                type="button"
+                :disabled="isRouting"
+                @click="getDirections(selectedLocation)"
+              >
+                {{ isRouting ? "Finding route…" : "Get directions" }}
+              </button>
+            </div>
+          </template>
+
+          <div class="detail-drawer__reviews">
+            <ReviewsSection
+              :target-type="reviewTargetType"
+              :target-id="selectedLocation.id"
+              :target-name="selectedLocation.name"
+            />
           </div>
 
           <div class="detail-drawer__nearby">
@@ -707,14 +1268,6 @@ onBeforeUnmount(() => {
               :limit="4"
             />
           </div>
-
-          <div class="detail-drawer__reviews">
-            <ReviewsSection
-              target-type="destination"
-              :target-id="selectedLocation.id"
-              :target-name="selectedLocation.name"
-            />
-          </div>
         </div>
       </aside>
     </main>
@@ -722,7 +1275,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
 
 .discovery-page {
   min-height: 100vh;
@@ -846,7 +1399,7 @@ h2,
 h3 {
   margin: 0;
   color: #1a1a1a;
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   line-height: 1.2;
 }
 
@@ -1035,8 +1588,16 @@ h1 {
   flex: 0 0 auto;
   border-radius: 8px;
   background:
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.22), transparent 38%),
-    linear-gradient(135deg, var(--thumb-color), color-mix(in srgb, var(--thumb-color) 65%, white));
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(255, 255, 255, 0.22),
+      transparent 38%
+    ),
+    linear-gradient(
+      135deg,
+      var(--thumb-color),
+      color-mix(in srgb, var(--thumb-color) 65%, white)
+    );
 }
 
 .result-card__copy {
@@ -1228,8 +1789,16 @@ h1 {
   position: relative;
   height: 140px;
   background:
-    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.25), transparent 45%),
-    linear-gradient(135deg, var(--popup-color), color-mix(in srgb, var(--popup-color) 62%, white));
+    radial-gradient(
+      circle at 30% 30%,
+      rgba(255, 255, 255, 0.25),
+      transparent 45%
+    ),
+    linear-gradient(
+      135deg,
+      var(--popup-color),
+      color-mix(in srgb, var(--popup-color) 62%, white)
+    );
 }
 
 .location-popup__image button {
@@ -1317,6 +1886,148 @@ h1 {
   border-radius: 999px;
 }
 
+.map-legend i.map-legend__emergency {
+  width: 16px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
+  border: 2px solid #dc2626;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #dc2626;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.travel-estimates {
+  position: absolute;
+  z-index: 5;
+  right: 20px;
+  bottom: 76px;
+  width: min(440px, calc(100% - 40px));
+  padding: 16px;
+  border: 1px solid rgba(27, 67, 50, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 50px rgba(27, 67, 50, 0.2);
+  backdrop-filter: blur(12px);
+}
+
+.travel-estimates__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.travel-estimates__header > div {
+  min-width: 0;
+  display: grid;
+}
+
+.travel-estimates__header span {
+  color: #5c5c5c;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.travel-estimates__header strong {
+  overflow: hidden;
+  color: #1a1a1a;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.travel-estimates__header button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #f2f0eb;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.travel-estimates__header svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.travel-estimates__modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.travel-estimates__modes article {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 11px 6px;
+  border-radius: 12px;
+  background: #f4f8f5;
+  color: #5c5c5c;
+  text-align: center;
+}
+
+.travel-estimates__modes article > span:not(.travel-estimates__icon) {
+  min-height: 32px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.travel-estimates__modes article > strong {
+  color: #166534;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.travel-estimates__icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.travel-estimates__icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.travel-estimates > p {
+  margin: 10px 0 0;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .feedback-toast {
   position: absolute;
   right: 20px;
@@ -1357,18 +2068,20 @@ h1 {
   animation: slideIn 240ms ease-out both;
 }
 
-.detail-drawer__hero {
+.detail-drawer__gallery {
   position: relative;
-  height: 240px;
-  background:
-    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.25), transparent 45%),
-    linear-gradient(135deg, var(--drawer-color), color-mix(in srgb, var(--drawer-color) 62%, white));
-  background-position: center;
-  background-size: cover;
+  flex: 0 0 auto;
 }
 
-.detail-drawer__hero button {
+.detail-drawer__gallery :deep(.accr-badge--floating) {
+  top: auto;
+  right: 14px;
+  bottom: 14px;
+}
+
+.detail-drawer__close {
   position: absolute;
+  z-index: 3;
   top: 16px;
   right: 16px;
   width: 40px;
@@ -1377,12 +2090,13 @@ h1 {
   place-items: center;
   border: 0;
   border-radius: 999px;
-  background: rgba(27, 67, 50, 0.22);
+  background: rgba(16, 24, 20, 0.68);
   color: #ffffff;
   cursor: pointer;
+  backdrop-filter: blur(6px);
 }
 
-.detail-drawer__hero button svg {
+.detail-drawer__close svg {
   width: 20px;
   height: 20px;
   fill: none;
@@ -1395,6 +2109,7 @@ h1 {
   display: flex;
   flex: 1;
   flex-direction: column;
+  gap: 0;
   padding: 32px;
 }
 
@@ -1413,31 +2128,81 @@ h1 {
 .detail-drawer__body h2 {
   margin-top: 14px;
   color: #1a1a1a;
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   font-size: 32px;
   font-weight: 600;
 }
 
-.detail-drawer__body p {
-  margin: 28px 0 0;
+.detail-drawer__load-state,
+.detail-drawer__error {
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f2f0eb;
   color: #5c5c5c;
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: 13px;
+}
+
+.detail-drawer__error {
+  border-left: 3px solid #b5451b;
+  background: #fff7ed;
+  color: #7a2d0e;
+}
+
+.detail-section {
+  margin-top: 28px;
+  padding-top: 28px;
+  border-top: 1px solid #e8e4dc;
+}
+
+.detail-section--overview {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.detail-section h3 {
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.detail-section > p {
+  margin: 10px 0 0;
+  color: #5c5c5c;
+  font-size: 15px;
+  line-height: 1.7;
+  white-space: pre-line;
+}
+
+.detail-section > p.detail-section__empty {
+  padding: 14px;
+  border-radius: 10px;
+  background: #f7f6f3;
+  font-size: 13px;
 }
 
 .detail-drawer__facts {
   display: grid;
-  gap: 18px;
-  margin-top: 28px;
+  gap: 12px;
+  margin-top: 18px;
 }
 
 .detail-drawer__facts p {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  align-items: flex-start;
+  gap: 12px;
   margin: 0;
   color: #1a1a1a;
-  font-size: 16px;
+  font-size: 14px;
+}
+
+.detail-drawer__facts p > span {
+  display: grid;
+  gap: 2px;
+}
+
+.detail-drawer__facts p strong {
+  font-size: 12px;
+  letter-spacing: 0.02em;
 }
 
 .detail-drawer__facts svg,
@@ -1453,20 +2218,182 @@ h1 {
 }
 
 .detail-drawer__facts svg {
+  margin-top: 2px;
   color: #1b4332;
+}
+
+.detail-activity-list {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+}
+
+.detail-activity-list li {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e8e4dc;
+  border-radius: 12px;
+}
+
+.detail-activity-list img {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  object-fit: cover;
+}
+
+.detail-activity-list div {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+}
+
+.detail-activity-list strong {
+  font-size: 14px;
+}
+
+.detail-activity-list span {
+  color: #1b7a4a;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.detail-activity-list p {
+  margin: 2px 0 0;
+  color: #5c5c5c;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.detail-package-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.detail-package-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 78px;
+  padding: 12px;
+  border: 1px solid #e8e4dc;
+  border-radius: 12px;
+  transition:
+    border-color 150ms ease,
+    transform 150ms ease;
+}
+
+.detail-package-card:hover {
+  border-color: #1b4332;
+  transform: translateY(-1px);
+}
+
+.detail-package-card img {
+  width: 60px;
+  height: 54px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.detail-package-card > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.detail-package-card small {
+  color: #b5451b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.detail-package-card strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-package-card em {
+  color: #5c5c5c;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.detail-package-card > svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: #1b4332;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.overnight-table-wrap {
+  width: 100%;
+  margin-top: 14px;
+  overflow-x: auto;
+  border: 1px solid #e8e4dc;
+  border-radius: 12px;
+}
+
+.overnight-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.overnight-table th {
+  padding: 10px 12px;
+  background: #f2f0eb;
+  color: #5c5c5c;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.overnight-table td {
+  max-width: 180px;
+  padding: 12px;
+  border-top: 1px solid #e8e4dc;
+  vertical-align: top;
+}
+
+.overnight-table td span,
+.overnight-table td small {
+  display: block;
+  margin-top: 3px;
+  color: #5c5c5c;
+  line-height: 1.45;
 }
 
 .detail-drawer__actions {
   display: flex;
   gap: 12px;
-  margin-top: auto;
+  margin-top: 28px;
   padding-top: 32px;
   border-top: 1px solid #e8e4dc;
 }
 
+.detail-drawer__actions--single button {
+  max-width: 280px;
+}
+
 .detail-drawer__nearby,
 .detail-drawer__reviews {
-  margin-top: 24px;
+  margin-top: 28px;
 }
 
 .detail-drawer__actions button {
@@ -1488,6 +2415,18 @@ h1 {
 .detail-drawer__actions .detail-drawer__secondary-action {
   background: transparent;
   color: #1b4332;
+}
+
+.detail-drawer__actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.detail-drawer__booking-note {
+  margin: 9px 0 0;
+  color: #5c5c5c;
+  font-size: 12px;
+  text-align: center;
 }
 
 @keyframes slideIn {
@@ -1566,8 +2505,31 @@ h1 {
     flex-direction: column;
   }
 
+  .map-actions a {
+    display: none;
+  }
+
   .map-legend,
   .location-popup {
+    display: none;
+  }
+
+  .travel-estimates {
+    right: 12px;
+    bottom: calc(44dvh + env(safe-area-inset-bottom) + 12px);
+    width: calc(100% - 24px);
+    padding: 12px;
+  }
+
+  .travel-estimates__modes {
+    margin-top: 10px;
+  }
+
+  .travel-estimates__modes article {
+    padding: 8px 4px;
+  }
+
+  .travel-estimates > p {
     display: none;
   }
 
@@ -1592,8 +2554,9 @@ h1 {
     bottom: 0;
     left: 0;
     width: auto;
-    max-height: 40vh;
-    max-height: 40dvh;
+    max-width: 100vw;
+    max-height: 44vh;
+    max-height: 44dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1631,11 +2594,17 @@ h1 {
     min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 8px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
   }
 
   .result-card {
+    min-height: 68px;
     padding: 12px 16px;
+  }
+
+  .search-field,
+  .search-field input {
+    min-width: 0;
   }
 
   .result-card--selected {
@@ -1655,13 +2624,23 @@ h1 {
     padding: 28px 20px;
   }
 
+  .detail-drawer__body h2 {
+    font-size: 28px;
+  }
+
   .detail-drawer__actions {
     flex-direction: column;
   }
 
+  .overnight-table {
+    min-width: 560px;
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .discovery-sidebar {
+    .discovery-sidebar,
+    .detail-drawer {
       transition: none;
+      animation: none;
     }
   }
 }

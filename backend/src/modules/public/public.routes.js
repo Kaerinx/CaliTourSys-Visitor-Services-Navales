@@ -38,6 +38,8 @@ router.get('/destinations', controller.listDestinations)
 router.get('/destinations/:slug', controller.getDestinationBySlug)
 
 router.get('/map/locations', controller.listMapLocations)
+router.get('/map/emergency-facilities', controller.listEmergencyFacilities)
+router.get('/map/locations/:id/details', controller.getMapLocationDetails)
 
 router.get('/museum/categories', controller.listMuseumCategories)
 router.get('/museum/artifacts', controller.listMuseumArtifacts)

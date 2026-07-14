@@ -3,6 +3,7 @@ import PromotionNavbar from '../components/PromotionNavbar.vue'
 import PromotionFooter from '../components/PromotionFooter.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useVisitorSession } from '../composables/useVisitorSession'
 import {
   getEventCategories,
   getEvents,
@@ -12,10 +13,10 @@ import {
   sharePublicItem,
 } from '../services/promotionService'
 
-const VISITOR_SESSION_KEY = 'calitoursys_public_visitor'
 const PENDING_SAVE_KEY = 'calitoursys_pending_event_save'
 const route = useRoute()
 const router = useRouter()
+const { isAuthenticated: isVisitorAuthenticated } = useVisitorSession()
 
 const events = ref([])
 const eventCategories = ref([])
@@ -31,7 +32,6 @@ const feedbackMessage = ref('')
 const isSaving = ref(false)
 const isLoading = ref(true)
 const errorMessage = ref('')
-const isVisitorAuthenticated = ref(hasVisitorSession())
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const calendarFocusDate = computed(() => {
@@ -168,14 +168,6 @@ async function refreshSavedEvents() {
   }
 }
 
-function hasVisitorSession() {
-  try {
-    return Boolean(window.localStorage.getItem(VISITOR_SESSION_KEY))
-  } catch {
-    return false
-  }
-}
-
 function promptForSaveAuth(event) {
   sessionStorage.setItem(PENDING_SAVE_KEY, event.id)
   router.replace({
@@ -185,7 +177,6 @@ function promptForSaveAuth(event) {
 }
 
 async function resumePendingSave() {
-  isVisitorAuthenticated.value = hasVisitorSession()
   if (!isVisitorAuthenticated.value) return
   await refreshSavedEvents()
 

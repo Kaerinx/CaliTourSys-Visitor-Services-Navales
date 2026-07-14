@@ -18,6 +18,7 @@ tags:
   - name: CMS Businesses
   - name: CMS Museum
   - name: CMS Map Locations
+  - name: CMS Emergency Facilities
   - name: CMS Operations
 paths:
   /cms/health:
@@ -545,6 +546,120 @@ paths:
       $ref: "#/components/pathItems/GenericContentUpdate"
     delete:
       $ref: "#/components/pathItems/GenericContentDelete"
+  /cms/map-locations/options/experience:
+    get:
+      tags: [CMS Map Locations]
+      summary: List non-archived activities and packages available for map-location links
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Map-location authoring options
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /cms/map-locations/{id}/experience:
+    patch:
+      tags: [CMS Map Locations]
+      summary: Replace rich detail content for a destination or business map location
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CmsMapLocationExperienceInput"
+      responses:
+        "200":
+          description: Saved map-location experience
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /cms/emergency-facilities:
+    get:
+      tags: [CMS Emergency Facilities]
+      summary: List emergency facilities
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/SearchParam"
+        - $ref: "#/components/parameters/StatusParam"
+        - name: facilityType
+          in: query
+          schema:
+            $ref: "#/components/schemas/EmergencyFacilityType"
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [displayOrder, -displayOrder, createdAt, -createdAt, updatedAt, -updatedAt, name, -name, status]
+      responses:
+        "200":
+          description: Paginated emergency facilities
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [CMS Emergency Facilities]
+      summary: Create emergency facility
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CmsEmergencyFacilityInput"
+      responses:
+        "201":
+          description: Emergency facility created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /cms/emergency-facilities/{id}:
+    get:
+      $ref: "#/components/pathItems/EmergencyFacilityDetail"
+    patch:
+      $ref: "#/components/pathItems/EmergencyFacilityUpdate"
+  /cms/emergency-facilities/{id}/publish:
+    patch:
+      $ref: "#/components/pathItems/EmergencyFacilityState"
+  /cms/emergency-facilities/{id}/archive:
+    patch:
+      $ref: "#/components/pathItems/EmergencyFacilityState"
   /cms/media:
     get:
       $ref: "#/components/pathItems/OperationsList"
@@ -883,6 +998,81 @@ components:
       responses:
         "200":
           description: Deleted CMS record response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    EmergencyFacilityDetail:
+      tags: [CMS Emergency Facilities]
+      summary: Get emergency facility by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          description: Emergency facility
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CmsEmergencyFacility"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    EmergencyFacilityUpdate:
+      tags: [CMS Emergency Facilities]
+      summary: Update emergency facility
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CmsEmergencyFacilityPatch"
+      responses:
+        "200":
+          description: Updated emergency facility
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    EmergencyFacilityState:
+      tags: [CMS Emergency Facilities]
+      summary: Publish or archive an emergency facility
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPathParam"
+      responses:
+        "200":
+          description: Updated emergency facility state
           content:
             application/json:
               schema:
@@ -1672,3 +1862,160 @@ components:
         color:
           type: string
           nullable: true
+    EmergencyFacilityType:
+      type: string
+      enum: [emergency_service, health_center, hospital, first_aid, fire_station, police_station, responder, other]
+    CmsEmergencyFacilityWritableFields:
+      type: object
+      properties:
+        slug:
+          type: string
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        name:
+          type: string
+          maxLength: 255
+        facilityType:
+          $ref: "#/components/schemas/EmergencyFacilityType"
+        description:
+          type: [string, "null"]
+        addressLine:
+          type: string
+        barangay:
+          type: [string, "null"]
+        municipality:
+          type: string
+          default: Calabanga
+        province:
+          type: string
+          default: Camarines Sur
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+        openingHours:
+          type: object
+          additionalProperties:
+            type: string
+        publicPhone:
+          type: [string, "null"]
+        emergencyHotline:
+          type: [string, "null"]
+        email:
+          type: [string, "null"]
+          format: email
+        accessibilityFeatures:
+          type: array
+          items:
+            type: string
+        amenities:
+          type: array
+          items:
+            type: string
+        verificationSource:
+          type: [string, "null"]
+        verifiedAt:
+          type: [string, "null"]
+          format: date-time
+        sortPriority:
+          type: integer
+    CmsEmergencyFacilityInput:
+      allOf:
+        - $ref: "#/components/schemas/CmsEmergencyFacilityWritableFields"
+        - type: object
+          required: [slug, name, facilityType, addressLine, latitude, longitude]
+    CmsEmergencyFacilityPatch:
+      $ref: "#/components/schemas/CmsEmergencyFacilityWritableFields"
+    CmsEmergencyFacility:
+      allOf:
+        - $ref: "#/components/schemas/CmsEmergencyFacilityWritableFields"
+        - type: object
+          required: [id, slug, name, facilityType, addressLine, latitude, longitude, status]
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              $ref: "#/components/schemas/ContentStatus"
+            publishedAt:
+              type: [string, "null"]
+              format: date-time
+            archivedAt:
+              type: [string, "null"]
+              format: date-time
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    CmsMapLocationExperienceInput:
+      type: object
+      additionalProperties: false
+      properties:
+        details:
+          type: object
+          additionalProperties: false
+          properties:
+            overview: { type: [string, "null"] }
+            openingHoursText: { type: [string, "null"] }
+            admissionInformation: { type: [string, "null"] }
+            bestTimeToVisit: { type: [string, "null"] }
+            accessibilityNotes: { type: [string, "null"] }
+            howToVisit: { type: [string, "null"] }
+            howToBook: { type: [string, "null"] }
+        galleryImages:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            properties:
+              mediaAssetId: { type: [string, "null"], format: uuid }
+              imageUrl: { type: [string, "null"] }
+              altText: { type: [string, "null"], maxLength: 255 }
+              displayOrder: { type: integer }
+              isPrimary: { type: boolean }
+        activityLinks:
+          type: array
+          items:
+            type: object
+            required: [activityId]
+            properties:
+              activityId: { type: string, format: uuid }
+              displayOrder: { type: integer }
+        packageLinks:
+          type: array
+          items:
+            type: object
+            required: [packageId]
+            properties:
+              packageId: { type: string, format: uuid }
+              displayOrder: { type: integer }
+              isPrimary: { type: boolean }
+        overnightOptions:
+          type: array
+          items:
+            type: object
+            required: [optionType, name, rateUnit]
+            properties:
+              optionType:
+                type: string
+                enum: [camping, tent_rental, other]
+              name: { type: string }
+              description: { type: [string, "null"] }
+              capacityMin: { type: [integer, "null"], minimum: 1 }
+              capacityMax: { type: [integer, "null"], minimum: 1 }
+              rateAmount: { type: [number, "null"], minimum: 0 }
+              currency: { type: string, enum: [PHP] }
+              rateUnit:
+                type: string
+                enum: [per_person_per_night, per_tent_per_night, per_site_per_night, flat_rate]
+              inclusions:
+                type: array
+                items: { type: string }
+              notes: { type: [string, "null"] }
+              isActive: { type: boolean }
+              displayOrder: { type: integer }

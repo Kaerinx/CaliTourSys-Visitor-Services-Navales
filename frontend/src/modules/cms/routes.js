@@ -8,13 +8,8 @@ const cmsRoutes = [
   {
     path: '/cms/login',
     name: 'cms-login',
-    redirect: (to) => ({
-      path: '/login',
-      query: {
-        ...to.query,
-        as: 'staff',
-      },
-    }),
+    component: () => import('./views/CmsLoginView.vue'),
+    meta: { publicOnly: true },
   },
   {
     path: '/cms/unauthorized',
@@ -170,6 +165,12 @@ const cmsRoutes = [
         meta: { permission: 'map_locations.view' },
       },
       {
+        path: 'emergency-facilities',
+        name: 'cms-emergency-facilities',
+        component: () => import('./views/content/CmsEmergencyFacilitiesView.vue'),
+        meta: { permission: 'map_locations.view' },
+      },
+      {
         path: 'media',
         name: 'cms-media',
         component: () => import('./views/content/CmsMediaView.vue'),
@@ -231,9 +232,8 @@ export async function guardCmsRoute(to) {
 
     if (!auth.isAuthenticated) {
       return {
-        path: '/login',
+        path: '/cms/login',
         query: {
-          as: 'staff',
           redirect: to.fullPath,
           ...(hadStoredToken ? { sessionExpired: '1' } : {}),
         },

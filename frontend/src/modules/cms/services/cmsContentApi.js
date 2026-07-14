@@ -199,4 +199,29 @@ export const cmsContentApi = {
   deleteMapLocation(id) {
     return http.deleteAuth(`/cms/map-locations/${id}`)
   },
+  getMapLocationExperienceOptions() {
+    return http.getAuth('/cms/map-locations/options/experience')
+  },
+  updateMapLocationExperience(id, payload) {
+    return http.patchAuth(`/cms/map-locations/${id}/experience`, payload)
+  },
+
+  getEmergencyFacilities(params) {
+    return http.getAuth('/cms/emergency-facilities', params)
+  },
+  getEmergencyFacilityById(id) {
+    return http.getAuth(`/cms/emergency-facilities/${id}`)
+  },
+  createEmergencyFacility(payload) {
+    return http.postAuth('/cms/emergency-facilities', payload)
+  },
+  updateEmergencyFacility(id, payload) {
+    return http.patchAuth(`/cms/emergency-facilities/${id}`, payload)
+  },
+  publishEmergencyFacility(id) {
+    return http.patchAuth(`/cms/emergency-facilities/${id}/publish`, {})
+  },
+  archiveEmergencyFacility(id) {
+    return http.patchAuth(`/cms/emergency-facilities/${id}/archive`, {})
+  },
 }

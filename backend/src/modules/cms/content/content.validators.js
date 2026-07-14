@@ -10,6 +10,16 @@ const businessStatusSchema = z.enum(['active', 'inactive', 'archived'])
 const promotionTypeSchema = z.enum(['campaign', 'featured', 'seasonal', 'announcement'])
 const mapLocationTypeSchema = z.enum(['destination', 'business', 'event'])
 const eventRecurrenceTypeSchema = z.enum(['one_time', 'yearly', 'twice_a_year'])
+const emergencyFacilityTypeSchema = z.enum([
+  'emergency_service',
+  'health_center',
+  'hospital',
+  'first_aid',
+  'fire_station',
+  'police_station',
+  'responder',
+  'other',
+])
 
 const optionalDateSchema = z
   .string()
@@ -175,6 +185,25 @@ const mapLocationListQuerySchema = z.object({
   status: contentStatusSchema.optional(),
   locationType: mapLocationTypeSchema.optional(),
   sort: z.enum(['createdAt', '-createdAt', 'updatedAt', '-updatedAt', 'name', '-name', 'status', 'displayOrder', '-displayOrder']).default('-createdAt'),
+})
+
+const emergencyFacilityListQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  search: z.string().trim().max(120).optional(),
+  status: contentStatusSchema.optional(),
+  facilityType: emergencyFacilityTypeSchema.optional(),
+  sort: z.enum([
+    'createdAt',
+    '-createdAt',
+    'updatedAt',
+    '-updatedAt',
+    'name',
+    '-name',
+    'status',
+    'displayOrder',
+    '-displayOrder',
+  ]).default('displayOrder'),
 })
 
 const promotionBaseSchema = z
@@ -390,6 +419,146 @@ const mapLocationPatchSchema = mapLocationBaseSchema.partial().refine((data) => 
   return mapLocationTargetRefinement(data)
 }, 'locationType updates must include exactly one matching target ID.')
 
+const optionalText = (max) => z.string().trim().max(max).optional().nullable()
+const nullableInteger = (minimum = 0) => z.preprocess((value) => {
+  if (value === undefined || value === null || value === '') return null
+  return Number(value)
+}, z.number().int().min(minimum).nullable().optional())
+
+const emergencyFacilityBaseSchema = z.object({
+  slug: slugSchema,
+  name: z.string().trim().min(1).max(255),
+  facilityType: emergencyFacilityTypeSchema,
+  description: optionalText(20000),
+  addressLine: z.string().trim().min(1).max(5000),
+  barangay: optionalText(120),
+  municipality: z.string().trim().min(1).max(120).default('Calabanga'),
+  province: z.string().trim().min(1).max(120).default('Camarines Sur'),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  openingHours: z.record(z.string().max(40), z.string().trim().max(255)).default({}),
+  publicPhone: optionalText(80),
+  emergencyHotline: optionalText(80),
+  email: z.preprocess(
+    (value) => (value === '' ? null : value),
+    z.email('Use a valid email address.').max(255).optional().nullable(),
+  ),
+  accessibilityFeatures: z.array(z.string().trim().min(1).max(255)).max(50).default([]),
+  amenities: z.array(z.string().trim().min(1).max(255)).max(50).default([]),
+  verificationSource: optionalText(5000),
+  verifiedAt: optionalDateSchema,
+  sortPriority: z.number().int().default(0),
+}).strict()
+
+const emergencyFacilityPatchSchema = z.object({
+  slug: slugSchema.optional(),
+  name: z.string().trim().min(1).max(255).optional(),
+  facilityType: emergencyFacilityTypeSchema.optional(),
+  description: optionalText(20000),
+  addressLine: z.string().trim().min(1).max(5000).optional(),
+  barangay: optionalText(120),
+  municipality: z.string().trim().min(1).max(120).optional(),
+  province: z.string().trim().min(1).max(120).optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  openingHours: z.record(z.string().max(40), z.string().trim().max(255)).optional(),
+  publicPhone: optionalText(80),
+  emergencyHotline: optionalText(80),
+  email: z.preprocess(
+    (value) => (value === '' ? null : value),
+    z.email('Use a valid email address.').max(255).optional().nullable(),
+  ),
+  accessibilityFeatures: z.array(z.string().trim().min(1).max(255)).max(50).optional(),
+  amenities: z.array(z.string().trim().min(1).max(255)).max(50).optional(),
+  verificationSource: optionalText(5000),
+  verifiedAt: optionalDateSchema,
+  sortPriority: z.number().int().optional(),
+}).strict()
+
+const mapLocationDetailsSchema = z.object({
+  overview: optionalText(20000),
+  openingHoursText: optionalText(5000),
+  admissionInformation: optionalText(5000),
+  bestTimeToVisit: optionalText(5000),
+  accessibilityNotes: optionalText(10000),
+  howToVisit: optionalText(20000),
+  howToBook: optionalText(20000),
+}).strict()
+
+const galleryImageSchema = z.object({
+  mediaAssetId: optionalUuidSchema('mediaAssetId must be a valid UUID.'),
+  imageUrl: imageUrlSchema.optional().nullable(),
+  altText: optionalText(255),
+  displayOrder: z.number().int().default(0),
+  isPrimary: z.boolean().default(false),
+}).strict().refine(
+  (image) => Boolean(image.mediaAssetId) !== Boolean(image.imageUrl),
+  'Each gallery image must use exactly one media asset or image URL.',
+)
+
+const activityLinkSchema = z.object({
+  activityId: z.uuid('activityId must be a valid UUID.'),
+  displayOrder: z.number().int().default(0),
+}).strict()
+
+const packageLinkSchema = z.object({
+  packageId: z.uuid('packageId must be a valid UUID.'),
+  displayOrder: z.number().int().default(0),
+  isPrimary: z.boolean().default(false),
+}).strict()
+
+const overnightOptionSchema = z.object({
+  optionType: z.enum(['camping', 'tent_rental', 'other']),
+  name: z.string().trim().min(1).max(255),
+  description: optionalText(10000),
+  capacityMin: nullableInteger(1),
+  capacityMax: nullableInteger(1),
+  rateAmount: z.preprocess(
+    (value) => (value === '' || value === undefined || value === null ? null : Number(value)),
+    z.number().nonnegative().nullable().optional(),
+  ),
+  currency: z.literal('PHP').default('PHP'),
+  rateUnit: z.enum([
+    'per_person_per_night',
+    'per_tent_per_night',
+    'per_site_per_night',
+    'flat_rate',
+  ]),
+  inclusions: z.array(z.string().trim().min(1).max(500)).max(50).default([]),
+  notes: optionalText(10000),
+  isActive: z.boolean().default(true),
+  displayOrder: z.number().int().default(0),
+}).strict().refine(
+  (option) => option.capacityMin === null || option.capacityMax === null || option.capacityMax >= option.capacityMin,
+  'Maximum capacity must be greater than or equal to minimum capacity.',
+)
+
+const mapLocationExperienceBodySchema = z.object({
+  details: mapLocationDetailsSchema.default({}),
+  galleryImages: z.array(galleryImageSchema).max(50).default([]),
+  activityLinks: z.array(activityLinkSchema).max(100).default([]),
+  packageLinks: z.array(packageLinkSchema).max(100).default([]),
+  overnightOptions: z.array(overnightOptionSchema).max(100).default([]),
+}).strict().superRefine((data, ctx) => {
+  const uniqueActivities = new Set(data.activityLinks.map((item) => item.activityId))
+  if (uniqueActivities.size !== data.activityLinks.length) {
+    ctx.addIssue({ code: 'custom', path: ['activityLinks'], message: 'Activities may only be linked once.' })
+  }
+
+  const uniquePackages = new Set(data.packageLinks.map((item) => item.packageId))
+  if (uniquePackages.size !== data.packageLinks.length) {
+    ctx.addIssue({ code: 'custom', path: ['packageLinks'], message: 'Packages may only be linked once.' })
+  }
+
+  if (data.packageLinks.filter((item) => item.isPrimary).length > 1) {
+    ctx.addIssue({ code: 'custom', path: ['packageLinks'], message: 'Choose at most one primary package.' })
+  }
+
+  if (data.galleryImages.filter((item) => item.isPrimary).length > 1) {
+    ctx.addIssue({ code: 'custom', path: ['galleryImages'], message: 'Choose at most one primary gallery image.' })
+  }
+})
+
 module.exports = {
   accreditedEstablishmentListQuerySchema,
   businessBodySchema: businessBaseSchema,
@@ -404,7 +573,11 @@ module.exports = {
   eventBodySchema,
   eventListQuerySchema,
   eventPatchSchema,
+  emergencyFacilityBodySchema: emergencyFacilityBaseSchema,
+  emergencyFacilityListQuerySchema,
+  emergencyFacilityPatchSchema,
   mapLocationBodySchema,
+  mapLocationExperienceBodySchema,
   mapLocationListQuerySchema,
   mapLocationPatchSchema,
   museumArtifactBodySchema: museumArtifactBaseSchema,

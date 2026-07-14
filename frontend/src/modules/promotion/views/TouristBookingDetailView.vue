@@ -199,7 +199,7 @@ function formatDisplayDate(value) {
     <PromotionNavbar />
 
     <main class="page-shell">
-      <RouterLink class="back-link" to="/tourist/dashboard">Back to dashboard</RouterLink>
+      <RouterLink class="back-link" to="/tourist/bookings">Back to booking history</RouterLink>
 
       <section v-if="isLoading" class="state-panel">
         <h1>Loading booking request...</h1>
@@ -209,7 +209,7 @@ function formatDisplayDate(value) {
       <section v-else-if="errorMessage" class="state-panel state-panel--error">
         <h1>Booking request unavailable</h1>
         <p>{{ errorMessage }}</p>
-        <RouterLink to="/tourist/dashboard">Return to dashboard</RouterLink>
+        <RouterLink to="/tourist/bookings">Return to booking history</RouterLink>
       </section>
 
       <template v-else-if="booking">

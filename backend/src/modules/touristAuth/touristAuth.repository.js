@@ -74,9 +74,40 @@ async function markSuccessfulLogin(id) {
   )
 }
 
+async function updateProfile(id, data) {
+  const result = await query(
+    `
+      UPDATE tourist_accounts
+      SET full_name = $2,
+          phone_number = NULLIF($3, '')
+      WHERE id = $1
+      RETURNING *
+    `,
+    [id, data.fullName, data.phoneNumber || ''],
+  )
+
+  return mapTourist(result.rows[0])
+}
+
+async function updatePasswordHash(id, passwordHash) {
+  const result = await query(
+    `
+      UPDATE tourist_accounts
+      SET password_hash = $2
+      WHERE id = $1
+      RETURNING *
+    `,
+    [id, passwordHash],
+  )
+
+  return mapTourist(result.rows[0])
+}
+
 module.exports = {
   createTouristAccount,
   findByEmail,
   findById,
   markSuccessfulLogin,
+  updatePasswordHash,
+  updateProfile,
 }
