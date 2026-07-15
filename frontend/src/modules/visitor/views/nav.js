@@ -7,8 +7,7 @@ export const adminNav = [
 ]
 
 export const tourismNav = [
-  { label: 'Dashboard', to: '/cms/visitor/staff', icon: 'dashboard' },
-  { label: 'Visitor Records', to: '/cms/visitor/records', icon: 'users' },
+  { label: 'Tourists Log Records', to: '/cms/visitor/records', icon: 'users' },
   { label: 'Inquiries', to: '/cms/visitor/inquiries', icon: 'message' },
   { label: 'Reports', to: '/cms/visitor/reports', icon: 'chart' },
 ]

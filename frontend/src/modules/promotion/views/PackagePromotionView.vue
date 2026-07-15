@@ -232,7 +232,6 @@ onUnmounted(() => {
                   :alt="`${tourismPackage.name} package image`"
                   loading="lazy"
                 />
-                <span class="package-card__status">{{ tourismPackage.packageStatus }}</span>
               </span>
 
               <div class="package-card__body">
@@ -244,13 +243,10 @@ onUnmounted(() => {
 
                 <span class="package-badges">
                   <span>{{ tourismPackage.estimatedDuration }}</span>
-                  <span>{{ tourismPackage.itemCount }} included item(s)</span>
                 </span>
 
                 <h2>{{ tourismPackage.name }}</h2>
                 <p class="package-card__description">{{ tourismPackage.description }}</p>
-
-                <span class="target-market">{{ tourismPackage.targetMarket }}</span>
 
                 <span class="package-card__deal">
                   <span class="package-pricing">
@@ -259,12 +255,6 @@ onUnmounted(() => {
                     <small v-if="tourismPackage.extraPaxLabel">
                       {{ tourismPackage.extraPaxLabel }}
                     </small>
-                  </span>
-                  <span
-                    class="payment-pill"
-                    :class="{ 'payment-pill--required': tourismPackage.paymentRequired }"
-                  >
-                    {{ tourismPackage.paymentRequired ? 'Payment required' : 'Inquiry basis' }}
                   </span>
                 </span>
 
@@ -496,26 +486,6 @@ h1 {
   transform: scale(1.035);
 }
 
-.package-card__status,
-.target-market {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.package-card__status {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  background: rgba(255, 255, 255, 0.94);
-  color: #1b4332;
-  box-shadow: 0 8px 20px rgba(20, 38, 31, 0.1);
-}
-
 .package-card__body {
   display: flex;
   flex: 1;
@@ -562,13 +532,6 @@ h1 {
   font-weight: 700;
 }
 
-.target-market {
-  align-self: flex-start;
-  margin-top: 14px;
-  background: #e6f3ee;
-  color: #1b4332;
-}
-
 .package-card__deal {
   display: flex;
   align-items: flex-end;
@@ -611,24 +574,6 @@ h1 {
   color: #5c5c5c;
   font-size: 12px;
   font-weight: 600;
-}
-
-.payment-pill {
-  min-height: 28px;
-  display: inline-flex;
-  align-items: center;
-  flex: 0 0 auto;
-  padding: 5px 9px;
-  border-radius: 999px;
-  background: #f5efe4;
-  color: #7a4d13;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.payment-pill--required {
-  background: #fff3d4;
-  color: #7c4b00;
 }
 
 .empty-state {

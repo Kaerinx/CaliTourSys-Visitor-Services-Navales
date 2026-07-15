@@ -178,3 +178,20 @@ export async function markNotificationRead(id) {
   const { data } = await http.patch(`/accreditation/notifications/${id}/read`);
   return data;
 }
+
+export async function getOwnerRatings() {
+  const { data } = await http.get("/accreditation/ratings");
+  return data;
+}
+
+export async function getProductInquiries(params = {}) {
+  const { data } = await http.get("/accreditation/product-inquiries", { params });
+  return data;
+}
+
+export async function updateProductInquiryStatus(id, status) {
+  const { data } = await http.patch(`/accreditation/product-inquiries/${id}/status`, {
+    status,
+  });
+  return data;
+}

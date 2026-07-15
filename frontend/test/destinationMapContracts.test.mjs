@@ -32,6 +32,28 @@ test("reviews precede suggested next stops in the detail drawer DOM", async () =
   assert.ok(suggestionsIndex > reviewsIndex);
 });
 
+test("tourism assets are reviewable without enabling rich destination details", async () => {
+  const discovery = await readSource(
+    "../src/modules/promotion/views/TouristDiscoveryView.vue",
+  );
+  const reviews = await readSource(
+    "../src/modules/promotion/components/ReviewsSection.vue",
+  );
+  const service = await readSource(
+    "../src/modules/promotion/services/reviewsService.js",
+  );
+
+  assert.match(discovery, /"tourism asset":\s*"tourism_asset"/);
+  assert.match(discovery, /const canReviewSelectedLocation = computed/);
+  assert.match(discovery, /v-if="canReviewSelectedLocation"/);
+  assert.doesNotMatch(
+    discovery,
+    /v-if="selectedLocation\.apiId\s*&&\s*supportsRichDetails"/,
+  );
+  assert.match(reviews, /tourism_asset:\s*"tourism asset"/);
+  assert.match(service, /"tourism_asset"/);
+});
+
 test("emergency markers expose pulse and reduced-motion contracts", async () => {
   const source = await readSource(
     "../src/modules/promotion/components/TouristMapBox.vue",

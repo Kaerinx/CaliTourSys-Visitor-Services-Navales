@@ -134,8 +134,8 @@ async function prepareAssetSource(data) {
       ...data,
       sourceAccreditationRecordId: null,
       sourceBusinessProfileId: null,
-      latitude: null,
-      longitude: null,
+      latitude: data.latitude ?? null,
+      longitude: data.longitude ?? null,
     }
   }
 
@@ -148,13 +148,29 @@ async function prepareAssetSource(data) {
     ...data,
     sourceAccreditationRecordId: establishment.id,
     sourceBusinessProfileId: establishment.businessProfileId,
-    latitude: establishment.latitude,
-    longitude: establishment.longitude,
+    latitude: establishment.latitude ?? data.latitude ?? null,
+    longitude: establishment.longitude ?? data.longitude ?? null,
   }
 }
 
+function requireAssetCoordinates(data) {
+  const latitude = Number(data.latitude)
+  const longitude = Number(data.longitude)
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    throw invalid('Map coordinates are required so the tourism asset can appear on the destination map.')
+  }
+  return { ...data, latitude, longitude }
+}
+
 async function createAsset(data, req) {
-  return repository.createAsset(await prepareAssetSource(data), req.user?.id)
+  return repository.createAsset(requireAssetCoordinates(await prepareAssetSource(data)), req.user?.id)
 }
 
 async function updatePlan(id, data) {
@@ -291,7 +307,7 @@ module.exports = {
   updateActivity,
   updateAsset: async (id, data) => {
     await requireAsset(id)
-    const updated = await repository.updateAsset(id, await prepareAssetSource(data))
+    const updated = await repository.updateAsset(id, requireAssetCoordinates(await prepareAssetSource(data)))
     if (!updated) throw notFound('Tourism asset')
     return updated
   },

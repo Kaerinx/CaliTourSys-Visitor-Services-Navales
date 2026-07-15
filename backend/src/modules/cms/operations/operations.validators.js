@@ -180,7 +180,7 @@ const walkInBookingBodySchema = z
     endDate: dateOnlySchema.optional(),
     durationDays: z.coerce.number().int().min(1).optional(),
     paymentPlan: z.enum(['deposit_50', 'full_payment']).default('full_payment'),
-    paymentMethod: z.enum(['cash', 'qr_instapay', 'bank_transfer']).default('cash'),
+    paymentMethod: z.enum(['cash', 'qr_instapay', 'credit_debit_card']).default('cash'),
     message: z.string().trim().max(5000).optional(),
   })
   .strict()
@@ -213,7 +213,7 @@ const bookingCreditTransferBodySchema = z
 const bookingPaymentBodySchema = z
   .object({
     amount: z.coerce.number().positive(),
-    paymentMethod: z.enum(['cash', 'qr_instapay', 'bank_transfer']),
+    paymentMethod: z.enum(['cash', 'qr_instapay', 'credit_debit_card']),
     transactionReference: z.string().trim().max(120).optional(),
     proofFileUrl: z.string().trim().max(5000).optional(),
     proofOriginalFilename: z.string().trim().max(255).optional(),

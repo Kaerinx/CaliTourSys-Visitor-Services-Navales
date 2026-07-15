@@ -3,6 +3,8 @@ const service = require("./accreditation.service");
 const fs = require("fs");
 const path = require("path");
 
+const PRODUCT_INQUIRY_STATUSES = new Set(["read", "responded", "archived"]);
+
 async function audit(req, event) {
   try {
     const actor = event.actor || req.user || {};
@@ -134,6 +136,56 @@ async function getProfile(req, res, next) {
     res.json({ profile: { ...profile, images } });
   } catch (error) {
     next(error);
+  }
+}
+
+async function getRatings(req, res, next) {
+  try {
+    return res.json(await model.getOwnerRatings(req.user.id));
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function listProductInquiries(req, res, next) {
+  try {
+    const inquiries = await model.listOwnerProductInquiries(req.user.id);
+    return res.json({ inquiries });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateProductInquiryStatus(req, res, next) {
+  try {
+    const status = String(req.body?.status || "").trim().toLowerCase();
+    if (!PRODUCT_INQUIRY_STATUSES.has(status)) {
+      return res.status(400).json({
+        message: "Status must be read, responded, or archived.",
+      });
+    }
+
+    const inquiry = await model.updateOwnerProductInquiryStatus(
+      req.params.id,
+      req.user.id,
+      status
+    );
+    if (!inquiry) {
+      return res.status(404).json({ message: "Product inquiry not found." });
+    }
+
+    await audit(req, {
+      action: `Marked product inquiry as ${status}`,
+      module: "Product Inquiries",
+      referenceId: inquiry.id,
+    });
+
+    return res.json({
+      inquiry,
+      message: "Product inquiry status updated successfully.",
+    });
+  } catch (error) {
+    return next(error);
   }
 }
 
@@ -605,9 +657,11 @@ module.exports = {
   downloadRegistrationDocument,
   getApplication,
   getProfile,
+  getRatings,
   listApplications,
   listAuditLogs,
   listNotifications,
+  listProductInquiries,
   listRecords,
   listUsers,
   login,
@@ -618,6 +672,7 @@ module.exports = {
   saveApplicationDraft,
   submitApplication,
   updateAccount,
+  updateProductInquiryStatus,
   updateProfile,
   updateUserStatus,
   uploadDocument,

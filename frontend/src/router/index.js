@@ -295,27 +295,51 @@ router.beforeEach(async (to) => {
 })
 
 let handlingCmsAuthFailure = false
+let handlingTouristAuthFailure = false
 
-setAuthFailureHandler(() => {
+setAuthFailureHandler(({ touristAuth: isTouristRequest = false } = {}) => {
   const currentRoute = router.currentRoute.value
-  if (!currentRoute.path.startsWith('/cms')) return
-
-  const auth = useCmsAuthStore()
   const redirect = currentRoute.fullPath
-  auth.expireSession()
 
-  if (handlingCmsAuthFailure) return
-  handlingCmsAuthFailure = true
+  if (isTouristRequest) {
+    const touristAuth = useTouristAuthStore()
+    touristAuth.clearSession()
 
-  router
-    .replace({
-      path: '/cms/login',
-      query: { redirect, sessionExpired: '1' },
-    })
-    .catch(() => {})
-    .finally(() => {
-      handlingCmsAuthFailure = false
-    })
+    if (!currentRoute.matched.some((route) => route.meta.touristRequiresAuth)) return
+
+    if (handlingTouristAuthFailure) return
+    handlingTouristAuthFailure = true
+
+    router
+      .replace({
+        path: '/login',
+        query: { as: 'tourist', redirect, sessionExpired: '1' },
+      })
+      .catch(() => {})
+      .finally(() => {
+        handlingTouristAuthFailure = false
+      })
+    return
+  }
+
+  if (currentRoute.path.startsWith('/cms')) {
+    const auth = useCmsAuthStore()
+    auth.expireSession()
+
+    if (handlingCmsAuthFailure) return
+    handlingCmsAuthFailure = true
+
+    router
+      .replace({
+        path: '/login',
+        query: { as: 'staff', redirect, sessionExpired: '1' },
+      })
+      .catch(() => {})
+      .finally(() => {
+        handlingCmsAuthFailure = false
+      })
+    return
+  }
 })
 
 export default router

@@ -71,7 +71,7 @@ No real payment or proof of payment was submitted during QA.
 5. Edit the remaining package with no numeric duration.
 6. Schedule `npm run expire:package-bookings` at least hourly.
 7. Confirm production staff accounts and permissions for walk-in creation, schedule changes, deadline extension, payment review, cancellation, and credit transfer.
-8. Run a controlled UAT payment using the official QR/bank account and verify proof upload, staff review, and receipt/status wording.
+8. Run a controlled UAT payment using the official QR and verify proof upload, staff review, and receipt/status wording. Test card payment only after a PCI-compliant gateway is connected.
 
 ## Recommended next action
 

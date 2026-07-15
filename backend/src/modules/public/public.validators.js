@@ -78,6 +78,28 @@ const createInquiryBodySchema = z
     subject: z.string().trim().min(1).max(255),
     message: z.string().trim().min(1).max(5000),
     sourcePage: z.string().trim().max(255).optional(),
+    productId: z.uuid('productId must be a valid UUID.').optional(),
+  })
+  .strict()
+
+const reviewTargetTypeSchema = z.enum([
+  'product',
+  'destination',
+  'tourism_asset',
+  'business',
+])
+
+const reviewListQuerySchema = z.object({
+  targetType: reviewTargetTypeSchema,
+  targetId: z.uuid('targetId must be a valid UUID.'),
+})
+
+const createReviewBodySchema = z
+  .object({
+    targetType: reviewTargetTypeSchema,
+    targetId: z.uuid('targetId must be a valid UUID.'),
+    rating: z.number().int().min(1).max(5),
+    comment: z.string().trim().max(2000).optional(),
   })
   .strict()
 
@@ -117,8 +139,9 @@ const createPackageBookingRequestBodySchema = z
     startDate: bookingDateSchema.optional(),
     endDate: bookingDateSchema.optional(),
     durationDays: z.coerce.number().int().min(1).optional(),
+    paymentMode: z.enum(['pay_at_office', 'online']).default('online'),
     paymentPlan: z.enum(['deposit_50', 'full_payment']).default('full_payment'),
-    paymentMethod: z.enum(['qr_instapay', 'bank_transfer', 'cash']).default('qr_instapay'),
+    paymentMethod: z.enum(['qr_instapay', 'credit_debit_card', 'cash']).default('qr_instapay'),
     message: z.string().trim().max(5000).optional(),
   })
   .strict()
@@ -247,6 +270,8 @@ module.exports = {
   createItinerarySessionBodySchema,
   createItineraryItemBodySchema,
   createInquiryBodySchema,
+  reviewListQuerySchema,
+  createReviewBodySchema,
   createPackageBookingRequestBodySchema,
   lookupPackageBookingRequestBodySchema,
   createNewsletterSubscriptionBodySchema,

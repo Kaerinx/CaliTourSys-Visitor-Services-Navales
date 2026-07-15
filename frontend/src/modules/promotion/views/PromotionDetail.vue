@@ -1,7 +1,7 @@
 ﻿<script setup>
 import AccreditationBadge from '../components/AccreditationBadge.vue'
 import PromotionNavbar from '../components/PromotionNavbar.vue'
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   getBusinessById,
@@ -19,7 +19,7 @@ import { useVisitorSession } from '../composables/useVisitorSession'
 const PENDING_SAVE_KEY = 'calitoursys_pending_product_save'
 const route = useRoute()
 const router = useRouter()
-const { isAuthenticated: isVisitorAuthenticated } = useVisitorSession()
+const { isAuthenticated: isVisitorAuthenticated, visitorEmail, visitorName } = useVisitorSession()
 const product = ref(null)
 const business = ref(null)
 const isLoading = ref(true)
@@ -29,8 +29,10 @@ const isSaving = ref(false)
 const feedbackMessage = ref('')
 const isContactOpen = ref(false)
 const isContactSubmitting = ref(false)
-const contactTouched = ref(false)
 const contactMessage = ref('')
+const contactDialog = ref(null)
+const contactNameInput = ref(null)
+const contactTrigger = ref(null)
 const selectedGalleryIndex = ref(0)
 const contactForm = reactive({
   fullName: '',
@@ -235,20 +237,53 @@ async function shareProduct() {
     result.method === 'clipboard' ? 'Product link copied' : 'Share action ready'
 }
 
-function openContactProducer() {
-  contactTouched.value = false
+async function openContactProducer() {
   contactMessage.value = ''
   contactForm.subject = product.value ? `Product inquiry: ${product.value.name}` : 'Product inquiry'
+  if (isVisitorAuthenticated.value) {
+    contactForm.fullName = visitorName.value || contactForm.fullName
+    contactForm.email = visitorEmail.value || contactForm.email
+  }
   isContactOpen.value = true
+  await nextTick()
+  contactNameInput.value?.focus()
 }
 
-function closeContactProducer() {
+async function closeContactProducer() {
   if (isContactSubmitting.value) return
   isContactOpen.value = false
+  await nextTick()
+  contactTrigger.value?.focus()
+}
+
+function handleContactDialogKeydown(event) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeContactProducer()
+    return
+  }
+
+  if (event.key !== 'Tab') return
+
+  const focusable = Array.from(
+    contactDialog.value?.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled])',
+    ) || [],
+  )
+  if (!focusable.length) return
+
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
 }
 
 async function submitProducerInquiry() {
-  contactTouched.value = true
   contactMessage.value = validateInquiryForm(contactForm)
 
   if (contactMessage.value) return
@@ -258,13 +293,14 @@ async function submitProducerInquiry() {
   try {
     await submitTourismInquiry({
       ...contactForm,
+      productId: product.value?.apiId,
       sourcePage: product.value?.id ? `/products/${product.value.id}` : '/products',
     })
 
     contactForm.fullName = ''
     contactForm.email = ''
     contactForm.message = ''
-    contactMessage.value = 'Inquiry sent. The Tourism Office will review and route your message.'
+    contactMessage.value = 'Inquiry sent. The producer can now view your message and reply by email.'
     feedbackMessage.value = 'Inquiry sent successfully'
   } catch (error) {
     contactMessage.value = error.message || 'Unable to send inquiry. Please try again later.'
@@ -360,7 +396,9 @@ onBeforeUnmount(() => {
         <p>{{ product.description }}</p>
 
         <div class="action-stack">
-          <button type="button" @click="openContactProducer">Contact producer</button>
+          <button ref="contactTrigger" type="button" @click="openContactProducer">
+            Contact producer
+          </button>
           <button type="button" :disabled="isSaving" @click="toggleItinerary">
             {{ isSaving ? 'Saving...' : isSaved ? 'Remove from itinerary' : 'Save to itinerary' }}
           </button>
@@ -489,16 +527,18 @@ onBeforeUnmount(() => {
     </section>
 
     <section v-if="!isLoading && !errorMessage && product" class="page-shell detail-reviews">
-      <ReviewsSection target-type="product" :target-id="product.id" :target-name="product.name" />
+      <ReviewsSection target-type="product" :target-id="product.apiId" :target-name="product.name" />
     </section>
 
     <div v-if="isContactOpen" class="contact-modal" @click.self="closeContactProducer">
       <form
+        ref="contactDialog"
         class="contact-modal__panel"
         role="dialog"
         aria-modal="true"
         aria-labelledby="contact-producer-title"
         @submit.prevent="submitProducerInquiry"
+        @keydown="handleContactDialogKeydown"
       >
         <header class="contact-modal__header">
           <h2 id="contact-producer-title">Contact Producer</h2>
@@ -518,6 +558,7 @@ onBeforeUnmount(() => {
           <label>
             <span>Name</span>
             <input
+              ref="contactNameInput"
               v-model="contactForm.fullName"
               type="text"
               autocomplete="name"
@@ -548,6 +589,8 @@ onBeforeUnmount(() => {
             v-if="contactMessage"
             class="contact-modal__message"
             :class="{ 'contact-modal__message--success': contactMessageIsSuccess }"
+            :role="contactMessageIsSuccess ? 'status' : 'alert'"
+            aria-live="polite"
           >
             {{ contactMessage }}
           </p>

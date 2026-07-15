@@ -10,7 +10,9 @@ const props = defineProps({
     type: String,
     required: true,
     validator: (value) =>
-      ["product", "destination", "business"].includes(value),
+      ["product", "destination", "business", "tourism_asset"].includes(
+        value,
+      ),
   },
   targetId: {
     type: [String, Number],
@@ -42,6 +44,15 @@ const formError = ref("");
 const formSuccess = ref("");
 
 const hasReviews = computed(() => reviews.value.length > 0);
+const targetTypeLabel = computed(
+  () =>
+    ({
+      product: "product",
+      destination: "destination",
+      business: "business",
+      tourism_asset: "tourism asset",
+    })[props.targetType] || "listing",
+);
 
 function starsForRow(rating) {
   return [1, 2, 3, 4, 5].map((position) => position <= Math.round(rating));
@@ -82,6 +93,24 @@ async function loadReviews() {
 function setRating(value) {
   form.rating = value;
   if (formError.value) formError.value = "";
+}
+
+function handleRatingKeydown(event, position) {
+  const directions = {
+    ArrowLeft: -1,
+    ArrowDown: -1,
+    ArrowRight: 1,
+    ArrowUp: 1,
+  };
+  const direction = directions[event.key];
+  if (!direction) return;
+
+  event.preventDefault();
+  const nextRating = ((position - 1 + direction + 5) % 5) + 1;
+  setRating(nextRating);
+  event.currentTarget.parentElement
+    ?.querySelectorAll('[role="radio"]')
+    ?.[nextRating - 1]?.focus();
 }
 
 function openAuth(mode = "login") {
@@ -202,7 +231,13 @@ onMounted(loadReviews);
             role="radio"
             :aria-checked="form.rating === position"
             :aria-label="`${position} star${position === 1 ? '' : 's'}`"
+            :tabindex="
+              form.rating === position || (!form.rating && position === 1)
+                ? 0
+                : -1
+            "
             @click="setRating(position)"
+            @keydown="handleRatingKeydown($event, position)"
             @mouseenter="hoverRating = position"
             @mouseleave="hoverRating = 0"
           >
@@ -229,15 +264,21 @@ onMounted(loadReviews);
           class="reviews__textarea"
           rows="3"
           maxlength="600"
+          aria-label="Write an optional review comment"
           placeholder="What did you love? Share tips for other visitors (optional)."
         ></textarea>
 
-        <p v-if="formError" class="reviews__message reviews__message--error">
+        <p
+          v-if="formError"
+          class="reviews__message reviews__message--error"
+          role="alert"
+        >
           {{ formError }}
         </p>
         <p
           v-if="formSuccess"
           class="reviews__message reviews__message--success"
+          role="status"
         >
           {{ formSuccess }}
         </p>
@@ -253,7 +294,9 @@ onMounted(loadReviews);
       </template>
 
       <div v-else class="reviews__gate">
-        <p>Registered visitors can rate and review this {{ targetType }}.</p>
+        <p>
+          Registered visitors can rate and review this {{ targetTypeLabel }}.
+        </p>
         <div class="reviews__gate-actions">
           <button
             type="button"
@@ -293,7 +336,7 @@ onMounted(loadReviews);
             </div>
             <span
               class="reviews__item-stars"
-              aria-label="`${review.rating} out of 5`"
+              :aria-label="`${review.rating} out of 5 stars`"
             >
               <svg
                 v-for="(filled, i) in starsForRow(review.rating)"

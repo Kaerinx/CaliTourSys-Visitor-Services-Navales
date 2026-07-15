@@ -136,7 +136,36 @@ async function createInquiry(req, res, next) {
   try {
     const body = parse(validators.createInquiryBodySchema, req.body || {})
     setNoStore(res)
-    return successResponse(req, res, await service.createInquiry(body), 201)
+    return successResponse(
+      req,
+      res,
+      await service.createInquiry(body, { tourist: req.tourist || null }),
+      201,
+    )
+  } catch (error) {
+    return next(error)
+  }
+}
+
+async function getReviews(req, res, next) {
+  try {
+    const query = parse(validators.reviewListQuerySchema, req.query)
+    setNoStore(res)
+    return successResponse(req, res, await service.getReviews(query))
+  } catch (error) {
+    return next(error)
+  }
+}
+
+async function upsertReview(req, res, next) {
+  try {
+    const body = parse(validators.createReviewBodySchema, req.body || {})
+    setNoStore(res)
+    return successResponse(
+      req,
+      res,
+      await service.upsertReview(body, { touristAccountId: req.tourist.id }),
+    )
   } catch (error) {
     return next(error)
   }
@@ -236,6 +265,8 @@ module.exports = {
   getItinerary,
   addItineraryItem,
   deleteItineraryItem,
+  getReviews,
+  upsertReview,
   createInquiry,
   createNewsletterSubscription,
 }

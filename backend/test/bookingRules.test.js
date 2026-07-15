@@ -48,24 +48,61 @@ test('rejects a departure date in the past', () => {
   )
 })
 
-test('limits cash to walk-in bookings', () => {
+test('supports cash for bookings that will be paid at the Tourism Office', () => {
   assert.equal(validatePaymentMethod('walk_in', 'cash'), 'cash')
-  assert.throws(() => validatePaymentMethod('online', 'cash'), /walk-in/)
+  assert.equal(validatePaymentMethod('online', 'cash'), 'cash')
 })
 
-test('calculates 50 percent deposit and balance deadline', () => {
+test('calculates the walk-in payment deadline one day before departure', () => {
+  const terms = calculatePaymentTerms({
+    totalAmount: 5000,
+    paymentPlan: 'full_payment',
+    paymentMode: 'pay_at_office',
+    bookingSource: 'online',
+    paymentMethod: 'cash',
+    startDate: '2026-08-20',
+    createdAt: new Date('2026-08-01T02:00:00.000Z'),
+  })
+
+  assert.equal(terms.paymentMode, 'pay_at_office')
+  assert.equal(terms.initialPaymentAmount, 5000)
+  assert.equal(terms.depositDueAt, '2026-08-19T15:59:59.000Z')
+  assert.equal(terms.balanceDueAt, '2026-08-19T15:59:59.000Z')
+})
+
+test('walk-in payment requires cash, full payment, and at least one day lead time', () => {
+  const base = {
+    totalAmount: 5000,
+    paymentMode: 'pay_at_office',
+    bookingSource: 'online',
+    paymentMethod: 'cash',
+    paymentPlan: 'full_payment',
+    startDate: '2026-08-20',
+    createdAt: new Date('2026-08-01T02:00:00.000Z'),
+  }
+
+  assert.throws(() => calculatePaymentTerms({ ...base, paymentMethod: 'qr_instapay' }), /cash/)
+  assert.throws(() => calculatePaymentTerms({ ...base, paymentPlan: 'deposit_50' }), /full payment/)
+  assert.throws(() => calculatePaymentTerms({
+    ...base,
+    startDate: '2026-08-01',
+  }), /at least one day/)
+})
+
+test('calculates 50 percent online payment and balance deadline one day before package ends', () => {
   const terms = calculatePaymentTerms({
     totalAmount: 1001,
     paymentPlan: 'deposit_50',
     bookingSource: 'online',
     paymentMethod: 'qr_instapay',
     startDate: '2026-08-20',
+    endDate: '2026-08-22',
     createdAt: new Date('2026-08-01T02:00:00.000Z'),
   })
 
   assert.equal(terms.initialPaymentAmount, 500.5)
   assert.equal(terms.depositDueAt, '2026-08-04T02:00:00.000Z')
-  assert.equal(terms.balanceDueAt, '2026-08-16T16:00:00.000Z')
+  assert.equal(terms.balanceDueAt, '2026-08-21T15:59:59.000Z')
 })
 
 test('requires full payment within three calendar days of departure', () => {
@@ -74,7 +111,7 @@ test('requires full payment within three calendar days of departure', () => {
       totalAmount: 1000,
       paymentPlan: 'deposit_50',
       bookingSource: 'online',
-      paymentMethod: 'bank_transfer',
+      paymentMethod: 'credit_debit_card',
       startDate: '2026-08-04',
       createdAt: new Date('2026-08-01T02:00:00.000Z'),
     }),
@@ -94,15 +131,19 @@ test('caps a deposit extension at five days from booking creation', () => {
   )
 })
 
-test('requires reference and proof for electronic payments only', () => {
+test('requires the correct evidence for each payment method', () => {
   assert.equal(validateElectronicPaymentEvidence({ paymentMethod: 'cash' }), true)
   assert.throws(
     () => validateElectronicPaymentEvidence({ paymentMethod: 'qr_instapay', proofFileUrl: '/proof.png' }),
     /transaction reference/,
   )
   assert.equal(validateElectronicPaymentEvidence({
-    paymentMethod: 'bank_transfer',
+    paymentMethod: 'qr_instapay',
     transactionReference: 'ABC-123',
     proofFileUrl: '/proof.png',
+  }), true)
+  assert.equal(validateElectronicPaymentEvidence({
+    paymentMethod: 'credit_debit_card',
+    transactionReference: 'CARD-ABC-123',
   }), true)
 })

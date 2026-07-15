@@ -1749,11 +1749,15 @@ async function syncBusinessFromAccreditationRecord(recordId, userId, businessNam
     `
       SELECT id
       FROM businesses
-      WHERE lower(name) = lower($1) OR slug = $2
-      ORDER BY updated_at DESC
+      WHERE source_business_profile_id = $3::uuid
+        OR (
+          source_business_profile_id IS NULL
+          AND (lower(name) = lower($1) OR slug = $2)
+        )
+      ORDER BY (source_business_profile_id = $3::uuid) DESC NULLS LAST, updated_at DESC
       LIMIT 1
     `,
-    [displayName, baseSlug],
+    [displayName, baseSlug, establishment.businessProfileId],
   )
 
   let businessId = existingResult.rows[0]?.id
@@ -1770,8 +1774,9 @@ async function syncBusinessFromAccreditationRecord(recordId, userId, businessNam
           barangay = $6,
           municipality = $7,
           province = $8,
+          source_business_profile_id = $9::uuid,
           status = 'active',
-          updated_by = $9::uuid
+          updated_by = $10::uuid
         WHERE id = $1
       `,
       [
@@ -1783,6 +1788,7 @@ async function syncBusinessFromAccreditationRecord(recordId, userId, businessNam
         establishment.barangay || null,
         establishment.cityMunicipality || 'Calabanga',
         establishment.province || 'Camarines Sur',
+        establishment.businessProfileId,
         userId,
       ],
     )
@@ -1792,9 +1798,13 @@ async function syncBusinessFromAccreditationRecord(recordId, userId, businessNam
       `
         INSERT INTO businesses (
           slug, name, business_type, owner_name, address_line,
-          barangay, municipality, province, status, is_featured, created_by, updated_by
+          barangay, municipality, province, status, is_featured,
+          source_business_profile_id, created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', false, $9::uuid, $9::uuid)
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, 'active', false,
+          $9::uuid, $10::uuid, $10::uuid
+        )
         RETURNING id
       `,
       [
@@ -1806,6 +1816,7 @@ async function syncBusinessFromAccreditationRecord(recordId, userId, businessNam
         establishment.barangay || null,
         establishment.cityMunicipality || 'Calabanga',
         establishment.province || 'Camarines Sur',
+        establishment.businessProfileId,
         userId,
       ],
     )

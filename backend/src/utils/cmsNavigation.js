@@ -49,7 +49,7 @@ const NAVIGATION_ITEMS = [
   },
   {
     key: 'visitor-services',
-    label: 'Visitor Services / Inquiries',
+    label: 'Visitor Services',
     path: '/cms/visitor-services',
     requiredAny: ['inquiries.view', 'inquiries.respond'],
   },
@@ -82,12 +82,6 @@ const NAVIGATION_ITEMS = [
     label: 'Users & Roles',
     path: '/cms/users',
     requiredAny: ['users.manage', 'roles.manage'],
-  },
-  {
-    key: 'audit-logs',
-    label: 'Audit Logs',
-    path: '/cms/audit-logs',
-    requiredAny: ['audit_logs.view'],
   },
 ]
 

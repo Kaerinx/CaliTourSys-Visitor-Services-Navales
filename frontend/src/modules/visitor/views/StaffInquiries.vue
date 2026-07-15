@@ -2,7 +2,7 @@
   <ManagementLayout>
     <header class="page-heading">
       <span class="eyebrow">Tourism Staff</span>
-      <h1>{{ pageTitle }}</h1>
+      <h1>Inquiries</h1>
       <p>View submitted public inquiries and track review status.</p>
     </header>
 
@@ -34,9 +34,10 @@
           <label>Status</label>
           <select v-model="draftFilters.status">
             <option value="">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="reviewed">Reviewed</option>
+            <option value="new">New</option>
+            <option value="read">Read</option>
             <option value="responded">Responded</option>
+            <option value="archived">Archived</option>
           </select>
         </div>
         <div class="filter-actions">
@@ -63,6 +64,7 @@
             <th>Contact Number</th>
             <th>Subject</th>
             <th>Message</th>
+            <th>Source</th>
             <th>Date Submitted</th>
             <th>Status</th>
           </tr>
@@ -74,6 +76,7 @@
             <td>{{ inquiry.contact_number || '-' }}</td>
             <td>{{ inquiry.subject }}</td>
             <td class="message-cell">{{ inquiry.message }}</td>
+            <td>{{ formatSourcePage(inquiry.source_page) }}</td>
             <td>{{ formatDate(inquiry.created_at || inquiry.inquiry_date) }}</td>
             <td>
               <div class="status-editor">
@@ -98,7 +101,7 @@
               <span v-if="hasPendingChange(inquiry)" class="status-note">Unsaved change</span>
             </td>
           </tr>
-          <tr v-if="!filteredInquiries.length"><td colspan="7">No inquiries found.</td></tr>
+          <tr v-if="!filteredInquiries.length"><td colspan="8">No inquiries found.</td></tr>
         </tbody>
       </table>
     </section>
@@ -109,7 +112,6 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import ManagementLayout from '../components/ManagementLayout.vue'
 import { visitorApi } from '../services/visitorApi'
-import { useAuthStore } from '../stores/authStore'
 import { formatDate } from '../utils/format'
 
 function defaultFilters() {
@@ -123,14 +125,17 @@ const saving = ref({})
 const pendingStatuses = ref({})
 const draftFilters = reactive(defaultFilters())
 const appliedFilters = reactive(defaultFilters())
-const auth = useAuthStore()
-
-const pageTitle = computed(() => (auth.user?.role === 'admin' ? 'Inquiries Overview' : 'Inquiries Overview'))
-
 const filteredInquiries = computed(() => {
   const keyword = appliedFilters.search.trim().toLowerCase()
   return inquiries.value.filter((inquiry) => {
-    const haystack = [inquiry.full_name, inquiry.email, inquiry.contact_number, inquiry.subject, inquiry.message]
+    const haystack = [
+      inquiry.full_name,
+      inquiry.email,
+      inquiry.contact_number,
+      inquiry.subject,
+      inquiry.message,
+      inquiry.source_page,
+    ]
       .filter(Boolean)
       .join(' ')
       .toLowerCase()
@@ -169,9 +174,11 @@ async function saveStatus(inquiry) {
 }
 
 function normalizeStatus(status) {
-  const value = String(status || 'pending').toLowerCase()
-  if (value === 'reviewed' || value === 'responded') return value
-  return 'pending'
+  const value = String(status || 'new').toLowerCase()
+  if (['new', 'read', 'responded', 'archived'].includes(value)) return value
+  if (value === 'pending') return 'new'
+  if (value === 'reviewed') return 'read'
+  return 'new'
 }
 
 function displayStatus(inquiry) {
@@ -184,10 +191,10 @@ function hasPendingChange(inquiry) {
 
 function advanceStatus(inquiry) {
   const current = displayStatus(inquiry)
-  if (current === 'responded') return
+  if (current === 'responded' || current === 'archived') return
   pendingStatuses.value = {
     ...pendingStatuses.value,
-    [inquiry.id]: current === 'pending' ? 'reviewed' : 'responded',
+    [inquiry.id]: current === 'new' ? 'read' : 'responded',
   }
   error.value = ''
   success.value = ''
@@ -204,10 +211,17 @@ function resetFilters() {
 
 function formatInquiryStatus(status) {
   return {
-    pending: 'Pending',
-    reviewed: 'Reviewed',
+    new: 'New',
+    read: 'Read',
     responded: 'Responded',
+    archived: 'Archived',
   }[normalizeStatus(status)]
+}
+
+function formatSourcePage(sourcePage) {
+  if (!sourcePage) return 'Public website'
+  if (sourcePage === '/promotion/inquiry') return 'Public inquiry page'
+  return sourcePage
 }
 
 function statusClass(status) {
@@ -361,13 +375,13 @@ onMounted(async () => {
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
 }
 
-.status-pending {
+.status-new {
   background: #fef3c7;
   border-color: #fde68a;
   color: #92400e;
 }
 
-.status-reviewed {
+.status-read {
   background: #e0f2fe;
   border-color: #bae6fd;
   color: #075985;
@@ -377,6 +391,12 @@ onMounted(async () => {
   background: #dcfce7;
   border-color: #bbf7d0;
   color: #166534;
+}
+
+.status-archived {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
 }
 
 .btn.compact {

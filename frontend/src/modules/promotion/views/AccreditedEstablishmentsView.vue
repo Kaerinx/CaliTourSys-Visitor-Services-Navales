@@ -69,7 +69,7 @@ function initials(name) {
 
 function businessRating(business) {
   const rating = Number(business.ratingAverage)
-  return Number.isFinite(rating) ? Math.min(Math.max(rating, 0), 5) : 5
+  return Number.isFinite(rating) ? Math.min(Math.max(rating, 0), 5) : 0
 }
 
 function formattedRating(business) {

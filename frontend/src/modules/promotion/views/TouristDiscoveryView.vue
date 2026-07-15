@@ -16,6 +16,7 @@ import {
   getEmergencyFacilitiesGeoJson,
   getMapLocationGeoJson,
   getMapLocationDetails,
+  getPromotionalPackages,
   getTourismAssets,
 } from "../services/promotionService";
 import { formatRouteDuration, getRoute } from "../services/mapboxDirections";
@@ -67,7 +68,14 @@ const FILTER_CATEGORIES = [
   { key: "Cafe", color: "#92400e" },
 ];
 
+const REVIEW_TARGET_BY_LOCATION_TYPE = Object.freeze({
+  destination: "destination",
+  business: "business",
+  "tourism asset": "tourism_asset",
+});
+
 const locations = ref([]);
+const bookablePackages = ref([]);
 
 const categories = computed(() => {
   const knownCategories = new Set(
@@ -168,17 +176,23 @@ const detailOverview = computed(
 );
 
 const primaryBookPackage = computed(
-  () => selectedDetails.value?.primaryPackage || null,
+  () =>
+    selectedDetails.value?.primaryPackage ||
+    packageForTourismAsset(selectedLocation.value),
 );
 
 const hasEmergencyFacilities = computed(
   () => (emergencyGeoJson.value.features || []).length > 0,
 );
 
-const reviewTargetType = computed(() =>
-  selectedLocation.value?.locationType === "business"
-    ? "business"
-    : "destination",
+const reviewTargetType = computed(
+  () =>
+    REVIEW_TARGET_BY_LOCATION_TYPE[selectedLocation.value?.locationType] ||
+    null,
+);
+
+const canReviewSelectedLocation = computed(() =>
+  Boolean(selectedLocation.value?.apiId && reviewTargetType.value),
 );
 
 function displayValue(value) {
@@ -225,7 +239,7 @@ function locationFromFeature(feature, index, destinationBySlug) {
 
   return {
     id: slug,
-    apiId: destination?.apiId || null,
+    apiId: properties.targetId || destination?.apiId || null,
     mapLocationId: properties.id,
     slug,
     name: properties.label || destination?.name || "Tourism location",
@@ -263,7 +277,7 @@ function locationFromTourismAsset(asset, index) {
 
   return {
     id: asset.id,
-    apiId: null,
+    apiId: asset.apiId || asset.id,
     slug: asset.slug || asset.id,
     name: asset.name,
     category: asset.category || "Tourism",
@@ -281,6 +295,34 @@ function locationFromTourismAsset(asset, index) {
     imageUrl: asset.imageUrl,
     accredited: asset.accredited ?? true,
   };
+}
+
+function packageItemReferenceIds(tourismPackage) {
+  return (tourismPackage?.items || [])
+    .flatMap((item) => [
+      item.referenceId,
+      item.reference_id,
+      item.itemReferenceId,
+      item.item_reference_id,
+      item.assetId,
+      item.asset_id,
+    ])
+    .filter(Boolean)
+    .map(String);
+}
+
+function packageForTourismAsset(location) {
+  if (!location || location.locationType !== "tourism asset") return null;
+  const assetIds = [location.apiId, location.id, location.slug]
+    .filter(Boolean)
+    .map(String);
+
+  return (
+    bookablePackages.value.find((tourismPackage) => {
+      const references = packageItemReferenceIds(tourismPackage);
+      return assetIds.some((id) => references.includes(id));
+    }) || null
+  );
 }
 
 function featureFromAssetLocation(location) {
@@ -481,11 +523,17 @@ async function loadLocations() {
   mapRuntimeError.value = "";
 
   try {
-    const [tourismAssetData, mapLocationData, emergencyFacilityData] =
+    const [
+      tourismAssetData,
+      mapLocationData,
+      emergencyFacilityData,
+      packageData,
+    ] =
       await Promise.all([
         getTourismAssets({ limit: 50, sort: "-updatedAt" }),
         getMapLocationGeoJson(),
         getEmergencyFacilitiesGeoJson(),
+        getPromotionalPackages(),
       ]);
     const mapFeatures = Array.isArray(mapLocationData?.features)
       ? mapLocationData.features
@@ -509,8 +557,9 @@ async function loadLocations() {
       : {
           type: "FeatureCollection",
           features: locationData.map(featureFromAssetLocation).filter(Boolean),
-        };
+    };
     emergencyGeoJson.value = emergencyFacilityData;
+    bookablePackages.value = packageData;
     locations.value = locationData;
     enabledCategories.value = Object.fromEntries(
       categories.value.map((category) => [category.key, true]),
@@ -1241,8 +1290,21 @@ onBeforeUnmount(() => {
                 </p>
               </div>
             </section>
-            <div class="detail-drawer__actions detail-drawer__actions--single">
+            <div
+              class="detail-drawer__actions"
+              :class="{ 'detail-drawer__actions--single': !primaryBookPackage }"
+            >
               <button
+                v-if="primaryBookPackage"
+                class="detail-drawer__primary-action"
+                type="button"
+                :title="`Book ${primaryBookPackage.name}`"
+                @click="bookPrimaryPackage"
+              >
+                Book Now
+              </button>
+              <button
+                class="detail-drawer__secondary-action"
                 type="button"
                 :disabled="isRouting"
                 @click="getDirections(selectedLocation)"
@@ -1250,12 +1312,18 @@ onBeforeUnmount(() => {
                 {{ isRouting ? "Finding route…" : "Get directions" }}
               </button>
             </div>
+            <p v-if="!primaryBookPackage" class="detail-drawer__booking-note">
+              Booking opens when the tourism team links a ready package.
+            </p>
           </template>
 
-          <div class="detail-drawer__reviews">
+          <div
+            v-if="canReviewSelectedLocation"
+            class="detail-drawer__reviews"
+          >
             <ReviewsSection
               :target-type="reviewTargetType"
-              :target-id="selectedLocation.id"
+              :target-id="selectedLocation.apiId"
               :target-name="selectedLocation.name"
             />
           </div>

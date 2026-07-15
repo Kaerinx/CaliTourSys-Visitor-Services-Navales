@@ -64,6 +64,51 @@ test('emergency facilities are mapped to GeoJSON using longitude-latitude order'
   )
 })
 
+test('map GeoJSON retains the canonical review target identifier', async () => {
+  const targetId = 'f3100000-0000-4000-8000-000000000003'
+  await withRepositoryStub(
+    'listMapLocations',
+    async () => [
+      {
+        id: 'f3100000-0000-4000-8000-000000000013',
+        targetId,
+        locationType: 'destination',
+        slug: 'sample-destination',
+        label: 'Sample Destination',
+        latitude: 13.7,
+        longitude: 123.2,
+      },
+    ],
+    async () => {
+      const result = await service.listMapLocations({ format: 'geojson' })
+      assert.equal(result.features[0].properties.targetId, targetId)
+    },
+  )
+})
+
+test('tourism asset map features expose their asset UUID as the review target', async () => {
+  const assetId = 'f3100000-0000-4000-8000-000000000014'
+  await withRepositoryStub(
+    'listMapLocations',
+    async () => [
+      {
+        id: assetId,
+        targetId: assetId,
+        locationType: 'tourism asset',
+        slug: `asset-sample-${assetId}`,
+        label: 'Sample Tourism Asset',
+        latitude: 13.7,
+        longitude: 123.2,
+      },
+    ],
+    async () => {
+      const result = await service.listMapLocations({ format: 'geojson' })
+      assert.equal(result.features[0].properties.locationType, 'tourism asset')
+      assert.equal(result.features[0].properties.targetId, assetId)
+    },
+  )
+})
+
 test('missing or unsupported map location detail returns the public 404 contract', async () => {
   await withRepositoryStub('getMapLocationDetails', async () => null, async () => {
     await assert.rejects(

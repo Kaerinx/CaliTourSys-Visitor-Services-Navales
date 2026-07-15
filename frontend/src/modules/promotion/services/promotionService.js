@@ -239,7 +239,14 @@ function packageCategoryList(tourismPackage, fallback) {
 
 function mapReadyPackage(tourismPackage, index = 0) {
   const packageItems = Array.isArray(tourismPackage.items)
-    ? tourismPackage.items
+    ? tourismPackage.items.map((item) => ({
+        ...item,
+        proposedActivities: firstPresent(
+          item?.proposedActivities,
+          item?.proposed_activities,
+          "",
+        ),
+      }))
     : [];
   const pricing = packagePricingFields(tourismPackage);
   const gallery = Array.isArray(tourismPackage.gallery)
@@ -477,9 +484,11 @@ function mapAccreditedBusiness(business) {
     accreditedSince: formatYear(business.accreditation?.issuedAt),
     expiresAt: business.accreditation?.expiresAt,
     ratingAverage: Number(
-      business.ratingAverage || business.rating_average || 5,
+      firstPresent(business.ratingAverage, business.rating_average, 0),
     ),
-    reviewCount: Number(business.reviewCount || business.review_count || 0),
+    reviewCount: Number(
+      firstPresent(business.reviewCount, business.review_count, 0),
+    ),
     contactEmail: business.contactEmail || "",
     phone: business.phone || "",
     addressLine: business.addressLine || "",
@@ -1147,6 +1156,7 @@ export async function submitPackageBookingRequest(tourismPackage, payload) {
         startDate: payload.startDate || payload.preferredBookingDate,
         endDate: payload.endDate,
         durationDays: payload.durationDays,
+        paymentMode: payload.paymentMode,
         paymentPlan: payload.paymentPlan,
         paymentMethod: payload.paymentMethod,
         message: payload.message?.trim() || undefined,
@@ -1250,6 +1260,7 @@ export async function getMapLocations(params = { format: "list" }) {
       mapMapLocation(
         {
           id: feature.properties.id,
+          targetId: feature.properties.targetId,
           label: feature.properties.label,
           slug: feature.properties.slug,
           locationType: feature.properties.locationType,
@@ -1517,6 +1528,7 @@ export async function submitTourismInquiry(payload) {
       subject: payload.subject.trim(),
       message: payload.message.trim(),
       sourcePage: payload.sourcePage,
+      productId: payload.productId,
     });
     return response.data;
   } catch (error) {

@@ -74,6 +74,7 @@ module.exports = {
   createInquiryResponse: idBodyHandler(validators.inquiryResponseBodySchema, service.createInquiryResponse, 201),
   createMedia: bodyHandler(validators.mediaBodySchema, service.createMedia, 201),
   createWalkInPackageBooking: bodyHandler(validators.walkInBookingBodySchema, service.createWalkInPackageBooking, 201),
+  deletePackageBookingRequest: idRequestHandler(service.deletePackageBookingRequest),
   recordPackageBookingPayment: idBodyHandler(validators.bookingPaymentBodySchema, service.recordPackageBookingPayment, 201),
   extendPackageBookingDepositDeadline: idBodyHandler(validators.bookingDepositExtensionBodySchema, service.extendPackageBookingDepositDeadline),
   getAuditLog: detailHandler(service.getAuditLog),

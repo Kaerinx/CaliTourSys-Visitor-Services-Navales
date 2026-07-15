@@ -39,6 +39,7 @@ WHERE table_schema = 'public'
     'artifact_images',
     'itinerary_sessions',
     'itinerary_items',
+    'tourism_reviews',
     'tourism_inquiries',
     'newsletter_subscribers'
   );
@@ -72,6 +73,7 @@ UNION ALL SELECT 'museum_artifacts', COUNT(*) FROM museum_artifacts
 UNION ALL SELECT 'artifact_images', COUNT(*) FROM artifact_images
 UNION ALL SELECT 'itinerary_sessions', COUNT(*) FROM itinerary_sessions
 UNION ALL SELECT 'itinerary_items', COUNT(*) FROM itinerary_items
+UNION ALL SELECT 'tourism_reviews', COUNT(*) FROM tourism_reviews
 UNION ALL SELECT 'tourism_inquiries', COUNT(*) FROM tourism_inquiries
 UNION ALL SELECT 'newsletter_subscribers', COUNT(*) FROM newsletter_subscribers
 ORDER BY table_name;
@@ -177,7 +179,66 @@ FROM newsletter_subscribers
 GROUP BY lower(email)
 HAVING COUNT(*) > 1;
 
--- 10. Verify pgcrypto is enabled.
+-- 10. Verify review targets and producer inquiries resolve to owned profiles.
+SELECT
+  r.id AS review_id,
+  r.rating,
+  COALESCE(p.name, d.name, ta.name, bp.business_name, b.name) AS target_name,
+  r.created_at
+FROM tourism_reviews r
+LEFT JOIN products p ON p.id = r.product_id
+LEFT JOIN destinations d ON d.id = r.destination_id
+LEFT JOIN tourism_assets ta ON ta.id = r.tourism_asset_id
+LEFT JOIN business_profiles bp ON bp.id = r.business_profile_id
+LEFT JOIN businesses b ON b.id = r.business_id
+ORDER BY r.created_at DESC;
+
+-- This query must return no rows. The database constraint also enforces it.
+SELECT id AS invalid_review_id
+FROM tourism_reviews
+WHERE num_nonnulls(
+  product_id,
+  destination_id,
+  tourism_asset_id,
+  business_profile_id,
+  business_id
+) <> 1;
+
+SELECT
+  EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'tourism_reviews'::regclass
+      AND conname = 'tourism_reviews_tourism_asset_id_fkey'
+  ) AS tourism_asset_review_foreign_key_exists,
+  EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND indexname = 'ux_tourism_reviews_tourist_asset'
+  ) AS tourism_asset_review_unique_index_exists,
+  EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND indexname = 'idx_tourism_reviews_asset_created_at'
+  ) AS tourism_asset_review_created_at_index_exists;
+
+SELECT
+  i.id AS inquiry_id,
+  p.name AS product_name,
+  b.name AS business_name,
+  bp.business_name AS owner_profile,
+  i.status,
+  i.created_at
+FROM tourism_inquiries i
+JOIN products p ON p.id = i.product_id
+JOIN businesses b ON b.id = i.business_id
+LEFT JOIN business_profiles bp
+  ON bp.id = COALESCE(i.business_profile_id, b.source_business_profile_id)
+ORDER BY i.created_at DESC;
+
+-- 11. Verify pgcrypto is enabled.
 SELECT
   extname,
   extversion

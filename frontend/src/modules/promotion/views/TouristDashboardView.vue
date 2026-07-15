@@ -118,7 +118,7 @@ function amountDueFor(booking) {
   if (!isFiniteAmount(booking?.totalAmount)) return 0
 
   const verifiedAmount = verifiedAmountFor(booking)
-  const remainingAmount = Math.max(0, Number(booking.totalAmount) - verifiedAmount)
+  const remainingAmount = Math.max(0, Number(booking.totalAmount) - verifiedAmount - pendingAmountFor(booking))
   if (pendingAmountFor(booking) > 0 || remainingAmount <= 0) return 0
 
   if (verifiedAmount > 0) return remainingAmount

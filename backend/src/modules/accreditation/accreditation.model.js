@@ -76,6 +76,64 @@ function organizationFields(profile = {}, user = {}) {
   };
 }
 
+function ratingDistribution(row = {}) {
+  return {
+    1: Number(row.rating_1_count || 0),
+    2: Number(row.rating_2_count || 0),
+    3: Number(row.rating_3_count || 0),
+    4: Number(row.rating_4_count || 0),
+    5: Number(row.rating_5_count || 0),
+  };
+}
+
+function ratingAggregate(row = {}) {
+  return {
+    average: Number(row.average || 0),
+    count: Number(row.review_count || 0),
+    distribution: ratingDistribution(row),
+  };
+}
+
+function summarizeRatingAggregates(aggregates) {
+  const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+
+  for (const aggregate of aggregates) {
+    for (let rating = 1; rating <= 5; rating += 1) {
+      distribution[rating] += Number(aggregate.distribution?.[rating] || 0);
+    }
+  }
+
+  const count = Object.values(distribution).reduce((total, value) => total + value, 0);
+  const ratingTotal = Object.entries(distribution).reduce(
+    (total, [rating, value]) => total + Number(rating) * value,
+    0
+  );
+
+  return {
+    average: count ? Math.round((ratingTotal / count) * 10) / 10 : 0,
+    count,
+    distribution,
+  };
+}
+
+function mapOwnerProductInquiry(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    productId: row.product_id,
+    productName: row.product_name,
+    productSlug: row.product_slug,
+    fullName: row.full_name,
+    email: row.email,
+    contactNumber: row.contact_number,
+    subject: row.subject,
+    message: row.message,
+    status: row.status,
+    createdAt: row.created_at,
+    sourcePage: row.source_page,
+  };
+}
+
 async function createUser(user) {
   const displayName = `${user.firstName} ${user.lastName}`.trim();
   const result = await db.query(
@@ -1121,6 +1179,283 @@ async function createAuditLog(log) {
   );
 }
 
+async function getOwnerRatings(ownerId) {
+  const [establishmentResult, productResult, assetResult, recentReviewResult] = await Promise.all([
+    db.query(
+      `WITH owner_profiles AS (
+         SELECT id, business_name, created_at
+         FROM business_profiles
+         WHERE owner_id = $1
+       ),
+       establishment_reviews AS (
+         SELECT
+           r.id,
+           r.business_profile_id,
+           r.rating
+         FROM tourism_reviews r
+         JOIN owner_profiles profile ON profile.id = r.business_profile_id
+
+         UNION ALL
+
+         SELECT
+           r.id,
+           business.source_business_profile_id AS business_profile_id,
+           r.rating
+         FROM tourism_reviews r
+         JOIN businesses business ON business.id = r.business_id
+         JOIN owner_profiles profile ON profile.id = business.source_business_profile_id
+       )
+       SELECT
+         profile.id,
+         profile.business_name AS name,
+         COALESCE(ROUND(AVG(review.rating)::numeric, 1), 0) AS average,
+         COUNT(review.id)::int AS review_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 1))::int AS rating_1_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 2))::int AS rating_2_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 3))::int AS rating_3_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 4))::int AS rating_4_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 5))::int AS rating_5_count
+       FROM owner_profiles profile
+       LEFT JOIN establishment_reviews review ON review.business_profile_id = profile.id
+       GROUP BY profile.id, profile.business_name, profile.created_at
+       ORDER BY profile.created_at DESC`,
+      [ownerId]
+    ),
+    db.query(
+      `WITH owner_products AS (
+         SELECT product.id, product.name, product.slug, product.status
+         FROM products product
+         JOIN businesses business ON business.id = product.business_id
+         JOIN business_profiles profile ON profile.id = business.source_business_profile_id
+         WHERE profile.owner_id = $1
+       )
+       SELECT
+         product.id,
+         product.name,
+         product.slug,
+         product.status,
+         COALESCE(ROUND(AVG(review.rating)::numeric, 1), 0) AS average,
+         COUNT(review.id)::int AS review_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 1))::int AS rating_1_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 2))::int AS rating_2_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 3))::int AS rating_3_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 4))::int AS rating_4_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 5))::int AS rating_5_count
+       FROM owner_products product
+       LEFT JOIN tourism_reviews review ON review.product_id = product.id
+       GROUP BY product.id, product.name, product.slug, product.status
+       ORDER BY product.name ASC`,
+      [ownerId]
+    ),
+    db.query(
+      `WITH owner_assets AS (
+         SELECT asset.id, asset.name, asset.development_status
+         FROM tourism_assets asset
+         JOIN business_profiles profile ON profile.id = asset.source_business_profile_id
+         WHERE profile.owner_id = $1
+       )
+       SELECT
+         asset.id,
+         asset.name,
+         asset.development_status,
+         COALESCE(ROUND(AVG(review.rating)::numeric, 1), 0) AS average,
+         COUNT(review.id)::int AS review_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 1))::int AS rating_1_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 2))::int AS rating_2_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 3))::int AS rating_3_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 4))::int AS rating_4_count,
+         (COUNT(review.id) FILTER (WHERE review.rating = 5))::int AS rating_5_count
+       FROM owner_assets asset
+       LEFT JOIN tourism_reviews review ON review.tourism_asset_id = asset.id
+       GROUP BY asset.id, asset.name, asset.development_status
+       ORDER BY asset.name ASC`,
+      [ownerId]
+    ),
+    db.query(
+      `WITH owner_profiles AS (
+         SELECT id, business_name
+         FROM business_profiles
+         WHERE owner_id = $1
+       ),
+       owned_reviews AS (
+         SELECT
+           review.id,
+           review.tourist_account_id,
+           'business'::text AS target_type,
+           profile.id AS target_id,
+           profile.business_name AS target_name,
+           review.rating,
+           review.comment,
+           review.created_at
+         FROM tourism_reviews review
+         JOIN owner_profiles profile ON profile.id = review.business_profile_id
+
+         UNION ALL
+
+         SELECT
+           review.id,
+           review.tourist_account_id,
+           'business'::text AS target_type,
+           profile.id AS target_id,
+           business.name AS target_name,
+           review.rating,
+           review.comment,
+           review.created_at
+         FROM tourism_reviews review
+         JOIN businesses business ON business.id = review.business_id
+         JOIN owner_profiles profile ON profile.id = business.source_business_profile_id
+
+         UNION ALL
+
+         SELECT
+           review.id,
+           review.tourist_account_id,
+           'product'::text AS target_type,
+           product.id AS target_id,
+           product.name AS target_name,
+           review.rating,
+           review.comment,
+           review.created_at
+         FROM tourism_reviews review
+         JOIN products product ON product.id = review.product_id
+         JOIN businesses business ON business.id = product.business_id
+         JOIN owner_profiles profile ON profile.id = business.source_business_profile_id
+
+         UNION ALL
+
+         SELECT
+           review.id,
+           review.tourist_account_id,
+           'tourism_asset'::text AS target_type,
+           asset.id AS target_id,
+           asset.name AS target_name,
+           review.rating,
+           review.comment,
+           review.created_at
+         FROM tourism_reviews review
+         JOIN tourism_assets asset ON asset.id = review.tourism_asset_id
+         JOIN owner_profiles profile ON profile.id = asset.source_business_profile_id
+       )
+       SELECT
+         review.*,
+         COALESCE(NULLIF(TRIM(tourist.full_name), ''), 'Anonymous Tourist') AS author
+       FROM owned_reviews review
+       LEFT JOIN tourist_accounts tourist ON tourist.id = review.tourist_account_id
+       ORDER BY review.created_at DESC, review.id DESC
+       LIMIT 20`,
+      [ownerId]
+    ),
+  ]);
+
+  const establishments = establishmentResult.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    ...ratingAggregate(row),
+  }));
+  const products = productResult.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    status: row.status,
+    ...ratingAggregate(row),
+  }));
+  const tourismAssets = assetResult.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    status: row.development_status,
+    ...ratingAggregate(row),
+  }));
+
+  return {
+    summary: summarizeRatingAggregates([
+      ...establishments,
+      ...products,
+      ...tourismAssets,
+    ]),
+    establishments,
+    products,
+    tourismAssets,
+    recentReviews: recentReviewResult.rows.map((row) => ({
+      id: row.id,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      targetName: row.target_name,
+      rating: Number(row.rating),
+      comment: row.comment,
+      author: row.author,
+      createdAt: row.created_at,
+    })),
+  };
+}
+
+async function listOwnerProductInquiries(ownerId) {
+  const result = await db.query(
+    `SELECT
+       inquiry.*,
+       COALESCE(product.name, 'Product no longer available') AS product_name,
+       product.slug AS product_slug
+     FROM tourism_inquiries inquiry
+     LEFT JOIN products product ON product.id = inquiry.product_id
+     LEFT JOIN businesses current_business ON current_business.id = product.business_id
+     LEFT JOIN business_profiles snapshot_profile
+       ON snapshot_profile.id = inquiry.business_profile_id
+     LEFT JOIN business_profiles current_profile
+       ON current_profile.id = current_business.source_business_profile_id
+     WHERE snapshot_profile.owner_id = $1
+        OR (
+          inquiry.business_profile_id IS NULL
+          AND inquiry.product_id IS NOT NULL
+          AND current_profile.owner_id = $1
+          AND (inquiry.business_id IS NULL OR inquiry.business_id = current_business.id)
+        )
+     ORDER BY inquiry.created_at DESC, inquiry.id DESC`,
+    [ownerId]
+  );
+
+  return result.rows.map(mapOwnerProductInquiry);
+}
+
+async function updateOwnerProductInquiryStatus(id, ownerId, status) {
+  const result = await db.query(
+    `WITH authorized_inquiry AS (
+       SELECT inquiry.id
+       FROM tourism_inquiries inquiry
+       LEFT JOIN products product ON product.id = inquiry.product_id
+       LEFT JOIN businesses current_business ON current_business.id = product.business_id
+       LEFT JOIN business_profiles snapshot_profile
+         ON snapshot_profile.id = inquiry.business_profile_id
+       LEFT JOIN business_profiles current_profile
+         ON current_profile.id = current_business.source_business_profile_id
+       WHERE inquiry.id::text = $1
+         AND (
+           snapshot_profile.owner_id = $2
+           OR (
+             inquiry.business_profile_id IS NULL
+             AND inquiry.product_id IS NOT NULL
+             AND current_profile.owner_id = $2
+             AND (inquiry.business_id IS NULL OR inquiry.business_id = current_business.id)
+           )
+         )
+     ),
+     updated_inquiry AS (
+       UPDATE tourism_inquiries inquiry
+       SET status = $3::inquiry_status
+       FROM authorized_inquiry authorized
+       WHERE inquiry.id = authorized.id
+       RETURNING inquiry.*
+     )
+     SELECT
+       inquiry.*,
+       COALESCE(product.name, 'Product no longer available') AS product_name,
+       product.slug AS product_slug
+     FROM updated_inquiry inquiry
+     LEFT JOIN products product ON product.id = inquiry.product_id`,
+    [id, ownerId, status]
+  );
+
+  return mapOwnerProductInquiry(result.rows[0]);
+}
+
 async function listNotifications({ userId, role }) {
   const result = await db.query(
     `SELECT * FROM notifications
@@ -1160,6 +1495,7 @@ module.exports = {
   findUserById,
   findUserByVerificationToken,
   getApplicationById,
+  getOwnerRatings,
   getDocumentById,
   getRegistrationDocumentById,
   getBusinessProfile,
@@ -1169,6 +1505,7 @@ module.exports = {
   listAuditLogs,
   listDocuments,
   listNotifications,
+  listOwnerProductInquiries,
   listUsers,
   markNotificationRead,
   submitApplication,
@@ -1179,6 +1516,7 @@ module.exports = {
   updateBusinessProfileById,
   updateLastLogin,
   updatePasswordHash,
+  updateOwnerProductInquiryStatus,
   updateUserStatus,
   verifyUserEmail,
 };

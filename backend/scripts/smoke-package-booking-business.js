@@ -48,7 +48,7 @@ async function createOnlineBooking({ tourismPackage, tourist, startDate, payment
     startDate,
     durationDays: Number(tourismPackage.duration_days),
     paymentPlan,
-    paymentMethod: 'bank_transfer',
+    paymentMethod: 'qr_instapay',
     message: 'Temporary Phase 5 integration test booking.',
   })
   const booking = await publicService.createPackageBookingRequest(body, {
@@ -126,7 +126,7 @@ async function run() {
   await publicService.uploadPackageBookingPaymentProof(
     first.id,
     { fileUrl: '/phase5/deposit-proof.png', originalFilename: 'deposit-proof.png', mimeType: 'image/png', fileSize: 128 },
-    { amount: first.initialPaymentAmount, paymentMethod: 'bank_transfer', paymentReferenceNumber: depositReference },
+    { amount: first.initialPaymentAmount, paymentMethod: 'qr_instapay', paymentReferenceNumber: depositReference },
     { touristAccountId },
   )
   await cmsService.verifyPackageBookingPayment(first.id, req)
@@ -137,7 +137,7 @@ async function run() {
   await publicService.uploadPackageBookingPaymentProof(
     first.id,
     { fileUrl: '/phase5/balance-proof.png', originalFilename: 'balance-proof.png', mimeType: 'image/png', fileSize: 128 },
-    { amount: touristView.remainingAmount, paymentMethod: 'bank_transfer', paymentReferenceNumber: `PHASE5-BAL-${unique}` },
+    { amount: touristView.remainingAmount, paymentMethod: 'qr_instapay', paymentReferenceNumber: `PHASE5-BAL-${unique}` },
     { touristAccountId },
   )
   await cmsService.verifyPackageBookingPayment(first.id, req)
@@ -202,6 +202,53 @@ async function run() {
   assert(cashResult.payment.paymentStatus === 'verified', 'Walk-in cash payment was not verified immediately.')
   assert(!cashResult.payment.transactionReference, 'Walk-in cash unexpectedly required an electronic reference.')
 
+  const payAtOfficeStartDate = addDays(80)
+  const payAtOfficeBody = publicValidators.createPackageBookingRequestBodySchema.parse({
+    packageId: tourismPackage.id,
+    selectedPax: Number(tourismPackage.min_pax || 1),
+    representativeContact: {
+      fullName: tourist.fullName,
+      email: tourist.email,
+      phoneNumber: tourist.phoneNumber,
+      gender: 'F',
+    },
+    startDate: payAtOfficeStartDate,
+    durationDays: Number(tourismPackage.duration_days),
+    paymentMode: 'pay_at_office',
+    paymentPlan: 'full_payment',
+    paymentMethod: 'cash',
+  })
+  const payAtOffice = await publicService.createPackageBookingRequest(payAtOfficeBody, {
+    bookingSource: 'online',
+    touristAccountId,
+  })
+  createdBookingIds.push(payAtOffice.id)
+  assert(payAtOffice.paymentMode === 'pay_at_office', 'Pay-at-office mode was not preserved.')
+  assert(payAtOffice.paymentStatus === 'unpaid', 'Pay-at-office booking was not created as unpaid.')
+  assert(
+    dateOnly(payAtOffice.depositDueAt) === addDays(79),
+    'Pay-at-office deadline was not set one day before departure.',
+  )
+
+  let unpaidApprovalBlocked = false
+  try {
+    await cmsService.updatePackageBookingStatus(payAtOffice.id, { status: 'approved' }, req)
+  } catch (error) {
+    unpaidApprovalBlocked = /full walk-in cash payment/.test(error.message)
+  }
+  assert(unpaidApprovalBlocked, 'CMS approval was not blocked before walk-in cash payment.')
+
+  await cmsService.recordPackageBookingPayment(payAtOffice.id, {
+    amount: Number(payAtOffice.totalAmount),
+    paymentMethod: 'cash',
+  }, req)
+  const approvedPayAtOffice = await cmsService.updatePackageBookingStatus(
+    payAtOffice.id,
+    { status: 'approved' },
+    req,
+  )
+  assert(approvedPayAtOffice.bookingStatus === 'approved', 'Paid walk-in-payment booking was not approved.')
+
   return {
     referenceFormat: first.bookingReference,
     depositAndBalance: 'passed',
@@ -209,6 +256,7 @@ async function run() {
     dateChangeApproval: 'passed',
     cancelledCreditTransfer: 'passed',
     walkInCash: 'passed',
+    onlinePayAtOfficeApproval: 'passed',
   }
 }
 

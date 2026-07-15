@@ -82,9 +82,12 @@ function notifyAuthFailure(error, context) {
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(
-      new CustomEvent('calitoursys:cms-auth-failed', {
-        detail: { code: error.code, path: context.path, status: error.status },
-      }),
+      new CustomEvent(
+        context.touristAuth ? 'calitoursys:tourist-auth-failed' : 'calitoursys:cms-auth-failed',
+        {
+          detail: { code: error.code, path: context.path, status: error.status },
+        },
+      ),
     )
   }
 }
@@ -115,9 +118,13 @@ async function parseJsonSafely(response) {
   }
 }
 
-async function apiRequest(method, path, { params, body, headers, signal, auth = false, retryOnExpiredToken = true } = {}) {
+async function apiRequest(
+  method,
+  path,
+  { params, body, headers, signal, auth = false, touristAuth = false, retryOnExpiredToken = true } = {},
+) {
   let response
-  const token = auth ? authTokenGetter() || getVisitorToken() : getVisitorToken()
+  const token = auth ? authTokenGetter() : getVisitorToken()
   const isFormData = body instanceof FormData
 
   try {
@@ -167,15 +174,16 @@ async function apiRequest(method, path, { params, body, headers, signal, auth = 
           body,
           headers,
           auth,
+          touristAuth,
           retryOnExpiredToken: false,
         })
       }
     }
 
-    if (shouldHandleAuthFailure(auth, error)) {
+    if (shouldHandleAuthFailure(auth || touristAuth, error)) {
       error.code = normalizeAuthFailureCode(error)
       error.isAuthFailure = true
-      notifyAuthFailure(error, { method, path })
+      notifyAuthFailure(error, { method, path, auth, touristAuth })
     }
 
     throw error
@@ -210,11 +218,20 @@ export const http = {
   postAuth(path, body) {
     return apiRequest('POST', path, { body, auth: true })
   },
+  postTourist(path, body) {
+    return apiRequest('POST', path, { body, touristAuth: true })
+  },
+  patchTourist(path, body) {
+    return apiRequest('PATCH', path, { body, touristAuth: true })
+  },
   patchAuth(path, body) {
     return apiRequest('PATCH', path, { body, auth: true })
   },
   getAuth(path, params) {
     return apiRequest('GET', path, { params, auth: true })
+  },
+  getTourist(path, params) {
+    return apiRequest('GET', path, { params, touristAuth: true })
   },
   delete(path) {
     return apiRequest('DELETE', path)

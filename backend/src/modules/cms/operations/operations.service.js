@@ -4,10 +4,10 @@ const { buildPaginationMeta, getPagination } = require('../../../utils/paginatio
 const { logCmsContentAudit } = require('../../../utils/cmsAudit')
 const {
   buildSchedule,
+  calculatePaymentTerms,
   requireCurrentOrFutureStartDate,
   roundMoney,
   validateDepositExtension,
-  validateElectronicPaymentEvidence,
   validatePaymentMethod,
 } = require('../../booking/bookingRules')
 
@@ -86,6 +86,20 @@ async function getPackageBookingRequest(id) {
   return request
 }
 
+async function deletePackageBookingRequest(id, req) {
+  const deleted = await repository.deletePackageBookingRequest(id)
+  await logCmsContentAudit({
+    req,
+    action: 'delete',
+    entityType: 'package_booking_request',
+    entityId: deleted.id,
+    entityLabel: deleted.packageName,
+    beforeValues: deleted,
+    afterValues: null,
+  })
+  return deleted
+}
+
 async function createWalkInPackageBooking(data, req) {
   const booking = await publicBookingService.createPackageBookingRequest(
     {
@@ -121,6 +135,18 @@ async function updatePackageBookingSchedule(id, data, req) {
   }
   const schedule = buildSchedule(data)
   requireCurrentOrFutureStartDate(schedule.startDate)
+  if (existing.paymentMode === 'pay_at_office') {
+    calculatePaymentTerms({
+      totalAmount: existing.totalAmount || 0,
+      paymentRequired: true,
+      paymentPlan: 'full_payment',
+      paymentMode: 'pay_at_office',
+      bookingSource: existing.bookingSource,
+      paymentMethod: 'cash',
+      startDate: schedule.startDate,
+      endDate: schedule.endDate,
+    })
+  }
   const result = await repository.updatePackageBookingSchedule(
     id,
     { ...data, ...schedule },
@@ -140,8 +166,8 @@ async function updatePackageBookingSchedule(id, data, req) {
 
 async function extendPackageBookingDepositDeadline(id, data, req) {
   const existing = await getPackageBookingRequest(id)
-  if (existing.bookingSource !== 'online') {
-    const error = new Error('Deposit deadline extensions apply only to online bookings.')
+  if (existing.paymentMode !== 'online') {
+    const error = new Error('Deposit deadline extensions apply only to online payments.')
     error.statusCode = 400
     error.code = 'VALIDATION_ERROR'
     error.publicMessage = error.message
@@ -250,11 +276,25 @@ async function transferPackageBookingCredit(id, data, req) {
 async function recordPackageBookingPayment(id, data, req) {
   const booking = await getPackageBookingRequest(id)
   const paymentMethod = validatePaymentMethod(booking.bookingSource, data.paymentMethod)
-  validateElectronicPaymentEvidence({
-    paymentMethod,
-    transactionReference: data.transactionReference,
-    proofFileUrl: data.proofFileUrl,
-  })
+  if (
+    booking.paymentMode === 'pay_at_office' &&
+    paymentMethod === 'cash' &&
+    booking.depositDueAt &&
+    Date.now() > new Date(booking.depositDueAt).getTime()
+  ) {
+    const error = new Error('The walk-in payment deadline has passed. This booking can no longer be approved.')
+    error.statusCode = 400
+    error.code = 'VALIDATION_ERROR'
+    error.publicMessage = error.message
+    throw error
+  }
+  if (paymentMethod !== 'cash' && !String(data.transactionReference || '').trim()) {
+    const error = new Error('Electronic payments require a transaction reference.')
+    error.statusCode = 400
+    error.code = 'VALIDATION_ERROR'
+    error.publicMessage = error.message
+    throw error
+  }
   const amount = roundMoney(data.amount)
   const totals = await repository.getPackageBookingPaymentTotals(id)
   const totalAmount = Number(booking.totalAmount || 0)
@@ -296,6 +336,20 @@ async function updatePackageBookingStatus(id, data, req) {
     error.code = 'VALIDATION_ERROR'
     error.publicMessage = error.message
     throw error
+  }
+
+  if (data.status === 'approved') {
+    const booking = await getPackageBookingRequest(id)
+    if (booking.paymentMode === 'pay_at_office' && booking.paymentRequired) {
+      const totals = await repository.getPackageBookingPaymentTotals(id)
+      if (totals.verifiedAmount < Number(booking.totalAmount || 0)) {
+        const error = new Error('Record the full walk-in cash payment before approving this booking.')
+        error.statusCode = 400
+        error.code = 'VALIDATION_ERROR'
+        error.publicMessage = error.message
+        throw error
+      }
+    }
   }
 
   const result = await repository.updatePackageBookingStatus(id, data, req.user.id)
@@ -419,6 +473,7 @@ module.exports = {
   createInquiryResponse,
   createMedia,
   createWalkInPackageBooking,
+  deletePackageBookingRequest,
   extendPackageBookingDepositDeadline,
   getAuditLog,
   getInquiry,

@@ -153,6 +153,10 @@ function friendlyError(error) {
   if (error?.code === 'INVALID_CREDENTIALS') return 'Invalid email or password.'
   if (error?.code === 'ACCOUNT_INACTIVE') return 'This account is not active.'
   if (error?.code === 'INVALID_CURRENT_PASSWORD') return 'Current password is incorrect.'
+  if (error?.code === 'VALIDATION_ERROR' && Array.isArray(error.details)) {
+    const fieldMessage = error.details.find((detail) => String(detail?.message || '').trim())?.message
+    if (fieldMessage) return fieldMessage
+  }
   if (error?.status === 429) return 'Too many attempts. Please try again later.'
   if (Array.isArray(error?.details) && error.details[0]?.message) return error.details[0].message
   return error?.message || 'Unable to continue. Please try again.'

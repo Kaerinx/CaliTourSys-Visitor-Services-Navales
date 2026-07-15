@@ -30,6 +30,7 @@ const representative = reactive({
   gender: '',
 })
 const message = ref('')
+const paymentMode = ref('online')
 const paymentPlan = ref('deposit_50')
 const paymentMethod = ref('qr_instapay')
 
@@ -46,7 +47,10 @@ const canAddParticipant = computed(() => participants.value.length < Math.max(0,
 const paymentRequired = computed(() => Boolean(tourismPackage.value?.paymentRequired ?? String(route.query.paymentRequired || '') === 'true'))
 const daysUntilDeparture = computed(() => calendarDayDifference(todayDate(), preferredDate.value))
 const requiresFullPayment = computed(() => daysUntilDeparture.value !== null && daysUntilDeparture.value <= 3)
+const isPayAtOffice = computed(() => paymentMode.value === 'pay_at_office')
 const effectivePaymentPlan = computed(() => requiresFullPayment.value ? 'full_payment' : paymentPlan.value)
+const effectivePaymentMethod = computed(() => isPayAtOffice.value ? 'cash' : paymentMethod.value)
+const walkInPaymentDeadline = computed(() => addDays(preferredDate.value, -1))
 const estimatedTotal = computed(() => {
   if (!tourismPackage.value) return toFiniteNumber(route.query.estimatedTotal)
   const basePrice = toFiniteNumber(tourismPackage.value.basePrice)
@@ -62,10 +66,12 @@ const estimatedTotalLabel = computed(() => {
   if (estimatedTotal.value === null) return 'Price upon inquiry'
   return formatCurrency(estimatedTotal.value)
 })
+const hasPayableAmount = computed(() => estimatedTotal.value !== null)
 const preferredDateLabel = computed(() => formatDisplayDate(preferredDate.value))
 const submitButtonLabel = computed(() => {
   if (isSubmitting.value) return 'Submitting...'
-  if (paymentRequired.value && estimatedTotal.value !== null) return 'Go to Payment'
+  if (hasPayableAmount.value && isPayAtOffice.value) return 'Book now - pay at office'
+  if (hasPayableAmount.value) return 'Go to Payment'
   return 'Submit booking request'
 })
 
@@ -75,6 +81,7 @@ onMounted(async () => {
 })
 const estimatedInitialDue = computed(() => {
   if (estimatedTotal.value === null) return null
+  if (isPayAtOffice.value) return estimatedTotal.value
   return effectivePaymentPlan.value === 'deposit_50'
     ? Math.round(estimatedTotal.value * 50) / 100
     : estimatedTotal.value
@@ -125,6 +132,9 @@ function validateForm() {
   if (!representative.gender) return 'Representative gender is required.'
   if (selectedPax.value < minimumPax.value) return `This package requires at least ${minimumPax.value} participants.`
   if (maximumPax.value && selectedPax.value > maximumPax.value) return `This package allows up to ${maximumPax.value} participants.`
+  if (isPayAtOffice.value && daysUntilDeparture.value !== null && daysUntilDeparture.value < 1) {
+    return 'Walk-in payment is available only when booking at least one day before departure.'
+  }
 
   for (const [index, participant] of participants.value.entries()) {
     const hasName = Boolean(participant.fullName.trim())
@@ -161,13 +171,18 @@ async function submitBookingInfo() {
       startDate: preferredDate.value,
       endDate: endDate.value,
       durationDays: durationDays.value,
-      paymentPlan: effectivePaymentPlan.value,
-      paymentMethod: paymentMethod.value,
+      paymentMode: paymentMode.value,
+      paymentPlan: isPayAtOffice.value ? 'full_payment' : effectivePaymentPlan.value,
+      paymentMethod: effectivePaymentMethod.value,
       message: message.value,
     })
 
     submittedBooking.value = request
-    if (request.paymentRequired && isFiniteAmount(request.totalAmount)) {
+    if (
+      isFiniteAmount(request.totalAmount) &&
+      request.paymentMode !== 'pay_at_office' &&
+      request.paymentMethod !== 'cash'
+    ) {
       router.push({
         name: 'promotion-package-booking-payment',
         params: { slug: props.slug },
@@ -180,7 +195,7 @@ async function submitBookingInfo() {
           totalAmount: request.totalAmount == null ? '' : String(request.totalAmount),
           paymentStatus: request.paymentStatus || 'unpaid',
           paymentPlan: request.paymentPlan || effectivePaymentPlan.value,
-          paymentMethod: request.paymentMethod || paymentMethod.value,
+          paymentMethod: request.paymentMethod || effectivePaymentMethod.value,
           initialPaymentAmount: request.initialPaymentAmount == null ? '' : String(request.initialPaymentAmount),
           depositDueAt: request.depositDueAt || '',
           balanceDueAt: request.balanceDueAt || '',
@@ -189,7 +204,9 @@ async function submitBookingInfo() {
       return
     }
 
-    submitMessage.value = 'Booking request submitted. The Tourism Office will review your request and contact the representative.'
+    submitMessage.value = isPayAtOffice.value
+      ? `Booking created as unpaid. Pay the full amount at the Tourism Office by ${formatDisplayDate(walkInPaymentDeadline.value)} so staff can approve it.`
+      : 'Booking request submitted. The Tourism Office will review your request and contact the representative.'
   } catch (error) {
     errorMessage.value = error.message || 'Unable to submit booking request.'
   } finally {
@@ -377,11 +394,88 @@ function calendarDayDifference(from, to) {
             <p v-else class="participant-help">No other participant names added. You can still book using only the total pax count.</p>
           </section>
 
-          <section v-if="paymentRequired && estimatedTotal !== null" class="form-section" aria-labelledby="payment-choice-title">
+          <aside class="booking-summary" aria-label="Selected booking summary">
+            <span class="summary-label">Booking summary</span>
+            <h2>{{ packageName }}</h2>
+
+            <dl>
+              <div>
+                <dt>Start date</dt>
+                <dd>{{ preferredDateLabel }}</dd>
+              </div>
+              <div>
+                <dt>End date</dt>
+                <dd>{{ formatDisplayDate(endDate) }}</dd>
+              </div>
+              <div>
+                <dt>Duration</dt>
+                <dd>{{ durationDays }} {{ durationDays === 1 ? 'day' : 'days' }}</dd>
+              </div>
+              <div>
+                <dt>Booking source</dt>
+                <dd>Online / Website</dd>
+              </div>
+              <div>
+                <dt>Selected pax</dt>
+                <dd>{{ selectedPax }} pax</dd>
+              </div>
+              <div>
+                <dt>Estimated total</dt>
+                <dd>{{ estimatedTotalLabel }}</dd>
+              </div>
+              <div>
+                <dt>Payment</dt>
+                <dd v-if="hasPayableAmount && estimatedInitialDue !== null && isPayAtOffice">Full amount at office</dd>
+                <dd v-else-if="hasPayableAmount && estimatedInitialDue !== null">{{ formatCurrency(estimatedInitialDue) }} initially</dd>
+                <dd v-else>{{ paymentRequired ? 'Required later' : 'Inquiry basis' }}</dd>
+              </div>
+            </dl>
+
+            <p v-if="isLoadingPackage" class="summary-note">Refreshing package pricing...</p>
+            <p v-else-if="!packageId" class="summary-note">
+              Some package details were not carried over. Return to the package page and choose Book Now again.
+            </p>
+          </aside>
+
+          <section v-if="hasPayableAmount" class="form-section" aria-labelledby="payment-mode-title">
             <div class="section-head">
               <div>
-                <h2 id="payment-choice-title">Payment choice</h2>
-                <p>Select how much to pay first and which electronic channel you will use.</p>
+                <h2 id="payment-mode-title">Mode of payment</h2>
+                <p>Choose whether to pay at the Tourism Office or continue with an online payment.</p>
+              </div>
+            </div>
+
+            <div class="payment-choice-grid">
+              <label class="choice-card" :class="{ 'is-selected': isPayAtOffice }">
+                <input v-model="paymentMode" type="radio" value="pay_at_office" />
+                <span>
+                  <strong>Walk-in payment</strong>
+                  <small>Book now and pay the full amount in cash at the Tourism Office</small>
+                </span>
+              </label>
+              <label class="choice-card" :class="{ 'is-selected': paymentMode === 'online' }">
+                <input v-model="paymentMode" type="radio" value="online" />
+                <span>
+                  <strong>Pay online</strong>
+                  <small>Choose QR / InstaPay or Credit/Debit Card</small>
+                </span>
+              </label>
+            </div>
+
+            <div v-if="isPayAtOffice" class="walk-in-payment-note">
+              <strong>Your booking will be created immediately as unpaid.</strong>
+              <span>
+                Pay the full amount at the Tourism Office no later than
+                {{ formatDisplayDate(walkInPaymentDeadline) }}. Staff will record the cash payment before approving the booking.
+              </span>
+            </div>
+          </section>
+
+          <section v-if="hasPayableAmount && !isPayAtOffice" class="form-section" aria-labelledby="payment-choice-title">
+            <div class="section-head">
+              <div>
+                <h2 id="payment-choice-title">Payment method</h2>
+                <p>Select how much to pay first, then choose QR / InstaPay or credit/debit card.</p>
               </div>
             </div>
 
@@ -402,9 +496,9 @@ function calendarDayDifference(from, to) {
                 <input v-model="paymentMethod" type="radio" value="qr_instapay" />
                 <span><strong>QR / InstaPay</strong><small>Use a supported wallet or bank app</small></span>
               </label>
-              <label class="choice-card" :class="{ 'is-selected': paymentMethod === 'bank_transfer' }">
-                <input v-model="paymentMethod" type="radio" value="bank_transfer" />
-                <span><strong>Bank transfer</strong><small>Transfer to the Tourism Office account</small></span>
+              <label class="choice-card" :class="{ 'is-selected': paymentMethod === 'credit_debit_card' }">
+                <input v-model="paymentMethod" type="radio" value="credit_debit_card" />
+                <span><strong>Credit / Debit Card</strong><small>Continue through secure card checkout</small></span>
               </label>
             </div>
             <p class="participant-help">The initial online payment is due within 3 calendar days after booking. Authorized staff may extend it, but never beyond 5 calendar days from booking creation.</p>
@@ -423,51 +517,6 @@ function calendarDayDifference(from, to) {
             {{ submitButtonLabel }}
           </button>
         </form>
-
-        <aside class="booking-summary" aria-label="Selected booking summary">
-          <span class="summary-label">Booking summary</span>
-          <h2>{{ packageName }}</h2>
-
-          <dl>
-            <div>
-              <dt>Start date</dt>
-              <dd>{{ preferredDateLabel }}</dd>
-            </div>
-            <div>
-              <dt>End date</dt>
-              <dd>{{ formatDisplayDate(endDate) }}</dd>
-            </div>
-            <div>
-              <dt>Duration</dt>
-              <dd>{{ durationDays }} {{ durationDays === 1 ? 'day' : 'days' }}</dd>
-            </div>
-            <div>
-              <dt>Booking source</dt>
-              <dd>Online / Website</dd>
-            </div>
-            <div>
-              <dt>Selected pax</dt>
-              <dd>{{ selectedPax }} pax</dd>
-            </div>
-            <div>
-              <dt>Estimated total</dt>
-              <dd>{{ estimatedTotalLabel }}</dd>
-            </div>
-            <div>
-              <dt>Payment</dt>
-              <dd v-if="paymentRequired && estimatedInitialDue !== null">{{ formatCurrency(estimatedInitialDue) }} initially</dd>
-              <dd v-else>{{ paymentRequired ? 'Required later' : 'Inquiry basis' }}</dd>
-            </div>
-          </dl>
-
-          <p v-if="isLoadingPackage" class="summary-note">Refreshing package pricing...</p>
-          <p v-else-if="!packageId" class="summary-note">
-            Some package details were not carried over. Return to the package page and choose Book Now again.
-          </p>
-          <p v-else class="summary-note">
-            The backend will recalculate this amount when you submit, using the final participant count.
-          </p>
-        </aside>
       </section>
     </main>
 
@@ -547,10 +596,7 @@ function calendarDayDifference(from, to) {
 }
 
 .booking-info-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 24px;
-  align-items: start;
+  display: block;
 }
 
 .booking-form-card,
@@ -823,9 +869,18 @@ textarea:focus {
 }
 
 .booking-summary {
-  position: sticky;
-  top: 96px;
   padding: 24px;
+}
+
+.walk-in-payment-note {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid #cbd8d0;
+  border-radius: 8px;
+  background: #e6f3ee;
+  color: #1b4332;
+  line-height: 1.55;
 }
 
 .booking-summary h2 {
@@ -835,23 +890,29 @@ textarea:focus {
 
 .booking-summary dl {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
   margin: 22px 0;
+  border: 1px solid #edf0ec;
+  border-radius: 8px;
+  background: #edf0ec;
+  overflow: hidden;
 }
 
 .booking-summary dl div {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #edf0ec;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px;
+  background: #ffffff;
 }
 
 .booking-summary dd {
   margin: 0;
   color: #14261f;
   font-weight: 800;
-  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .summary-note {
@@ -867,7 +928,6 @@ textarea:focus {
 
 @media (max-width: 920px) {
   .checkout-progress,
-  .booking-info-layout,
   .field-grid,
   .compact-participant-row,
   .payment-choice-grid {
@@ -878,9 +938,10 @@ textarea:focus {
     display: none;
   }
 
-  .booking-summary {
-    position: static;
+  .booking-summary dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
 }
 
 @media (max-width: 560px) {
@@ -899,13 +960,8 @@ textarea:focus {
     display: grid;
   }
 
-  .booking-summary dl div {
-    display: grid;
-    gap: 6px;
-  }
-
-  .booking-summary dd {
-    text-align: left;
+  .booking-summary dl {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -35,6 +35,8 @@ const canUploadPaymentProof = computed(() => {
   return Boolean(
     result.value?.id &&
       result.value.paymentRequired &&
+      result.value.paymentMode !== 'pay_at_office' &&
+      result.value.paymentMethod !== 'cash' &&
       hasKnownTotal.value &&
       ['unpaid', 'rejected'].includes(result.value.paymentStatus),
   )
@@ -45,6 +47,9 @@ const proofStatusLabel = computed(() => {
 })
 const nextSteps = computed(() => {
   if (!result.value) return ''
+  if (result.value.paymentMode === 'pay_at_office' || result.value.paymentMethod === 'cash') {
+    return `Pay the full amount at the Tourism Office by ${formatDisplayDate(result.value.depositDueAt)}. Staff will record the cash payment and approve the booking after payment.`
+  }
   if (canUploadPaymentProof.value && !result.value.proofOfPayment) {
     return 'Send payment using the instructions below, then upload proof for manual staff verification.'
   }
@@ -235,6 +240,10 @@ function formatDisplayDate(value) {
             <div>
               <dt>Payment status</dt>
               <dd>{{ formatStatusLabel(result.paymentStatus) }}</dd>
+            </div>
+            <div>
+              <dt>Payment mode</dt>
+              <dd>{{ result.paymentMode === 'pay_at_office' ? 'Walk-in payment' : 'Pay online' }}</dd>
             </div>
             <div>
               <dt>Proof upload status</dt>

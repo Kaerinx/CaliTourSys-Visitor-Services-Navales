@@ -296,37 +296,6 @@ onMounted(loadPackage)
             </section>
 
             <section class="content-card">
-              <p class="section-kicker">Package details</p>
-              <h2>Quick information</h2>
-              <dl class="info-grid">
-                <div>
-                  <dt>Target market</dt>
-                  <dd>{{ tourismPackage.targetMarket }}</dd>
-                </div>
-                <div>
-                  <dt>Duration</dt>
-                  <dd>{{ durationDays }} {{ durationDays === 1 ? 'day' : 'days' }}</dd>
-                </div>
-                <div>
-                  <dt>Package amount</dt>
-                  <dd>{{ tourismPackage.price }}</dd>
-                </div>
-                <div v-if="tourismPackage.extraPaxLabel">
-                  <dt>Extra person</dt>
-                  <dd>{{ tourismPackage.extraPaxLabel }}</dd>
-                </div>
-                <div v-if="paxRangeLabel">
-                  <dt>Allowed pax</dt>
-                  <dd>{{ paxRangeLabel }}</dd>
-                </div>
-                <div>
-                  <dt>Payment</dt>
-                  <dd>{{ tourismPackage.paymentRequired ? 'Required after review' : 'Handled by inquiry' }}</dd>
-                </div>
-              </dl>
-            </section>
-
-            <section class="content-card">
               <p class="section-kicker">Itinerary and inclusions</p>
               <h2>Included package items</h2>
               <p v-if="packageItems.length === 0">
@@ -342,6 +311,10 @@ onMounted(loadPackage)
                   <div>
                     <strong>{{ item.name }}</strong>
                     <p>{{ item.location || item.status || 'Calabanga tourism package item' }}</p>
+                    <div v-if="item.proposedActivities" class="item-row__activities">
+                      <strong>Proposed activities</strong>
+                      <p>{{ item.proposedActivities }}</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1362,6 +1335,23 @@ dd {
 .item-row p {
   margin: 4px 0 0;
   color: #5c5c5c;
+}
+
+.item-row__activities {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #dde6df;
+}
+
+.item-row__activities strong {
+  display: block;
+  color: #1b4332;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.item-row__activities p {
+  white-space: pre-line;
 }
 
 .state-card {

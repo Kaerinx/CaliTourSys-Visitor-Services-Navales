@@ -1,6 +1,7 @@
 <script setup>
 import PromotionFooter from '../components/PromotionFooter.vue'
 import PromotionNavbar from '../components/PromotionNavbar.vue'
+import ReviewsSection from '../components/ReviewsSection.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { getAccreditedBusinessBySlug, getAccreditedBusinesses } from '../services/promotionService'
 
@@ -15,10 +16,6 @@ const business = ref(null)
 const relatedEstablishments = ref([])
 const selectedImageIndex = ref(0)
 const activeTab = ref('overview')
-const reviewName = ref('')
-const reviewComment = ref('')
-const reviewRating = ref(0)
-const reviews = ref([])
 const isLoading = ref(true)
 const errorMessage = ref('')
 
@@ -152,21 +149,6 @@ function showNextImage() {
   selectedImageIndex.value = (selectedImageIndex.value + 1) % galleryImages.value.length
 }
 
-function submitReview() {
-  if (!reviewName.value.trim()) return
-
-  reviews.value.push({
-    id: Date.now(),
-    name: reviewName.value.trim(),
-    comment: reviewComment.value.trim(),
-    rating: reviewRating.value,
-  })
-
-  reviewName.value = ''
-  reviewComment.value = ''
-  reviewRating.value = 0
-}
-
 async function loadEstablishment() {
   isLoading.value = true
   errorMessage.value = ''
@@ -298,41 +280,11 @@ onMounted(loadEstablishment)
             </section>
 
             <section v-else-if="activeTab === 'reviews'" id="reviews" class="reviews-section">
-              <form class="review-form" @submit.prevent="submitReview">
-                <h2>Submit a review</h2>
-
-                <input v-model="reviewName" type="text" placeholder="Name (required)" required />
-                <textarea
-                  v-model="reviewComment"
-                  rows="5"
-                  placeholder="Leave a comment..."
-                ></textarea>
-
-                <div class="rating-row">
-                  <span>Rate establishment:</span>
-                  <button
-                    v-for="star in 5"
-                    :key="star"
-                    type="button"
-                    :class="{ selected: star <= reviewRating }"
-                    :aria-label="`Rate ${star} star${star === 1 ? '' : 's'}`"
-                    @click="reviewRating = star"
-                  >
-                    ★
-                  </button>
-                </div>
-
-                <button class="submit-review" type="submit">Submit</button>
-              </form>
-
-              <div class="reviews-list">
-                <h2>Reviews and ratings ({{ reviews.length }})</h2>
-                <article v-for="review in reviews" :key="review.id" class="review-item">
-                  <strong>{{ review.name }}</strong>
-                  <span>{{ '★'.repeat(review.rating) }}{{ '☆'.repeat(5 - review.rating) }}</span>
-                  <p v-if="review.comment">{{ review.comment }}</p>
-                </article>
-              </div>
+              <ReviewsSection
+                target-type="business"
+                :target-id="business.apiId || business.id"
+                :target-name="business.name"
+              />
             </section>
 
             <section v-else id="about" class="about-section">
@@ -592,112 +544,6 @@ button {
   color: #102c26;
   font-size: 14px;
   font-weight: 600;
-}
-
-.review-form {
-  padding-bottom: 28px;
-  border-bottom: 1px solid #e5e8e6;
-}
-
-.review-form h2,
-.reviews-list h2 {
-  font-size: 24px;
-}
-
-.review-form input,
-.review-form textarea {
-  width: 100%;
-  display: block;
-  margin-top: 20px;
-  border: 1px solid #c7d1cc;
-  border-radius: 3px;
-  background: #ffffff;
-  color: #102c26;
-  font: inherit;
-  font-size: 14px;
-}
-
-.review-form input {
-  height: 38px;
-  padding: 0 14px;
-}
-
-.review-form textarea {
-  min-height: 108px;
-  padding: 12px 14px;
-  resize: vertical;
-}
-
-.rating-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px;
-  margin-top: 12px;
-  color: #061f1a;
-  font-size: 15px;
-}
-
-.rating-row span {
-  margin-right: 2px;
-}
-
-.rating-row button {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #c5c9c7;
-  font-size: 25px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.rating-row button.selected {
-  color: #f0a33a;
-}
-
-.submit-review {
-  min-height: 42px;
-  margin-top: 18px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 4px;
-  background: #3fb14f;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.submit-review:hover {
-  background: #319440;
-}
-
-.reviews-list {
-  padding-top: 28px;
-}
-
-.review-item {
-  margin-top: 16px;
-  padding: 16px;
-  border: 1px solid #d8e1dc;
-  border-radius: 6px;
-}
-
-.review-item strong {
-  display: block;
-  color: #061f1a;
-}
-
-.review-item span {
-  display: block;
-  margin-top: 2px;
-  color: #f0a33a;
-}
-
-.review-item p {
-  margin: 8px 0 0;
-  color: #4f625c;
 }
 
 .overview-gallery {

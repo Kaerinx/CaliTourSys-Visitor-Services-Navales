@@ -14,6 +14,8 @@ import AuditLogs from "@/modules/accreditation/views/AuditLogs.vue";
 import NotificationsPage from "@/modules/accreditation/views/NotificationsPage.vue";
 import AccountSettings from "@/modules/accreditation/views/AccountSettings.vue";
 import VerifyEmailPage from "@/modules/accreditation/views/VerifyEmailPage.vue";
+import BusinessRatingsView from "@/modules/accreditation/views/BusinessRatingsView.vue";
+import ProductInquiriesView from "@/modules/accreditation/views/ProductInquiriesView.vue";
 
 const redirectToCmsBusinesses = (path) => (to) => ({
   path,
@@ -57,6 +59,8 @@ export default [
       { path: "business-profile", component: BusinessProfile, meta: { allowedRoles: ["business_owner"] } },
       { path: "apply", component: ApplicationForm, meta: { allowedRoles: ["business_owner"] } },
       { path: "applications", component: MyApplications, meta: { allowedRoles: ["business_owner"] } },
+      { path: "ratings", component: BusinessRatingsView, meta: { allowedRoles: ["business_owner"] } },
+      { path: "product-inquiries", component: ProductInquiriesView, meta: { allowedRoles: ["business_owner"] } },
       { path: "staff-dashboard", redirect: redirectToCmsBusinesses("/cms/businesses/applications") },
       { path: "review", redirect: redirectToCmsBusinesses("/cms/businesses/review") },
       { path: "records", redirect: redirectToCmsBusinesses("/cms/businesses/records") },

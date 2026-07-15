@@ -132,6 +132,7 @@ function mapPackageBookingRequest(row) {
     packageId: row.package_id,
     packageName: row.package_name_snapshot,
     bookingSource: row.booking_source || 'online',
+    paymentMode: row.payment_mode || (row.selected_payment_method === 'cash' ? 'pay_at_office' : 'online'),
     selectedPax: Number(row.selected_pax),
     basePrice: row.base_price_snapshot == null ? null : Number(row.base_price_snapshot),
     basePax: row.base_pax_snapshot == null ? null : Number(row.base_pax_snapshot),
@@ -671,6 +672,31 @@ async function getPackageBookingRequestById(id) {
   return mapPackageBookingRequest(result.rows[0])
 }
 
+async function deletePackageBookingRequest(id) {
+  const existing = await getPackageBookingRequestById(id)
+  if (!existing) throw createNotFoundError('Package booking request')
+
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query('UPDATE package_booking_requests SET rebooked_from_booking_id = NULL WHERE rebooked_from_booking_id = $1', [id])
+    await client.query('DELETE FROM package_booking_credit_transfers WHERE from_booking_request_id = $1 OR to_booking_request_id = $1', [id])
+    await client.query('DELETE FROM package_booking_events WHERE package_booking_request_id = $1', [id])
+    await client.query('DELETE FROM package_booking_date_change_requests WHERE package_booking_request_id = $1', [id])
+    await client.query('DELETE FROM package_booking_payments WHERE package_booking_request_id = $1', [id])
+    await client.query('DELETE FROM package_booking_request_participants WHERE package_booking_request_id = $1', [id])
+    const result = await client.query('DELETE FROM package_booking_requests WHERE id = $1 RETURNING id', [id])
+    if (!result.rows[0]) throw createNotFoundError('Package booking request')
+    await client.query('COMMIT')
+    return existing
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw handleWriteError(error)
+  } finally {
+    client.release()
+  }
+}
+
 async function updatePackageBookingStatus(id, data, userId) {
   const existing = await getPackageBookingRequestById(id)
   if (!existing) throw createNotFoundError('Package booking request')
@@ -863,8 +889,14 @@ async function updatePackageBookingSchedule(id, data, userId) {
         UPDATE package_booking_requests
         SET preferred_booking_date = $2, start_date = $2, end_date = $3,
             duration_days_snapshot = $4, booking_status = 'rescheduled',
-            balance_due_at = CASE WHEN payment_plan = 'deposit_50'
-              THEN ($2::date - 3)::timestamp AT TIME ZONE 'Asia/Manila'
+            deposit_due_at = CASE WHEN payment_mode = 'pay_at_office'
+              THEN (($2::date - 1) + time '23:59:59') AT TIME ZONE 'Asia/Manila'
+              ELSE deposit_due_at END,
+            balance_due_at = CASE
+              WHEN payment_mode = 'pay_at_office'
+                THEN (($2::date - 1) + time '23:59:59') AT TIME ZONE 'Asia/Manila'
+              WHEN payment_plan = 'deposit_50'
+                THEN (($3::date - 1) + time '23:59:59') AT TIME ZONE 'Asia/Manila'
               ELSE balance_due_at END,
             booking_reviewed_at = now(), booking_reviewed_by = $5
         WHERE id = $1
@@ -1368,6 +1400,7 @@ module.exports = {
   archiveMedia,
   createInquiryResponse,
   createMedia,
+  deletePackageBookingRequest,
   getAuditLogById,
   getInquiryById,
   getMediaById,

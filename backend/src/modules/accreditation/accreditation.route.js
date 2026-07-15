@@ -117,6 +117,24 @@ router
   .route("/profile")
   .get(authenticate, authorize("business_owner"), controller.getProfile)
   .patch(authenticate, authorize("business_owner"), controller.updateProfile);
+router.get(
+  "/ratings",
+  authenticate,
+  authorize("business_owner"),
+  controller.getRatings
+);
+router.get(
+  "/product-inquiries",
+  authenticate,
+  authorize("business_owner"),
+  controller.listProductInquiries
+);
+router.patch(
+  "/product-inquiries/:id/status",
+  authenticate,
+  authorize("business_owner"),
+  controller.updateProductInquiryStatus
+);
 router.post(
   "/profile/images",
   authenticate,

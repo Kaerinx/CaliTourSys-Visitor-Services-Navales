@@ -101,10 +101,21 @@ const identifierError = computed(() => {
 const passwordError = computed(() => {
   if (!submitted.value || isBusiness.value) return ''
   if (!form.password) return 'Password is required.'
+  if (!isTouristRegister.value) return ''
+  if (form.password.length < 12) return 'Password must be at least 12 characters.'
+  if (form.password.length > 256) return 'Password must be 256 characters or fewer.'
+  if (!/[A-Z]/.test(form.password)) return 'Password must include an uppercase letter.'
+  if (!/[a-z]/.test(form.password)) return 'Password must include a lowercase letter.'
+  if (!/[0-9]/.test(form.password)) return 'Password must include a number.'
+  if (!/[^A-Za-z0-9]/.test(form.password)) return 'Password must include a symbol.'
   return ''
 })
 
 const displayError = computed(() => localError.value || (isStaff.value ? cmsAuth.error : touristAuth.error))
+const sessionNotice = computed(() => {
+  if (String(route.query.sessionExpired || '') !== '1') return ''
+  return 'Your previous session is no longer valid. Please sign in again to continue.'
+})
 
 watch(
   () => route.query.as,
@@ -256,6 +267,8 @@ function visitorDashboardForUser(user = {}) {
             <h2>{{ formTitle }}</h2>
           </div>
 
+          <p v-if="sessionNotice" class="portal-error" role="status">{{ sessionNotice }}</p>
+
           <label class="field">
             <span>Login as</span>
             <select v-model="selectedLoginAs">
@@ -306,6 +319,7 @@ function visitorDashboardForUser(user = {}) {
                   v-model="form.password"
                   :autocomplete="passwordAutocomplete"
                   :type="showPassword ? 'text' : 'password'"
+                  maxlength="256"
                   :aria-invalid="Boolean(passwordError)"
                   :aria-describedby="passwordError ? 'portal-password-error' : undefined"
                 />

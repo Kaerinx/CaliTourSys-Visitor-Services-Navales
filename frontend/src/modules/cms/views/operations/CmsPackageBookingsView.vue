@@ -24,13 +24,13 @@ const {
 
 const selected = ref(null)
 const isDetailLoading = ref(false)
+const isDetailModalOpen = ref(false)
+const isProofModalOpen = ref(false)
 const isActionBusy = ref(false)
 const notice = ref('')
 const actionError = ref('')
 const declineReason = ref('')
 const paymentRejectReason = ref('')
-const bookingReviewNotes = ref('')
-const paymentNotes = ref('')
 const showWalkInForm = ref(false)
 const packages = ref([])
 const walkInParticipants = ref([])
@@ -40,32 +40,41 @@ const walkInForm = reactive({
 })
 const scheduleForm = reactive({ startDate: '', durationDays: 1, reason: '' })
 const scheduleRequestId = ref('')
-const paymentForm = reactive({ amount: '', paymentMethod: 'cash', transactionReference: '', proofFileUrl: '', notes: '' })
-const deadlineForm = reactive({ depositDueAt: '', reason: '' })
+const paymentForm = reactive({ amount: '', paymentMethod: 'cash', transactionReference: '', notes: '' })
 const creditForm = reactive({ toBookingRequestId: '', amount: '', reason: '' })
 
 const hasFilters = computed(() => Boolean(filters.search || filters.bookingStatus || filters.paymentStatus))
 const canReview = computed(() => auth.hasPermission('package_bookings.review'))
 const canCreateWalkIn = computed(() => auth.hasPermission('package_bookings.create_walkin'))
 const canEditSchedule = computed(() => auth.hasPermission('package_bookings.edit_schedule'))
-const canExtendDeposit = computed(() => auth.hasPermission('package_bookings.extend_deposit'))
 const canTransferCredit = computed(() => auth.hasPermission('package_bookings.transfer_credit'))
 const canVerifyPayment = computed(() => canReview.value && selected.value?.paymentStatus === 'proof_submitted')
 const proofFileUrl = computed(() => normalizeProofUrl(selected.value?.proofOfPayment?.fileUrl))
+const proofMimeType = computed(() => String(selected.value?.proofOfPayment?.mimeType || '').toLowerCase())
+const isProofImage = computed(() => proofMimeType.value.startsWith('image/'))
 const verifiedPaymentTotal = computed(() => (selected.value?.payments || []).filter((item) => item.paymentStatus === 'verified').reduce((sum, item) => sum + Number(item.amount || 0), 0))
 const pendingPaymentTotal = computed(() => (selected.value?.payments || []).filter((item) => item.paymentStatus === 'pending_verification').reduce((sum, item) => sum + Number(item.amount || 0), 0))
 const appliedCreditTotal = computed(() => Number(selected.value?.appliedCreditAmount || 0))
 const settledPaymentTotal = computed(() => verifiedPaymentTotal.value + appliedCreditTotal.value)
+const paidPaymentTotal = computed(() => settledPaymentTotal.value + pendingPaymentTotal.value)
 const remainingPaymentTotal = computed(() => Math.max(0, Number(selected.value?.totalAmount || 0) - settledPaymentTotal.value - pendingPaymentTotal.value))
 const amountDueNow = computed(() => {
   if (!selected.value || pendingPaymentTotal.value > 0 || remainingPaymentTotal.value <= 0) return 0
   if (settledPaymentTotal.value > 0) return remainingPaymentTotal.value
   return Math.min(Number(selected.value.initialPaymentAmount || selected.value.totalAmount || 0), remainingPaymentTotal.value)
 })
+const canApproveBooking = computed(() => {
+  if (!canReview.value || !selected.value) return false
+  if (selected.value.paymentMode !== 'pay_at_office' || !selected.value.paymentRequired) return true
+  return settledPaymentTotal.value >= Number(selected.value.totalAmount || 0)
+})
+const canShowScheduleEditor = computed(() => (
+  selected.value?.bookingStatus === 'approved'
+  && selected.value?.paymentStatus === 'paid'
+))
 
 onMounted(async () => {
   await Promise.all([load(), loadPackages()])
-  if (items.value[0]) await openDetail(items.value[0])
 })
 
 async function reload() {
@@ -77,6 +86,9 @@ async function reload() {
 }
 
 async function openDetail(item) {
+  selected.value = item
+  isDetailModalOpen.value = true
+  isProofModalOpen.value = false
   isDetailLoading.value = true
   actionError.value = ''
   try {
@@ -84,24 +96,58 @@ async function openDetail(item) {
     selected.value = data
     declineReason.value = data.bookingDeclineReason || ''
     paymentRejectReason.value = data.paymentRejectionReason || ''
-    bookingReviewNotes.value = data.bookingReviewNotes || ''
-    paymentNotes.value = data.paymentNotes || ''
     scheduleForm.startDate = String(data.startDate || data.preferredBookingDate || '').slice(0, 10)
     scheduleForm.durationDays = Number(data.durationDays || 1)
     scheduleForm.reason = ''
     scheduleRequestId.value = ''
     paymentForm.amount = amountDueNow.value || ''
-    paymentForm.paymentMethod = data.bookingSource === 'walk_in' ? (data.paymentMethod || 'cash') : (data.paymentMethod || 'qr_instapay')
+    paymentForm.paymentMethod = data.paymentMode === 'pay_at_office' || data.bookingSource === 'walk_in'
+      ? (data.paymentMethod || 'cash')
+      : (data.paymentMethod || 'qr_instapay')
     paymentForm.transactionReference = ''
-    paymentForm.proofFileUrl = ''
     paymentForm.notes = ''
-    deadlineForm.depositDueAt = toLocalDateTimeInput(data.depositDueAt)
-    deadlineForm.reason = ''
     Object.assign(creditForm, { toBookingRequestId: '', amount: '', reason: '' })
   } catch (err) {
     actionError.value = friendlyContentError(err)
   } finally {
     isDetailLoading.value = false
+  }
+}
+
+function closeDetailModal() {
+  if (isActionBusy.value) return
+  isDetailModalOpen.value = false
+  isProofModalOpen.value = false
+}
+
+function openProofModal() {
+  if (proofFileUrl.value) isProofModalOpen.value = true
+}
+
+function closeProofModal() {
+  isProofModalOpen.value = false
+}
+
+async function deleteSelectedBooking() {
+  if (!selected.value) return
+  const label = selected.value.bookingReference || selected.value.packageName || 'this booking'
+  const confirmed = window.confirm(
+    `Temporarily delete ${label}? This removes the booking from CMS and the tourist booking history.`,
+  )
+  if (!confirmed) return
+
+  isActionBusy.value = true
+  actionError.value = ''
+  try {
+    await cmsOperationsApi.deletePackageBookingRequest(selected.value.id)
+    notice.value = 'Package booking deleted from CMS and tourist booking history.'
+    selected.value = null
+    isDetailModalOpen.value = false
+    await reload()
+  } catch (err) {
+    actionError.value = friendlyContentError(err)
+  } finally {
+    isActionBusy.value = false
   }
 }
 
@@ -199,32 +245,12 @@ async function recordPayment() {
     }
     if (paymentForm.paymentMethod !== 'cash') {
       payload.transactionReference = paymentForm.transactionReference
-      payload.proofFileUrl = paymentForm.proofFileUrl
     }
     const { data } = await cmsOperationsApi.recordPackageBookingPayment(selected.value.id, payload)
     selected.value = data.booking
     notice.value = paymentForm.paymentMethod === 'cash' ? 'Cash payment recorded and verified.' : 'Electronic payment recorded for verification.'
     await reload()
     await openDetail(selected.value)
-  } catch (err) {
-    actionError.value = friendlyContentError(err)
-  } finally {
-    isActionBusy.value = false
-  }
-}
-
-async function extendDepositDeadline() {
-  if (!selected.value) return
-  isActionBusy.value = true
-  actionError.value = ''
-  try {
-    const { data } = await cmsOperationsApi.extendPackageBookingDepositDeadline(selected.value.id, {
-      depositDueAt: new Date(deadlineForm.depositDueAt).toISOString(),
-      reason: deadlineForm.reason,
-    })
-    selected.value = data
-    notice.value = 'Deposit deadline extended within the five-day maximum.'
-    await reload()
   } catch (err) {
     actionError.value = friendlyContentError(err)
   } finally {
@@ -265,7 +291,6 @@ async function updateStatus(status) {
     const { data } = await cmsOperationsApi.updatePackageBookingStatus(selected.value.id, {
       status,
       reason: ['declined', 'cancelled'].includes(status) ? declineReason.value : undefined,
-      notes: bookingReviewNotes.value || undefined,
     })
     selected.value = data
     notice.value = `Booking marked ${labelFor(status)}.`
@@ -314,29 +339,9 @@ async function rejectPayment() {
   try {
     const { data } = await cmsOperationsApi.rejectPackageBookingPayment(selected.value.id, {
       reason: paymentRejectReason.value,
-      notes: paymentNotes.value || undefined,
     })
     selected.value = data
     notice.value = 'Payment proof rejected.'
-    await reload()
-  } catch (err) {
-    actionError.value = friendlyContentError(err)
-  } finally {
-    isActionBusy.value = false
-  }
-}
-
-async function saveNotes() {
-  if (!selected.value) return
-  isActionBusy.value = true
-  actionError.value = ''
-  try {
-    const { data } = await cmsOperationsApi.updatePackageBookingNotes(selected.value.id, {
-      bookingReviewNotes: bookingReviewNotes.value,
-      paymentNotes: paymentNotes.value,
-    })
-    selected.value = data
-    notice.value = 'Internal notes saved.'
     await reload()
   } catch (err) {
     actionError.value = friendlyContentError(err)
@@ -384,22 +389,6 @@ function formatDateTime(value) {
   }).format(date)
 }
 
-function toLocalDateTimeInput(value) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-  return local.toISOString().slice(0, 16)
-}
-
-function formatFileSize(value) {
-  const size = Number(value)
-  if (!Number.isFinite(size) || size < 0) return 'Unknown size'
-  if (size < 1024) return `${size} B`
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`
-}
-
 function normalizeProofUrl(value) {
   if (!value) return ''
   if (/^https?:\/\//i.test(value)) return value
@@ -439,7 +428,7 @@ function normalizeProofUrl(value) {
         <label><span>Email (optional)</span><input v-model.trim="walkInForm.email" type="email" /></label>
         <label><span>Gender</span><select v-model="walkInForm.gender"><option value="M">M</option><option value="F">F</option></select></label>
         <label><span>Payment plan</span><select v-model="walkInForm.paymentPlan"><option value="deposit_50">50% down payment</option><option value="full_payment">Full payment</option></select></label>
-        <label><span>Payment method</span><select v-model="walkInForm.paymentMethod"><option value="cash">Cash</option><option value="qr_instapay">QR / InstaPay</option><option value="bank_transfer">Bank transfer</option></select></label>
+        <label><span>Payment method</span><select v-model="walkInForm.paymentMethod"><option value="cash">Cash</option><option value="qr_instapay">QR / InstaPay</option><option value="credit_debit_card">Credit / Debit Card</option></select></label>
       </div>
       <div class="walk-in-participants">
         <div class="walk-in-form__heading"><strong>Other participant names (optional)</strong><button type="button" :disabled="walkInParticipants.length >= Math.max(0, Number(walkInForm.selectedPax) - 1)" @click="addWalkInParticipant">+ Add name</button></div>
@@ -525,36 +514,47 @@ function normalizeProofUrl(value) {
         <CmsPagination :pagination="pagination" @page-change="setPage" />
       </section>
 
-      <aside class="booking-detail-panel">
-        <div v-if="!selected" class="booking-state">
-          <strong>Select a booking request</strong>
-          <p>Details, proof links, and review actions will appear here.</p>
-        </div>
+    <div
+      v-if="isDetailModalOpen"
+      class="booking-detail-modal"
+      role="presentation"
+      @click.self="closeDetailModal"
+    >
+      <section
+        class="booking-detail-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="booking-detail-title"
+      >
+        <header class="booking-detail-dialog__header">
+          <div>
+            <p>Booking review</p>
+            <h2 id="booking-detail-title">{{ selected?.bookingReference || selected?.id || 'Package booking' }}</h2>
+          </div>
+          <button type="button" :disabled="isActionBusy" aria-label="Close booking review" @click="closeDetailModal">X</button>
+        </header>
 
-        <div v-else>
-          <div class="detail-heading">
-            <div>
-              <p>Reference</p>
-              <h2>{{ selected.bookingReference || selected.id }}</h2>
-            </div>
-            <span v-if="isDetailLoading">Loading...</span>
+        <div class="booking-detail-dialog__body">
+          <div v-if="isDetailLoading" class="booking-state">
+            <strong>Loading booking details...</strong>
+            <p>Please wait while the full booking record is loaded.</p>
           </div>
 
+          <div v-else-if="selected">
           <div v-if="actionError" class="booking-state booking-state--error">{{ actionError }}</div>
 
           <section class="detail-section">
             <h3>Request</h3>
             <dl>
               <div><dt>Package</dt><dd>{{ selected.packageName }}</dd></div>
-              <div><dt>Source</dt><dd>{{ labelFor(selected.bookingSource) }}</dd></div>
               <div><dt>Representative</dt><dd>{{ selected.representative?.fullName || selected.visitor.fullName }}</dd></div>
-              <div><dt>Gender</dt><dd>{{ selected.representative?.gender || selected.visitor.gender || 'Not recorded' }}</dd></div>
               <div><dt>Email</dt><dd>{{ selected.representative?.email || selected.visitor.email || 'Not provided' }}</dd></div>
               <div><dt>Phone</dt><dd>{{ selected.representative?.phoneNumber || selected.visitor.phoneNumber }}</dd></div>
               <div><dt>Start date</dt><dd>{{ formatDate(selected.startDate) }}</dd></div>
               <div><dt>End date</dt><dd>{{ formatDate(selected.endDate) }}</dd></div>
               <div><dt>Duration</dt><dd>{{ selected.durationDays }} day(s)</dd></div>
-              <div><dt>Message</dt><dd>{{ selected.message || 'No message provided' }}</dd></div>
+              <div><dt>Selected pax</dt><dd>{{ selected.selectedPax }}</dd></div>
+              <div v-if="selected.message"><dt>Message</dt><dd>{{ selected.message }}</dd></div>
             </dl>
             <div v-if="selected.participants?.length" class="participant-summary">
               <strong>Other participant names</strong>
@@ -565,100 +565,40 @@ function normalizeProofUrl(value) {
               <div v-for="request in selected.dateChangeRequests" :key="request.id" class="date-request-row">
                 <span>{{ formatDate(request.startDate) }} / {{ request.durationDays }} day(s) - {{ labelFor(request.status) }}</span>
                 <small>{{ request.reason }}</small>
-                <button v-if="request.status === 'pending'" type="button" :disabled="!canEditSchedule" @click="useDateChangeRequest(request)">Review in schedule form</button>
+                <button v-if="request.status === 'pending' && canShowScheduleEditor" type="button" :disabled="!canEditSchedule" @click="useDateChangeRequest(request)">Review in schedule form</button>
               </div>
             </div>
           </section>
 
           <section class="detail-section">
-            <h3>Edit Dates and Duration</h3>
-            <p class="muted">Authorized staff can reschedule after availability is checked. The reason is saved in the audit trail.</p>
-            <div class="schedule-grid">
-              <label><span>Start date</span><input v-model="scheduleForm.startDate" type="date" /></label>
-              <label><span>Duration (days)</span><input v-model="scheduleForm.durationDays" type="number" min="1" /></label>
-            </div>
-            <label><span>Reason for change</span><textarea v-model.trim="scheduleForm.reason" rows="2"></textarea></label>
-            <button type="button" :disabled="!canEditSchedule || isActionBusy || !scheduleForm.reason" @click="saveSchedule">Save schedule change</button>
-          </section>
-
-          <section class="detail-section">
-            <h3>Pricing Snapshot</h3>
+            <h3>Payment Proof</h3>
             <dl>
-              <div><dt>Selected pax</dt><dd>{{ selected.selectedPax }}</dd></div>
-              <div><dt>Base amount</dt><dd>{{ formatCurrency(selected.basePrice) }}</dd></div>
-              <div><dt>Base pax</dt><dd>{{ selected.basePax || 'Not set' }}</dd></div>
-              <div><dt>Extra pax</dt><dd>{{ formatCurrency(selected.extraPaxPrice) }}</dd></div>
-              <div><dt>Total</dt><dd>{{ formatCurrency(selected.totalAmount) }}</dd></div>
-              <div><dt>Pricing note</dt><dd>{{ selected.pricingNote || 'No pricing note' }}</dd></div>
+              <div><dt>Payment status</dt><dd><CmsStatusBadge :status="selected.paymentStatus" /></dd></div>
+              <div><dt>Reference number</dt><dd>{{ selected.paymentReferenceNumber || 'Not provided' }}</dd></div>
+              <div><dt>Submitted</dt><dd>{{ formatDateTime(selected.paymentSubmittedAt) }}</dd></div>
+              <div v-if="selected.paymentVerifiedAt"><dt>Verified</dt><dd>{{ formatDateTime(selected.paymentVerifiedAt) }}</dd></div>
+              <div v-if="selected.paymentRejectionReason"><dt>Rejected reason</dt><dd>{{ selected.paymentRejectionReason }}</dd></div>
             </dl>
+            <button v-if="proofFileUrl" type="button" class="proof-link proof-link--button" @click="openProofModal">View proof of payment</button>
+            <p v-else class="muted">No proof of payment uploaded.</p>
           </section>
 
           <section class="detail-section">
             <h3>Payment Terms and Totals</h3>
             <dl>
-              <div><dt>Plan</dt><dd>{{ labelFor(selected.paymentPlan) }}</dd></div>
+              <div><dt>Total amount</dt><dd>{{ formatCurrency(selected.totalAmount) }}</dd></div>
+              <div><dt>Paid amount</dt><dd>{{ formatCurrency(paidPaymentTotal) }}</dd></div>
+              <div><dt>Remaining balance</dt><dd>{{ formatCurrency(remainingPaymentTotal) }}</dd></div>
               <div><dt>Method</dt><dd>{{ labelFor(selected.paymentMethod) }}</dd></div>
-              <div><dt>Initial amount</dt><dd>{{ formatCurrency(selected.initialPaymentAmount) }}</dd></div>
-              <div><dt>Deposit deadline</dt><dd>{{ formatDateTime(selected.depositDueAt) }}</dd></div>
               <div><dt>Balance deadline</dt><dd>{{ formatDateTime(selected.balanceDueAt) }}</dd></div>
-              <div><dt>Deposit status</dt><dd>{{ labelFor(selected.depositStatus) }}</dd></div>
-              <div><dt>Verified payments</dt><dd>{{ formatCurrency(verifiedPaymentTotal) }}</dd></div>
-              <div><dt>Applied booking credit</dt><dd>{{ formatCurrency(appliedCreditTotal) }}</dd></div>
-              <div><dt>Pending verification</dt><dd>{{ formatCurrency(pendingPaymentTotal) }}</dd></div>
-              <div><dt>Remaining</dt><dd>{{ formatCurrency(remainingPaymentTotal) }}</dd></div>
             </dl>
           </section>
 
-          <section class="detail-section">
+          <section v-if="selected.bookingSource === 'walk_in' && selected.paymentMethod === 'cash'" class="detail-section">
             <h3>Record Payment</h3>
-            <p class="muted">Cash is available only for walk-ins and is verified immediately. Electronic payments require both a reference and proof URL.</p>
-            <div class="schedule-grid">
-              <label><span>Amount</span><input v-model="paymentForm.amount" type="number" min="0.01" step="0.01" /></label>
-              <label><span>Method</span><select v-model="paymentForm.paymentMethod"><option v-if="selected.bookingSource === 'walk_in'" value="cash">Cash</option><option value="qr_instapay">QR / InstaPay</option><option value="bank_transfer">Bank transfer</option></select></label>
-            </div>
-            <template v-if="paymentForm.paymentMethod !== 'cash'">
-              <label><span>Transaction reference</span><input v-model.trim="paymentForm.transactionReference" /></label>
-              <label><span>Proof file URL</span><input v-model.trim="paymentForm.proofFileUrl" placeholder="Uploaded proof URL" /></label>
-            </template>
-            <label><span>Notes</span><textarea v-model.trim="paymentForm.notes" rows="2"></textarea></label>
+            <p class="muted">Use this only to record cash received for a walk-in booking. Online payments are validated from the submitted proof.</p>
+            <label><span>Cash amount received</span><input v-model="paymentForm.amount" type="number" min="0.01" step="0.01" /></label>
             <button type="button" :disabled="!canReview || isActionBusy || !paymentForm.amount || remainingPaymentTotal <= 0" @click="recordPayment">Record payment</button>
-          </section>
-
-          <section v-if="selected.bookingSource === 'online' && selected.depositDueAt && !['paid', 'expired', 'transferred', 'refunded', 'not_required'].includes(selected.depositStatus)" class="detail-section">
-            <h3>Extend Deposit Deadline</h3>
-            <p class="muted">The original three-calendar-day deadline may be extended only up to five calendar days from booking creation.</p>
-            <label><span>New deadline</span><input v-model="deadlineForm.depositDueAt" type="datetime-local" /></label>
-            <label><span>Reason</span><textarea v-model.trim="deadlineForm.reason" rows="2"></textarea></label>
-            <button type="button" :disabled="!canExtendDeposit || isActionBusy || !deadlineForm.depositDueAt || !deadlineForm.reason" @click="extendDepositDeadline">Extend deadline</button>
-          </section>
-
-          <section v-if="selected.bookingStatus === 'cancelled'" class="detail-section">
-            <h3>Transfer Cancelled-booking Credit</h3>
-            <p class="muted">Credit is valid for six months, once only, for the same representative and package.</p>
-            <label><span>New booking request ID</span><input v-model.trim="creditForm.toBookingRequestId" /></label>
-            <label><span>Transfer amount</span><input v-model="creditForm.amount" type="number" min="0.01" step="0.01" /></label>
-            <label><span>Reason</span><textarea v-model.trim="creditForm.reason" rows="2"></textarea></label>
-            <button type="button" :disabled="!canTransferCredit || isActionBusy || !creditForm.toBookingRequestId || !creditForm.amount || !creditForm.reason" @click="transferCredit">Transfer credit</button>
-          </section>
-
-          <section class="detail-section">
-            <h3>Payment Proof</h3>
-            <dl>
-              <div><dt>Payment required</dt><dd>{{ selected.paymentRequired ? 'Yes' : 'No' }}</dd></div>
-              <div><dt>Payment status</dt><dd><CmsStatusBadge :status="selected.paymentStatus" /></dd></div>
-              <div><dt>Reference number</dt><dd>{{ selected.paymentReferenceNumber || 'Not provided' }}</dd></div>
-              <div><dt>File name</dt><dd>{{ selected.proofOfPayment?.originalFilename || 'No file uploaded' }}</dd></div>
-              <div><dt>File type</dt><dd>{{ selected.proofOfPayment?.mimeType || 'Not recorded' }}</dd></div>
-              <div><dt>File size</dt><dd>{{ selected.proofOfPayment ? formatFileSize(selected.proofOfPayment.fileSize) : 'Not recorded' }}</dd></div>
-              <div><dt>Uploaded</dt><dd>{{ formatDateTime(selected.proofOfPayment?.uploadedAt) }}</dd></div>
-              <div><dt>Submitted</dt><dd>{{ formatDateTime(selected.paymentSubmittedAt) }}</dd></div>
-              <div><dt>Verified</dt><dd>{{ formatDateTime(selected.paymentVerifiedAt) }}</dd></div>
-              <div><dt>Rejected reason</dt><dd>{{ selected.paymentRejectionReason || 'None' }}</dd></div>
-            </dl>
-            <a v-if="proofFileUrl" class="proof-link" :href="proofFileUrl" target="_blank" rel="noreferrer">
-              Open proof of payment
-            </a>
-            <p v-else class="muted">No proof of payment uploaded.</p>
           </section>
 
           <section class="detail-section">
@@ -667,37 +607,62 @@ function normalizeProofUrl(value) {
               Your account can view package bookings but does not have permission to review or verify payments.
             </p>
             <div class="action-grid">
-              <button type="button" :disabled="!canReview || isActionBusy" @click="updateStatus('reviewed')">Mark reviewed</button>
-              <button type="button" :disabled="!canReview || isActionBusy" @click="updateStatus('approved')">Approve booking</button>
+              <button type="button" :disabled="!canApproveBooking || isActionBusy" @click="updateStatus('approved')">Approve booking</button>
               <button type="button" class="is-danger" :disabled="!canReview || isActionBusy" @click="updateStatus('declined')">Decline booking</button>
               <button type="button" class="is-danger" :disabled="!canReview || isActionBusy" @click="updateStatus('cancelled')">Cancel booking</button>
+              <button type="button" class="is-danger action-grid__wide" :disabled="!canReview || isActionBusy" @click="deleteSelectedBooking">Temporary delete booking</button>
             </div>
+            <p v-if="selected.paymentMode === 'pay_at_office' && !canApproveBooking" class="review-hint">
+              Record the full cash payment before approving this walk-in-payment booking.
+            </p>
             <label>
               <span>Decline or cancellation reason</span>
               <textarea v-model.trim="declineReason" rows="3"></textarea>
             </label>
-            <div class="action-grid">
-              <button type="button" :disabled="!canVerifyPayment || isActionBusy" @click="verifyPayment">Verify payment</button>
-              <button type="button" class="is-danger" :disabled="!canVerifyPayment || isActionBusy" @click="rejectPayment">Reject payment</button>
+
+            <div v-if="selected.bookingStatus === 'cancelled'" class="review-subsection">
+              <h4>Transfer Cancelled-booking Credit</h4>
+              <p class="muted">Credit is valid for six months, once only, for the same representative and package.</p>
+              <label><span>New booking request ID</span><input v-model.trim="creditForm.toBookingRequestId" /></label>
+              <label><span>Transfer amount</span><input v-model="creditForm.amount" type="number" min="0.01" step="0.01" /></label>
+              <label><span>Reason</span><textarea v-model.trim="creditForm.reason" rows="2"></textarea></label>
+              <button type="button" :disabled="!canTransferCredit || isActionBusy || !creditForm.toBookingRequestId || !creditForm.amount || !creditForm.reason" @click="transferCredit">Transfer credit</button>
             </div>
-            <label>
-              <span>Payment rejection reason</span>
-              <textarea v-model.trim="paymentRejectReason" rows="3"></textarea>
-            </label>
-            <label>
-              <span>Booking notes</span>
-              <textarea v-model.trim="bookingReviewNotes" rows="3"></textarea>
-            </label>
-            <label>
-              <span>Payment notes</span>
-              <textarea v-model.trim="paymentNotes" rows="3"></textarea>
-            </label>
-            <button type="button" :disabled="!canReview || isActionBusy" @click="saveNotes">
-              {{ isActionBusy ? 'Saving...' : 'Save internal notes' }}
-            </button>
           </section>
+
+          <section v-if="canShowScheduleEditor" class="detail-section">
+            <h3>Edit Dates and Duration</h3>
+            <p class="muted">Authorized staff can reschedule this paid and approved booking after availability is checked. The reason is saved in the audit trail.</p>
+            <div class="schedule-grid">
+              <label><span>Start date</span><input v-model="scheduleForm.startDate" type="date" /></label>
+              <label><span>Duration (days)</span><input v-model="scheduleForm.durationDays" type="number" min="1" /></label>
+            </div>
+            <label><span>Reason for change</span><textarea v-model.trim="scheduleForm.reason" rows="2"></textarea></label>
+            <button type="button" :disabled="!canEditSchedule || isActionBusy || !scheduleForm.reason" @click="saveSchedule">Save schedule change</button>
+          </section>
+          </div>
         </div>
-      </aside>
+      </section>
+    </div>
+
+    <div
+      v-if="isProofModalOpen && proofFileUrl"
+      class="proof-modal"
+      role="presentation"
+      @click.self="closeProofModal"
+    >
+      <section class="proof-dialog" role="dialog" aria-modal="true" aria-labelledby="proof-dialog-title">
+        <header class="proof-dialog__header">
+          <h2 id="proof-dialog-title">Payment proof</h2>
+          <button type="button" aria-label="Close payment proof" @click="closeProofModal">X</button>
+        </header>
+        <div class="proof-dialog__body">
+          <img v-if="isProofImage" :src="proofFileUrl" alt="Submitted payment proof" />
+          <iframe v-else :src="proofFileUrl" title="Submitted payment proof"></iframe>
+          <a v-if="!isProofImage" :href="proofFileUrl" target="_blank" rel="noreferrer">Open proof in a new tab</a>
+        </div>
+      </section>
+    </div>
     </div>
   </section>
 </template>
@@ -841,19 +806,81 @@ button.is-danger {
 
 .booking-workbench {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
 
-.booking-list-panel,
-.booking-detail-panel {
+.booking-list-panel {
   display: grid;
   gap: 14px;
   padding: 16px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #fff;
+}
+
+.booking-detail-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.booking-detail-dialog {
+  width: min(1080px, 100%);
+  max-height: min(90vh, 920px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid #dbe4ef;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.25);
+}
+
+.booking-detail-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.booking-detail-dialog__header p,
+.booking-detail-dialog__header h2 {
+  margin: 0;
+}
+
+.booking-detail-dialog__header p {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.booking-detail-dialog__header h2 {
+  margin-top: 3px;
+  color: #0f172a;
+  font-size: 20px;
+}
+
+.booking-detail-dialog__header > button {
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 18px;
+}
+
+.booking-detail-dialog__body {
+  overflow: auto;
+  padding: 18px 22px 22px;
 }
 
 .booking-list {
@@ -900,36 +927,10 @@ button.is-danger {
   color: #991b1b;
 }
 
-.detail-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.detail-heading p,
-.detail-heading h2 {
-  margin: 0;
-}
-
-.detail-heading p {
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.detail-heading h2 {
-  overflow-wrap: anywhere;
-  color: #0f172a;
-  font-size: 16px;
-}
-
 .detail-section {
   display: grid;
-  gap: 12px;
-  padding: 16px 0;
+  gap: 9px;
+  padding: 12px 0;
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -940,13 +941,18 @@ button.is-danger {
 .detail-section h3 {
   margin: 0;
   color: #0f172a;
-  font-size: 16px;
+  font-size: 15px;
 }
 
 dl {
   display: grid;
-  gap: 10px;
+  gap: 7px;
   margin: 0;
+}
+
+.booking-detail-dialog dl {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 28px;
 }
 
 dl div {
@@ -967,6 +973,20 @@ dd {
   font-weight: 800;
 }
 
+.proof-link--button {
+  padding: 10px 14px;
+  border: 1px solid #1b4332;
+  border-radius: 7px;
+  background: #1b4332;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.proof-link--button:hover {
+  background: #143728;
+}
+
 .review-hint {
   margin: 0;
   padding: 12px 14px;
@@ -983,10 +1003,119 @@ dd {
   gap: 10px;
 }
 
+.action-grid__wide {
+  grid-column: 1 / -1;
+}
+
+.review-subsection {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.review-subsection h4 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.proof-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.62);
+}
+
+.proof-dialog {
+  width: min(860px, 100%);
+  max-height: min(90vh, 860px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid #dbe4ef;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3);
+}
+
+.proof-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.proof-dialog__header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 17px;
+}
+
+.proof-dialog__header button {
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.proof-dialog__body {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 18px;
+}
+
+.proof-dialog__body img,
+.proof-dialog__body iframe {
+  display: block;
+  width: 100%;
+  height: min(68vh, 620px);
+  max-height: min(68vh, 620px);
+  border: 0;
+  object-fit: contain;
+  background: #f8fafc;
+}
+
+.proof-dialog__body a {
+  color: #1b4332;
+  font-weight: 800;
+}
+
 @media (max-width: 1100px) {
   .booking-toolbar,
-  .booking-workbench,
   .booking-row {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-detail-modal {
+    padding: 12px;
+  }
+
+  .booking-detail-dialog {
+    max-height: calc(100vh - 24px);
+  }
+
+  .booking-detail-dialog__header,
+  .booking-detail-dialog__body {
+    padding: 16px;
+  }
+
+  .proof-modal {
+    padding: 12px;
+  }
+
+  .proof-dialog__body {
+    padding: 12px;
+  }
+
+  .booking-detail-dialog dl {
     grid-template-columns: 1fr;
   }
 }

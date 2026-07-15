@@ -25,6 +25,7 @@ router.patch('/package-booking-requests/:id/notes', authorize('package_bookings.
 router.get('/package-bookings', authorize('package_bookings.view'), controller.listPackageBookingRequests)
 router.post('/package-bookings', authorize('package_bookings.create_walkin'), controller.createWalkInPackageBooking)
 router.get('/package-bookings/:id', authorize('package_bookings.view'), controller.getPackageBookingRequest)
+router.delete('/package-bookings/:id', authorize('package_bookings.review'), controller.deletePackageBookingRequest)
 router.patch('/package-bookings/:id/status', authorize('package_bookings.review'), controller.updatePackageBookingStatus)
 router.patch('/package-bookings/:id/schedule', authorize('package_bookings.edit_schedule'), controller.updatePackageBookingSchedule)
 router.patch('/package-bookings/:id/deposit-deadline', authorize('package_bookings.extend_deposit'), controller.extendPackageBookingDepositDeadline)

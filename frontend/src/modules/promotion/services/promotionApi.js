@@ -68,10 +68,7 @@ export function getPackageBySlug(slug) {
 }
 
 export function submitPackageBookingRequest(slug, payload) {
-  return http.postAuth(
-    publicPath(`/packages/${slug}/booking-requests`),
-    payload,
-  );
+  return http.postTourist(publicPath(`/packages/${slug}/booking-requests`), payload);
 }
 
 export function lookupPackageBookingRequest(payload) {
@@ -79,22 +76,22 @@ export function lookupPackageBookingRequest(payload) {
 }
 
 export function submitPackagePaymentProof(requestId, formData) {
-  return http.post(
+  return http.postTourist(
     publicPath(`/package-booking-requests/${requestId}/payment-proof`),
     formData,
   );
 }
 
 export function getTouristBookings() {
-  return http.getAuth("/tourist/bookings");
+  return http.getTourist("/tourist/bookings");
 }
 
 export function getTouristBookingById(requestId) {
-  return http.getAuth(`/tourist/bookings/${requestId}`);
+  return http.getTourist(`/tourist/bookings/${requestId}`);
 }
 
 export function createTouristBookingDateChangeRequest(requestId, payload) {
-  return http.postAuth(
+  return http.postTourist(
     `/tourist/bookings/${requestId}/date-change-requests`,
     payload,
   );
@@ -106,6 +103,14 @@ export function getProductBySlug(slug) {
 
 export function getProductCategories() {
   return http.get(publicPath("/product-categories"));
+}
+
+export function getPublicReviews(params) {
+  return http.get(publicPath("/reviews"), params);
+}
+
+export function submitPublicReview(payload) {
+  return http.postTourist(publicPath("/reviews"), payload);
 }
 
 export function getBusinessBySlug(slug) {

@@ -20,11 +20,17 @@ const isLoading = ref(false)
 const isUploading = ref(false)
 const uploadMessage = ref('')
 const uploadError = ref('')
-const selectedPaymentMethod = ref(String(route.query.paymentMethod || 'qr_instapay'))
+const selectedPaymentMethod = ref(normalizeOnlinePaymentMethod(route.query.paymentMethod))
 const proofForm = reactive({
   file: null,
   paymentReferenceNumber: '',
   paymentNotes: '',
+})
+const cardForm = reactive({
+  cardholderName: '',
+  cardNumber: '',
+  expiry: '',
+  cvc: '',
 })
 
 const requestId = computed(() => String(route.query.requestId || ''))
@@ -55,41 +61,49 @@ const preferredDateLabel = computed(() => formatDisplayDate(booking.value.startD
 const paymentStatusLabel = computed(() => formatStatusLabel(booking.value.paymentStatus))
 const verifiedAmount = computed(() => Number(booking.value.verifiedPaymentAmount || 0) + Number(booking.value.appliedCreditAmount || 0))
 const pendingAmount = computed(() => Number(booking.value.pendingPaymentAmount || 0))
-const remainingAmount = computed(() => Math.max(0, Number(booking.value.totalAmount || 0) - verifiedAmount.value))
+const creditedOrPendingAmount = computed(() => verifiedAmount.value + pendingAmount.value)
+const remainingAmount = computed(() => Math.max(0, Number(booking.value.totalAmount || 0) - creditedOrPendingAmount.value))
 const amountDue = computed(() => {
   if (!hasKnownTotal.value || pendingAmount.value > 0 || remainingAmount.value <= 0) return 0
   if (verifiedAmount.value > 0) return remainingAmount.value
   return Math.min(Number(booking.value.initialPaymentAmount || booking.value.totalAmount || 0), remainingAmount.value)
 })
 const isDepositPayment = computed(() => booking.value.paymentPlan === 'deposit_50' && verifiedAmount.value === 0)
-const canUploadProof = computed(() => {
+const paymentStageLabel = computed(() => {
+  if (pendingAmount.value > 0) return 'Pending verification'
+  if (booking.value.paymentPlan === 'deposit_50') return '50% online payment'
+  if (booking.value.paymentMode === 'pay_at_office' || booking.value.paymentMethod === 'cash') return 'Pay at office'
+  return 'Full payment'
+})
+const isPayAtOffice = computed(() => booking.value.paymentMode === 'pay_at_office' || booking.value.paymentMethod === 'cash')
+const canMakePayment = computed(() => {
   return Boolean(
-    booking.value.id &&
+      booking.value.id &&
+      !isPayAtOffice.value &&
       hasKnownTotal.value &&
       amountDue.value > 0 &&
       pendingAmount.value === 0 &&
       !['cancelled', 'declined', 'expired'].includes(booking.value.bookingStatus),
   )
 })
+const isCardSelected = computed(() => selectedPaymentMethod.value === 'credit_debit_card')
+const canUploadProof = computed(() => canMakePayment.value && selectedPaymentMethod.value === 'qr_instapay')
 const isProofSubmitted = computed(() => pendingAmount.value > 0 || booking.value.paymentStatus === 'proof_submitted')
-const isPaid = computed(() => remainingAmount.value <= 0 && hasKnownTotal.value)
+const isPaid = computed(() => verifiedAmount.value >= Number(booking.value.totalAmount || 0) && hasKnownTotal.value)
 const nextStepText = computed(() => {
   if (!booking.value.id) return 'Return to the package page and start the booking flow again.'
+  if (isPayAtOffice.value) return `Pay the full amount in cash at the Tourism Office by ${formatDisplayDate(booking.value.depositDueAt)}. Staff will record payment before approving this booking.`
   if (!hasKnownTotal.value) return 'This request is inquiry-based. The Tourism Office will coordinate pricing with the representative.'
-  if (isPaid.value) return 'Your booking is fully paid.'
   if (isProofSubmitted.value) return 'Your proof has been submitted. Staff will verify your payment manually.'
+  if (isPaid.value) return 'Your booking is fully paid.'
   if (verifiedAmount.value > 0) return 'Your initial payment is verified. Pay the remaining balance by the balance deadline.'
-  return `Pay ${formatCurrency(amountDue.value)} through your selected channel, then upload proof for staff verification.`
+  if (isCardSelected.value) return 'Secure card checkout is not connected yet. Choose QR / InstaPay to complete this payment now.'
+  return `Pay ${formatCurrency(amountDue.value)} through QR / InstaPay, then upload proof for staff verification.`
 })
 const proofSubmitLabel = computed(() => {
   if (isUploading.value) return 'Uploading...'
-  return 'Upload proof of payment'
+  return 'Post booking'
 })
-const bankName = import.meta.env.VITE_TOURISM_BANK_NAME || 'Contact the Tourism Office for bank name'
-const bankAccountName = import.meta.env.VITE_TOURISM_BANK_ACCOUNT_NAME || 'Calabanga Tourism Office'
-const bankAccountNumber = import.meta.env.VITE_TOURISM_BANK_ACCOUNT_NUMBER || 'Contact the Tourism Office for account number'
-const qrRecipientName = 'FRANCIS ARACOSTA'
-const qrAccountSuffix = '9266'
 
 onMounted(loadBooking)
 
@@ -100,7 +114,10 @@ async function loadBooking() {
   try {
     const response = await getTouristBookingById(requestId.value)
     bookingRecord.value = response.data
-    selectedPaymentMethod.value = response.data.paymentMethod || selectedPaymentMethod.value
+    selectedPaymentMethod.value = normalizeOnlinePaymentMethod(response.data.paymentMethod)
+    if (!cardForm.cardholderName) {
+      cardForm.cardholderName = response.data.representative?.fullName || response.data.visitor?.fullName || ''
+    }
   } catch (error) {
     uploadError.value = error.message || 'Unable to refresh payment details.'
   } finally {
@@ -158,6 +175,27 @@ function toFiniteNumber(value) {
   if (value === null || value === undefined || value === '') return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function normalizeOnlinePaymentMethod(value) {
+  return String(value || '') === 'credit_debit_card' ? 'credit_debit_card' : 'qr_instapay'
+}
+
+function formatCardNumberInput(event) {
+  const digits = String(event.target.value || '').replace(/\D/g, '').slice(0, 19)
+  cardForm.cardNumber = digits.replace(/(.{4})/g, '$1 ').trim()
+  event.target.value = cardForm.cardNumber
+}
+
+function formatExpiryInput(event) {
+  const digits = String(event.target.value || '').replace(/\D/g, '').slice(0, 4)
+  cardForm.expiry = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits
+  event.target.value = cardForm.expiry
+}
+
+function formatCvcInput(event) {
+  cardForm.cvc = String(event.target.value || '').replace(/\D/g, '').slice(0, 4)
+  event.target.value = cardForm.cvc
 }
 
 function toPositiveInteger(value) {
@@ -225,11 +263,14 @@ function formatStatusLabel(value) {
 
       <section class="payment-layout">
         <article class="payment-card">
-          <p class="section-kicker">Manual payment</p>
+          <p class="section-kicker">Payment method</p>
           <h1>Complete your payment</h1>
-          <p>
-            Pay through QR / InstaPay or bank transfer, then upload your proof of payment.
-            Staff will verify your proof before confirming the booking.
+          <p v-if="isPayAtOffice">
+            This booking is set for cash payment at the Tourism Office. Online payment and proof upload are not required.
+          </p>
+          <p v-else>
+            Choose QR / InstaPay or credit/debit card. QR payments require proof for staff verification;
+            card payments must use a secure payment provider.
           </p>
 
           <div class="reference-panel">
@@ -252,39 +293,31 @@ function formatStatusLabel(value) {
                 <h2>Amount due now: {{ formatCurrency(amountDue) }}</h2>
                 <p>Total package price: {{ totalAmountLabel }}</p>
               </div>
-              <strong>{{ formatStatusLabel(booking.paymentPlan) }}</strong>
+              <strong>{{ paymentStageLabel }}</strong>
             </div>
 
-            <div v-if="canUploadProof" class="method-selector" aria-label="Payment method">
+            <div v-if="isPayAtOffice" class="notice-panel">
+              <span>Walk-in payment selected</span>
+              <p>{{ nextStepText }}</p>
+            </div>
+
+            <div v-if="canMakePayment" class="method-selector" aria-label="Payment method">
               <label :class="{ 'is-selected': selectedPaymentMethod === 'qr_instapay' }">
                 <input v-model="selectedPaymentMethod" type="radio" value="qr_instapay" />
                 <span><strong>QR / InstaPay</strong><small>Wallet or bank app</small></span>
               </label>
-              <label :class="{ 'is-selected': selectedPaymentMethod === 'bank_transfer' }">
-                <input v-model="selectedPaymentMethod" type="radio" value="bank_transfer" />
-                <span><strong>Bank transfer</strong><small>Tourism Office account</small></span>
+              <label :class="{ 'is-selected': selectedPaymentMethod === 'credit_debit_card' }">
+                <input v-model="selectedPaymentMethod" type="radio" value="credit_debit_card" />
+                <span><strong>Credit / Debit Card</strong><small>Secure card checkout</small></span>
               </label>
             </div>
 
-            <section v-if="canUploadProof" class="manual-payment-panel" :class="{ 'manual-payment-panel--bank': selectedPaymentMethod === 'bank_transfer' }">
-              <img v-if="selectedPaymentMethod === 'qr_instapay'" class="qr-image" :src="paymentQrImage" alt="Temporary QR InstaPay payment code" />
+            <section v-if="canUploadProof" class="manual-payment-panel">
+              <img class="qr-image" :src="paymentQrImage" alt="Temporary QR InstaPay payment code" />
 
               <div class="instruction-copy">
                 <span>Payment instructions</span>
-                <template v-if="selectedPaymentMethod === 'qr_instapay'">
-                  <h2>Scan using a supported wallet or bank app</h2>
-                  <p class="placeholder-warning">
-                    Temporary receiving QR: confirm your app shows {{ qrRecipientName }} and an account ending in {{ qrAccountSuffix }} before sending.
-                  </p>
-                </template>
-                <template v-else>
-                  <h2>Transfer to the Tourism Office bank account</h2>
-                  <dl class="bank-details">
-                    <div><dt>Bank</dt><dd>{{ bankName }}</dd></div>
-                    <div><dt>Account name</dt><dd>{{ bankAccountName }}</dd></div>
-                    <div><dt>Account number</dt><dd>{{ bankAccountNumber }}</dd></div>
-                  </dl>
-                </template>
+                <h2>Scan using a supported wallet or bank app</h2>
                 <ul>
                   <li>Exact amount: <strong>{{ formatCurrency(amountDue) }}</strong></li>
                   <li>Booking reference: <strong>{{ bookingReference }}</strong></li>
@@ -292,6 +325,75 @@ function formatStatusLabel(value) {
                   <li>Staff verification is manual and may take time.</li>
                 </ul>
               </div>
+            </section>
+
+            <section v-if="canMakePayment && isCardSelected" class="card-checkout-panel">
+              <div class="card-checkout-panel__heading">
+                <div>
+                  <span>Secure card checkout</span>
+                  <h2>Credit / Debit Card</h2>
+                </div>
+                <div class="card-brands" aria-label="Supported card networks will be determined by the payment provider">
+                  <span>VISA</span>
+                  <span>Mastercard</span>
+                </div>
+              </div>
+              <form class="card-fields" autocomplete="off" @submit.prevent>
+                <label class="card-field card-field--full">
+                  <span>Card holder name *</span>
+                  <input
+                    v-model.trim="cardForm.cardholderName"
+                    type="text"
+                    autocomplete="off"
+                    placeholder="Name on card"
+                  />
+                </label>
+                <label class="card-field card-field--full">
+                  <span>Credit/debit card number *</span>
+                  <input
+                    :value="cardForm.cardNumber"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    maxlength="23"
+                    placeholder="Card Number"
+                    @input="formatCardNumberInput"
+                  />
+                </label>
+                <label class="card-field">
+                  <span>Expiry date *</span>
+                  <input
+                    :value="cardForm.expiry"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    maxlength="5"
+                    placeholder="MM/YY"
+                    @input="formatExpiryInput"
+                  />
+                </label>
+                <label class="card-field">
+                  <span>CVC/CVV *</span>
+                  <input
+                    :value="cardForm.cvc"
+                    type="password"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    maxlength="4"
+                    placeholder="CVC/CVV"
+                    @input="formatCvcInput"
+                  />
+                </label>
+              </form>
+              <div class="card-gateway-notice">
+                <strong>Prototype only — do not enter real card details.</strong>
+                <p>
+                  These temporary fields are not submitted or stored. A PCI-compliant provider must replace them
+                  with hosted, tokenized fields before card payments are activated.
+                </p>
+              </div>
+              <button class="primary-button" type="button" disabled>Secure card gateway not connected</button>
+              <small>Choose QR / InstaPay above if you want to complete the payment now.</small>
             </section>
 
             <form
@@ -606,10 +708,6 @@ function formatStatusLabel(value) {
   background: #f8f9f6;
 }
 
-.manual-payment-panel--bank {
-  grid-template-columns: 1fr;
-}
-
 .qr-image {
   width: 100%;
   border: 1px solid #dfe5dd;
@@ -626,21 +724,111 @@ function formatStatusLabel(value) {
   font-weight: 700;
 }
 
-.bank-details {
+.card-checkout-panel {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid #dfe5dd;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.card-checkout-panel__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.card-checkout-panel__heading > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.card-brands {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.card-brands span {
+  padding: 7px 10px;
+  border: 1px solid #d5ddd6;
+  border-radius: 5px;
+  background: #f8f9f6;
+  color: #1b4332;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.card-gateway-notice {
   display: grid;
   gap: 7px;
-  margin: 4px 0;
+  padding: 16px;
+  border-radius: 7px;
+  background: #eef6f1;
 }
 
-.bank-details div {
+.card-fields {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 14px;
+  padding-top: 4px;
 }
 
-.bank-details dd {
+.card-field {
+  position: relative;
+  display: block;
+}
+
+.card-field--full {
+  grid-column: 1 / -1;
+}
+
+.card-field span {
+  position: absolute;
+  z-index: 1;
+  top: -9px;
+  left: 13px;
+  padding: 0 5px;
+  background: #ffffff;
+  color: #317d4c;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.card-field input {
+  width: 100%;
+  min-height: 54px;
+  padding: 13px 16px;
+  border: 1px solid #cfd8d1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #26342d;
+  font: inherit;
+  font-size: 17px;
+  outline: none;
+}
+
+.card-field input::placeholder {
+  color: #7a7f7c;
+}
+
+.card-field input:focus {
+  border-color: #317d4c;
+  box-shadow: 0 0 0 2px rgba(49, 125, 76, 0.12);
+}
+
+.card-gateway-notice strong {
+  color: #1b4332;
+}
+
+.card-gateway-notice p,
+.card-checkout-panel small {
   margin: 0;
-  font-weight: 800;
+  color: #5c5c5c;
+  line-height: 1.6;
 }
 
 .qr-placeholder {
@@ -864,6 +1052,23 @@ function formatStatusLabel(value) {
 
   .manual-payment-panel {
     grid-template-columns: 1fr;
+  }
+
+  .card-checkout-panel__heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .card-brands {
+    justify-content: flex-start;
+  }
+
+  .card-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .card-field--full {
+    grid-column: auto;
   }
 }
 </style>

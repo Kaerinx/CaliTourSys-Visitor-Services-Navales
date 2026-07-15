@@ -1,6 +1,14 @@
 const { pool, query } = require('../../config/db')
 const { PUBLIC_PACKAGE_STATUSES } = require('../productDevelopment/constants')
 
+const REVIEW_TARGET_COLUMNS = new Set([
+  'product_id',
+  'destination_id',
+  'tourism_asset_id',
+  'business_profile_id',
+  'business_id',
+])
+
 function addParam(params, value) {
   params.push(value)
   return `$${params.length}`
@@ -12,6 +20,24 @@ function toNumber(value) {
 
 function toBoolean(value) {
   return Boolean(value)
+}
+
+function reviewTargetColumn(target) {
+  if (!REVIEW_TARGET_COLUMNS.has(target?.targetColumn)) {
+    throw new Error('Unsupported review target column.')
+  }
+  return target.targetColumn
+}
+
+function mapPublicReview(row) {
+  return {
+    id: row.id,
+    rating: Number(row.rating),
+    comment: row.comment || '',
+    author: row.author || 'Anonymous Tourist',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
 
 function toDateOnly(value) {
@@ -105,6 +131,8 @@ function mapAccreditedBusiness(row) {
       issuedAt: row.accreditation_issued_at,
       expiresAt: row.accreditation_expires_at,
     },
+    ratingAverage: toNumber(row.rating_average) || 0,
+    reviewCount: Number(row.review_count || 0),
   }
 }
 
@@ -195,6 +223,7 @@ function mapPackage(row) {
     paymentRequired: toBoolean(row.payment_required),
     packageStatus: row.package_status,
     remarks: row.remarks || '',
+    items: row.items || [],
     primaryImage: {
       url: row.image_url || packageCategoryImage(row.category),
       altText: `${row.name} package image`,
@@ -215,6 +244,7 @@ function mapPackageItem(row) {
     referenceId: row.item_reference_id,
     name: row.item_name,
     description: row.item_description,
+    proposedActivities: row.item_proposed_activities || '',
     location: row.item_location,
     status: row.item_status,
     assetStatus: row.asset_status,
@@ -229,6 +259,7 @@ function mapPackageBookingRequest(row) {
     packageId: row.package_id,
     packageName: row.package_name_snapshot,
     bookingSource: row.booking_source || 'online',
+    paymentMode: row.payment_mode || (row.selected_payment_method === 'cash' ? 'pay_at_office' : 'online'),
     selectedPax: Number(row.selected_pax),
     basePrice: toNumber(row.base_price_snapshot),
     basePax: row.base_pax_snapshot == null ? null : Number(row.base_pax_snapshot),
@@ -590,6 +621,7 @@ function packageSelect() {
     SELECT
       tp.*,
       COALESCE(first_asset.image_url, category_asset.image_url) AS image_url,
+      COALESCE(package_item_refs.items, '[]'::jsonb) AS items,
       COUNT(pi.id)::integer AS item_count,
       COUNT(pi.id) FILTER (WHERE pi.item_type = 'Plan')::integer AS plan_count,
       COUNT(pi.id) FILTER (WHERE pi.item_type = 'Asset')::integer AS asset_count,
@@ -626,6 +658,35 @@ function packageSelect() {
       ORDER BY ta.updated_at DESC
       LIMIT 1
     ) category_asset ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(
+        jsonb_agg(
+          jsonb_build_object(
+            'id', item.id,
+            'itemType', item.item_type,
+            'referenceId', item.item_reference_id,
+            'assetId', COALESCE(direct_asset.id, plan_asset.id, activity_asset.id)
+          )
+          ORDER BY item.sort_order ASC, item.created_at ASC
+        ),
+        '[]'::jsonb
+      ) AS items
+      FROM package_items item
+      LEFT JOIN tourism_assets direct_asset
+        ON item.item_type = 'Asset'
+       AND direct_asset.id = item.item_reference_id
+      LEFT JOIN development_plans dp
+        ON item.item_type = 'Plan'
+       AND dp.id = item.item_reference_id
+      LEFT JOIN tourism_assets plan_asset
+        ON plan_asset.id = dp.asset_id
+      LEFT JOIN tourism_activities activity
+        ON item.item_type = 'Activity'
+       AND activity.id = item.item_reference_id
+      LEFT JOIN tourism_assets activity_asset
+        ON activity_asset.id = activity.asset_id
+      WHERE item.package_id = tp.id
+    ) package_item_refs ON true
   `
 }
 
@@ -663,7 +724,7 @@ async function listPackages(filters, pagination) {
     `
       ${packageSelect()}
       WHERE ${whereSql}
-      GROUP BY tp.id, first_asset.image_url, category_asset.image_url
+      GROUP BY tp.id, first_asset.image_url, category_asset.image_url, package_item_refs.items
       ORDER BY ${orderBy}, tp.name ASC
       LIMIT ${limitRef} OFFSET ${offsetRef}
     `,
@@ -685,7 +746,7 @@ async function getPackageBySlug(slug) {
     `
       ${packageSelect()}
       WHERE tp.id = $1
-      GROUP BY tp.id, first_asset.image_url, category_asset.image_url
+      GROUP BY tp.id, first_asset.image_url, category_asset.image_url, package_item_refs.items
       LIMIT 1
     `,
     [summary.id],
@@ -707,6 +768,10 @@ async function getPackageBySlug(slug) {
           WHEN pi.item_type = 'Plan' THEN dp.objectives
           ELSE act.description
         END AS item_description,
+        CASE
+          WHEN pi.item_type = 'Plan' THEN dp.proposed_activities
+          ELSE NULL
+        END AS item_proposed_activities,
         CASE
           WHEN pi.item_type = 'Asset' THEN ta.location
           WHEN pi.item_type = 'Plan' THEN plan_asset.location
@@ -865,6 +930,7 @@ async function createPackageBookingRequest(data) {
           end_date,
           duration_days_snapshot,
           booking_source,
+          payment_mode,
           message,
           payment_required_snapshot,
           payment_instruction_snapshot,
@@ -880,7 +946,7 @@ async function createPackageBookingRequest(data) {
           tourist_account_id
         )
         VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, lower($9), $10, $11, lower($12), $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33
+          $1, $2, $3, $4, $5, $6, $7, $8, lower($9), $10, $11, lower($12), $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34
         )
         RETURNING *
       `,
@@ -905,6 +971,7 @@ async function createPackageBookingRequest(data) {
         data.endDate,
         data.durationDays,
         data.bookingSource,
+        data.paymentMode,
         data.message,
         data.paymentRequiredSnapshot,
         data.paymentInstructionSnapshot,
@@ -1885,7 +1952,9 @@ function accreditedBusinessesSelect() {
           r.status::text AS accreditation_status,
           r.record_number AS accreditation_number,
           r.issued_at AS accreditation_issued_at,
-        r.expires_at AS accreditation_expires_at
+          r.expires_at AS accreditation_expires_at,
+          COALESCE(review_stats.rating_average, 0) AS rating_average,
+          COALESCE(review_stats.review_count, 0)::integer AS review_count
         FROM accreditation_records r
         JOIN business_profiles b ON b.id = r.business_profile_id
         JOIN users u ON u.id = b.owner_id
@@ -1918,6 +1987,18 @@ function accreditedBusinessesSelect() {
               ) image_rows
             ) AS gallery_images
         ) profile_images ON true
+        LEFT JOIN LATERAL (
+          SELECT
+            ROUND(AVG(review.rating)::numeric, 1) AS rating_average,
+            COUNT(review.id)::integer AS review_count
+          FROM tourism_reviews review
+          WHERE review.business_profile_id = b.id
+            OR review.business_id IN (
+              SELECT public_business.id
+              FROM businesses public_business
+              WHERE public_business.source_business_profile_id = b.id
+            )
+        ) review_stats ON true
         WHERE r.status = 'active'
         AND (r.expires_at IS NULL OR r.expires_at >= NOW())
       ORDER BY r.business_profile_id, r.issued_at DESC
@@ -1967,7 +2048,9 @@ function accreditedBusinessesSelect() {
           acc.status::text AS accreditation_status,
         acc.accreditation_number,
         acc.issued_at::timestamptz AS accreditation_issued_at,
-        acc.expires_at::timestamptz AS accreditation_expires_at
+        acc.expires_at::timestamptz AS accreditation_expires_at,
+        COALESCE(review_stats.rating_average, 0) AS rating_average,
+        COALESCE(review_stats.review_count, 0)::integer AS review_count
       FROM businesses b
       JOIN LATERAL (
         SELECT ba.id, ba.status, ba.accreditation_number, ba.issued_at, ba.expires_at, ba.verified_at
@@ -1976,13 +2059,31 @@ function accreditedBusinessesSelect() {
         ORDER BY ba.verified_at DESC NULLS LAST, ba.created_at DESC
         LIMIT 1
       ) acc ON true
+      LEFT JOIN LATERAL (
+        SELECT
+          ROUND(AVG(review.rating)::numeric, 1) AS rating_average,
+          COUNT(review.id)::integer AS review_count
+        FROM tourism_reviews review
+        WHERE review.business_id = b.id
+          OR (
+            b.source_business_profile_id IS NOT NULL
+            AND review.business_profile_id = b.source_business_profile_id
+          )
+      ) review_stats ON true
       WHERE b.status = 'active'
         AND acc.status = 'accredited'
         AND (acc.expires_at IS NULL OR acc.expires_at >= CURRENT_DATE)
         AND NOT EXISTS (
           SELECT 1
           FROM active_module_records module_record
-          WHERE lower(module_record.business_name) = lower(b.name)
+          WHERE (
+            b.source_business_profile_id IS NOT NULL
+            AND module_record.business_id = b.source_business_profile_id
+          )
+          OR (
+            b.source_business_profile_id IS NULL
+            AND lower(module_record.business_name) = lower(b.name)
+          )
         )
       ORDER BY b.id, acc.verified_at DESC NULLS LAST
     )
@@ -2049,6 +2150,7 @@ async function listAccreditedBusinesses(filters, pagination) {
 function mapMapLocation(row) {
   return {
     id: row.id,
+    targetId: row.target_id,
     locationType: row.location_type,
     slug: row.slug,
     label: row.label,
@@ -2175,6 +2277,7 @@ async function listMapLocations(filters) {
     `
       SELECT
         ml.id,
+        COALESCE(d.id, b.id, e.id) AS target_id,
         ml.location_type,
         ml.label,
         ml.latitude,
@@ -2226,7 +2329,62 @@ async function listMapLocations(filters) {
     `,
     params,
   )
-  return result.rows.map(mapMapLocation)
+
+  const assetParams = []
+  const assetWhere = [
+    "ta.development_status != 'Archived'",
+    'ta.latitude IS NOT NULL',
+    'ta.longitude IS NOT NULL',
+  ]
+
+  if (filters.type && !['tourism asset', 'tourism_asset'].includes(String(filters.type).toLowerCase())) {
+    assetWhere.push('false')
+  }
+  if (filters.category) {
+    assetWhere.push(
+      `regexp_replace(lower(ta.category), '[^a-z0-9]+', '-', 'g') = ${addParam(assetParams, filters.category)}`,
+    )
+  }
+  if (filters.featured !== undefined && filters.featured !== true && filters.featured !== 'true') {
+    assetWhere.push('false')
+  }
+
+  const assetResult = await query(
+    `
+      SELECT
+        ta.id,
+        ta.id AS target_id,
+        'tourism asset'::text AS location_type,
+        ta.name AS label,
+        ta.latitude,
+        ta.longitude,
+        CASE
+          WHEN ta.category ILIKE '%Food%' THEN '#d97706'
+          WHEN ta.category ILIKE '%Cultural%' THEN '#a16207'
+          WHEN ta.category ILIKE '%Beach%' THEN '#2563eb'
+          WHEN ta.category ILIKE '%Event%' THEN '#1f2937'
+          ELSE '#1b7a4a'
+        END AS marker_color,
+        'pin'::text AS marker_icon,
+        'asset-' || trim(both '-' from regexp_replace(lower(ta.name), '[^a-z0-9]+', '-', 'g')) || '-' || ta.id AS slug,
+        ta.description,
+        ta.category AS category_name,
+        COALESCE(primary_photo.image_url, ta.image_url) AS primary_image_url
+      FROM tourism_assets ta
+      LEFT JOIN LATERAL (
+        SELECT tai.image_url
+        FROM tourism_asset_images tai
+        WHERE tai.asset_id = ta.id
+        ORDER BY tai.is_primary DESC, tai.display_order ASC, tai.created_at ASC
+        LIMIT 1
+      ) primary_photo ON true
+      WHERE ${assetWhere.join(' AND ')}
+      ORDER BY ta.updated_at DESC, ta.name ASC
+    `,
+    assetParams,
+  )
+
+  return [...result.rows, ...assetResult.rows].map(mapMapLocation)
 }
 
 async function listEmergencyFacilities() {
@@ -2667,10 +2825,17 @@ async function getPublicTarget(itemType, targetId) {
   const queries = {
     product: {
       sql: `
-        SELECT id, slug, name AS title
-        FROM products
-        WHERE id = $1 AND status = 'published'
-          AND (published_at IS NULL OR published_at <= now())
+        SELECT product.id, product.slug, product.name AS title
+        FROM products product
+        JOIN product_categories category
+          ON category.id = product.category_id
+         AND category.status = 'published'
+        JOIN businesses business
+          ON business.id = product.business_id
+         AND business.status = 'active'
+        WHERE product.id = $1
+          AND product.status = 'published'
+          AND (product.published_at IS NULL OR product.published_at <= now())
         LIMIT 1
       `,
     },
@@ -2685,10 +2850,14 @@ async function getPublicTarget(itemType, targetId) {
     },
     destination: {
       sql: `
-        SELECT id, slug, name AS title
-        FROM destinations
-        WHERE id = $1 AND status = 'published'
-          AND (published_at IS NULL OR published_at <= now())
+        SELECT destination.id, destination.slug, destination.name AS title
+        FROM destinations destination
+        JOIN destination_categories category
+          ON category.id = destination.category_id
+         AND category.status = 'published'
+        WHERE destination.id = $1
+          AND destination.status = 'published'
+          AND (destination.published_at IS NULL OR destination.published_at <= now())
         LIMIT 1
       `,
     },
@@ -2854,7 +3023,212 @@ async function deleteItineraryItem({ sessionToken, itemId }) {
   return result.rowCount > 0
 }
 
-async function createInquiry({ fullName, email, contactNumber, subject, message, sourcePage }) {
+async function resolveReviewTarget({ targetType, targetId }) {
+  if (targetType === 'tourism_asset') {
+    const result = await query(
+      `SELECT id
+       FROM tourism_assets
+       WHERE id = $1
+         AND development_status != 'Archived'
+       LIMIT 1`,
+      [targetId],
+    )
+    if (!result.rows[0]) return null
+
+    return {
+      targetType,
+      targetId: result.rows[0].id,
+      targetColumn: 'tourism_asset_id',
+    }
+  }
+
+  if (targetType === 'product' || targetType === 'destination') {
+    const target = await getPublicTarget(targetType, targetId)
+    if (!target) return null
+
+    return {
+      targetType,
+      targetId: target.id,
+      targetColumn: targetType === 'product' ? 'product_id' : 'destination_id',
+    }
+  }
+
+  if (targetType !== 'business') return null
+
+  const profileResult = await query(
+    `SELECT profile.id
+     FROM business_profiles profile
+     WHERE profile.id = $1
+       AND EXISTS (
+         SELECT 1
+         FROM accreditation_records record
+         WHERE record.business_profile_id = profile.id
+           AND record.status = 'active'
+           AND (record.expires_at IS NULL OR record.expires_at >= now())
+       )
+     LIMIT 1`,
+    [targetId],
+  )
+  if (profileResult.rows[0]) {
+    return {
+      targetType,
+      targetId: profileResult.rows[0].id,
+      targetColumn: 'business_profile_id',
+    }
+  }
+
+  const businessResult = await query(
+    `
+      SELECT id, source_business_profile_id
+      FROM businesses
+      WHERE id = $1
+        AND status = 'active'
+        AND (
+          EXISTS (
+            SELECT 1
+            FROM business_accreditations accreditation
+            WHERE accreditation.business_id = businesses.id
+              AND accreditation.status = 'accredited'
+              AND (accreditation.expires_at IS NULL OR accreditation.expires_at >= CURRENT_DATE)
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM accreditation_records record
+            WHERE record.business_profile_id = businesses.source_business_profile_id
+              AND record.status = 'active'
+              AND (record.expires_at IS NULL OR record.expires_at >= now())
+          )
+        )
+      LIMIT 1
+    `,
+    [targetId],
+  )
+  const business = businessResult.rows[0]
+  if (!business) return null
+
+  return business.source_business_profile_id
+    ? {
+        targetType,
+        targetId: business.source_business_profile_id,
+        targetColumn: 'business_profile_id',
+      }
+    : {
+        targetType,
+        targetId: business.id,
+        targetColumn: 'business_id',
+      }
+}
+
+async function listReviews(target) {
+  const targetColumn = reviewTargetColumn(target)
+  const result = await query(
+    `
+      SELECT
+        review.id,
+        review.rating,
+        review.comment,
+        review.created_at,
+        review.updated_at,
+        COALESCE(NULLIF(trim(tourist.full_name), ''), 'Anonymous Tourist') AS author
+      FROM tourism_reviews review
+      LEFT JOIN tourist_accounts tourist ON tourist.id = review.tourist_account_id
+      WHERE review.${targetColumn} = $1
+      ORDER BY review.created_at DESC, review.id DESC
+    `,
+    [target.targetId],
+  )
+
+  const reviews = result.rows.map(mapPublicReview)
+  const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+  let ratingTotal = 0
+
+  for (const review of reviews) {
+    distribution[review.rating] += 1
+    ratingTotal += review.rating
+  }
+
+  return {
+    average: reviews.length ? Math.round((ratingTotal / reviews.length) * 10) / 10 : 0,
+    count: reviews.length,
+    distribution,
+    reviews,
+  }
+}
+
+async function upsertReview({ target, touristAccountId, rating, comment }) {
+  const targetColumn = reviewTargetColumn(target)
+  const result = await query(
+    `
+      WITH saved_review AS (
+        INSERT INTO tourism_reviews (
+          tourist_account_id,
+          ${targetColumn},
+          rating,
+          comment
+        )
+        VALUES ($1, $2, $3, NULLIF($4, ''))
+        ON CONFLICT (tourist_account_id, ${targetColumn})
+          WHERE tourist_account_id IS NOT NULL AND ${targetColumn} IS NOT NULL
+        DO UPDATE SET
+          rating = EXCLUDED.rating,
+          comment = EXCLUDED.comment,
+          updated_at = now()
+        RETURNING *
+      )
+      SELECT
+        saved_review.*,
+        COALESCE(NULLIF(trim(tourist.full_name), ''), 'Anonymous Tourist') AS author
+      FROM saved_review
+      LEFT JOIN tourist_accounts tourist ON tourist.id = saved_review.tourist_account_id
+    `,
+    [touristAccountId, target.targetId, rating, comment],
+  )
+
+  return mapPublicReview(result.rows[0])
+}
+
+async function getProductInquiryTarget(productId) {
+  const result = await query(
+    `
+      SELECT
+        product.id AS product_id,
+        product.business_id,
+        business.source_business_profile_id AS business_profile_id
+      FROM products product
+      JOIN businesses business ON business.id = product.business_id
+      JOIN product_categories category
+        ON category.id = product.category_id
+       AND category.status = 'published'
+      WHERE product.id = $1
+        AND product.status = 'published'
+        AND (product.published_at IS NULL OR product.published_at <= now())
+        AND business.status = 'active'
+      LIMIT 1
+    `,
+    [productId],
+  )
+  const row = result.rows[0]
+  if (!row) return null
+
+  return {
+    productId: row.product_id,
+    businessId: row.business_id,
+    businessProfileId: row.business_profile_id,
+  }
+}
+
+async function createInquiry({
+  fullName,
+  email,
+  contactNumber,
+  subject,
+  message,
+  sourcePage,
+  touristAccountId,
+  productId,
+  businessId,
+  businessProfileId,
+}) {
   const result = await query(
     `
       INSERT INTO tourism_inquiries (
@@ -2864,12 +3238,27 @@ async function createInquiry({ fullName, email, contactNumber, subject, message,
         subject,
         message,
         source_page,
+        tourist_account_id,
+        product_id,
+        business_id,
+        business_profile_id,
         status
       )
-      VALUES ($1, lower($2), $3, $4, $5, $6, 'new')
+      VALUES ($1, lower($2), $3, $4, $5, $6, $7, $8, $9, $10, 'new')
       RETURNING id, status, created_at AS received_at
     `,
-    [fullName, email, contactNumber || null, subject, message, sourcePage || null],
+    [
+      fullName,
+      email,
+      contactNumber || null,
+      subject,
+      message,
+      sourcePage || null,
+      touristAccountId || null,
+      productId || null,
+      businessId || null,
+      businessProfileId || null,
+    ],
   )
 
   return {
@@ -2995,6 +3384,10 @@ module.exports = {
   createItineraryItem,
   getItineraryItemById,
   deleteItineraryItem,
+  resolveReviewTarget,
+  listReviews,
+  upsertReview,
+  getProductInquiryTarget,
   createInquiry,
   createNewsletterSubscription,
 }

@@ -11,17 +11,17 @@ export function login(payload) {
 }
 
 export function me() {
-  return http.get(touristAuthPath('/me'))
+  return http.getTourist(touristAuthPath('/me'))
 }
 
 export function logout() {
-  return http.post(touristAuthPath('/logout'), {})
+  return http.postTourist(touristAuthPath('/logout'), {})
 }
 
 export function updateProfile(payload) {
-  return http.patchAuth(touristAuthPath('/profile'), payload)
+  return http.patchTourist(touristAuthPath('/profile'), payload)
 }
 
 export function changePassword(payload) {
-  return http.patchAuth(touristAuthPath('/password'), payload)
+  return http.patchTourist(touristAuthPath('/password'), payload)
 }

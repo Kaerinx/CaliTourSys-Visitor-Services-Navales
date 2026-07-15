@@ -29,7 +29,7 @@ async function expireOverduePackageBookings() {
           package_booking_request_id, event_type, after_values, reason
         )
         SELECT id, 'booking_expired', '{"bookingStatus":"expired","depositStatus":"expired"}'::jsonb,
-               'Online deposit deadline elapsed without a verified payment.'
+               'Payment deadline elapsed without a verified payment.'
         FROM expired
         RETURNING package_booking_request_id
       `,

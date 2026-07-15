@@ -42,6 +42,14 @@ const errors = computed(() => {
   if (!form.location.trim()) output.location = 'Location is required.'
   if (!form.category) output.category = 'Category is required.'
   if (!form.targetMarket.trim()) output.targetMarket = 'Target market is required.'
+  const latitude = Number(form.latitude)
+  const longitude = Number(form.longitude)
+  if (form.latitude === '' || !Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+    output.latitude = 'Latitude is required and must be from -90 to 90.'
+  }
+  if (form.longitude === '' || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    output.longitude = 'Longitude is required and must be from -180 to 180.'
+  }
   if (form.images.length > MAX_IMAGES) output.images = 'Upload up to 5 images only.'
   return output
 })
@@ -66,6 +74,8 @@ function defaultForm(value = null) {
     images: initialImages(value),
     remarks: value?.remarks || '',
     sourceAccreditationRecordId: value?.sourceAccreditationRecordId || '',
+    latitude: value?.latitude ?? '',
+    longitude: value?.longitude ?? '',
   }
 }
 
@@ -98,6 +108,10 @@ function applySelectedEstablishment() {
   if (inferredCategory) form.category = inferredCategory
   if (!form.remarks.trim() && establishment.recordNumber) {
     form.remarks = `Accreditation reference: ${establishment.recordNumber}`
+  }
+  if (establishment.latitude != null && establishment.longitude != null) {
+    form.latitude = Number(establishment.latitude).toFixed(6)
+    form.longitude = Number(establishment.longitude).toFixed(6)
   }
 }
 
@@ -181,6 +195,8 @@ function submitForm() {
     images: form.images,
     remarks: emptyToNull(form.remarks),
     sourceAccreditationRecordId: form.sourceAccreditationRecordId || null,
+    latitude: Number(form.latitude),
+    longitude: Number(form.longitude),
   })
 }
 </script>
@@ -271,6 +287,30 @@ function submitForm() {
                     </option>
                   </select>
                   <small v-if="errors.targetMarket">{{ errors.targetMarket }}</small>
+                </label>
+              </div>
+
+              <div class="asset-grid">
+                <label>
+                  <span>Latitude</span>
+                  <input
+                    v-model="form.latitude"
+                    inputmode="decimal"
+                    placeholder="Example: 13.708800"
+                    :aria-invalid="Boolean(errors.latitude)"
+                  />
+                  <small v-if="errors.latitude">{{ errors.latitude }}</small>
+                </label>
+
+                <label>
+                  <span>Longitude</span>
+                  <input
+                    v-model="form.longitude"
+                    inputmode="decimal"
+                    placeholder="Example: 123.217800"
+                    :aria-invalid="Boolean(errors.longitude)"
+                  />
+                  <small v-if="errors.longitude">{{ errors.longitude }}</small>
                 </label>
               </div>
             </section>

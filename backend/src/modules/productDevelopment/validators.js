@@ -51,6 +51,16 @@ const optionalPositiveInteger = (label) =>
     (value) => (value === '' || value === undefined ? null : value),
     z.coerce.number({ message: `${label} must be a number.` }).int(`${label} must be a whole number.`).min(1, `${label} must be at least 1.`).optional().nullable(),
   )
+const optionalCoordinate = (label, min, max) =>
+  z.preprocess(
+    (value) => (value === '' || value === undefined ? null : value),
+    z.coerce
+      .number({ message: `${label} must be a number.` })
+      .min(min, `${label} must be at least ${min}.`)
+      .max(max, `${label} must be at most ${max}.`)
+      .optional()
+      .nullable(),
+  )
 
 const assetImageSchema = z
   .object({
@@ -79,6 +89,8 @@ const assetBodySchema = z
     assetImages: z.array(assetImageSchema).max(5, 'Upload up to 5 images only.').default([]),
     remarks: optionalText(),
     sourceAccreditationRecordId: z.uuid().optional().nullable(),
+    latitude: optionalCoordinate('Latitude', -90, 90),
+    longitude: optionalCoordinate('Longitude', -180, 180),
   })
   .strict()
 

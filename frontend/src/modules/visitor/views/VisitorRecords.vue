@@ -3,7 +3,7 @@
     <header class="records-header records-header-row">
       <div>
         <p class="eyebrow">{{ isReceptionist ? 'Receptionist Desk' : 'Tourism Staff' }}</p>
-        <h1>Recorded Visitor Data</h1>
+        <h1>{{ recordsTitle }}</h1>
         <p class="muted">
           {{ isReceptionist ? 'Records assigned to your establishment.' : 'Records submitted by assigned receptionists and establishments.' }}
         </p>
@@ -80,7 +80,7 @@
     <section class="panel records-panel">
       <div class="section-header compact">
         <div>
-          <h2>Recorded Visitor Data</h2>
+          <h2>{{ recordsTitle }}</h2>
           <p>{{ isReceptionist ? 'Records assigned to your establishment.' : 'Records submitted by assigned receptionists and establishments.' }}</p>
         </div>
         <span class="record-count">Showing {{ filteredRecords.length }} of {{ records.length }} records</span>
@@ -206,6 +206,9 @@ const modalError = ref('')
 const savingRecord = ref(false)
 const showRecordModal = ref(false)
 const isReceptionist = computed(() => auth.user?.role === 'receptionist' || route.meta.sourceType === 'resort')
+const recordsTitle = computed(() =>
+  isReceptionist.value ? 'Recorded Visitor Data' : 'Tourists Log Records',
+)
 const canAddRecord = computed(() => false)
 
 const appliedFilters = reactive(defaultFilters())

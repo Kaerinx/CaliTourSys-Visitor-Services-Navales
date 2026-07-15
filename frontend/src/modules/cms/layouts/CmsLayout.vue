@@ -23,11 +23,9 @@ const fallbackNavigation = [
   { key: 'map', label: 'Map Locations', path: '/cms/map-locations', permission: 'map_locations.view', icon: 'map' },
   { key: 'emergency-facilities', label: 'Emergency Facilities', path: '/cms/emergency-facilities', permission: 'map_locations.view', icon: 'alert' },
   { key: 'museum', label: 'Museum', path: '/cms/museum', permission: 'museum.view', icon: 'museum' },
-  { key: 'visitor-services', label: 'Visitor Services / Inquiries', path: '/cms/visitor', permissions: ['inquiries.view', 'dashboard.view'], icon: 'users' },
-  { key: 'inquiries', label: 'Inquiries', path: '/cms/visitor/inquiries', permission: 'inquiries.view', icon: 'message' },
+  { key: 'visitor-services', label: 'Visitor Services', path: '/cms/visitor', permissions: ['inquiries.view', 'dashboard.view'], icon: 'users' },
   { key: 'package-bookings', label: 'Package Bookings', path: '/cms/package-bookings', permissions: ['package_bookings.view', 'package_bookings.review'], icon: 'package' },
   { key: 'users', label: 'Users & Roles', path: '/cms/users', permissions: ['users.view', 'roles.view'], icon: 'users' },
-  { key: 'audit', label: 'Audit Logs', path: '/cms/audit-logs', permission: 'audit_logs.view', icon: 'audit' },
 ]
 
 // Modules removed from the CMS sidebar (not built yet). Filtered out regardless
@@ -36,6 +34,8 @@ const HIDDEN_NAV = new Set([
   'newsletter',
   'media',
   'reports',
+  'audit',
+  'audit-logs',
   ...(SHOW_MUSEUM_MODULE ? [] : ['museum']),
 ])
 

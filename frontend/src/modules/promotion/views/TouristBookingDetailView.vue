@@ -31,7 +31,8 @@ const dateChangeForm = reactive({ startDate: '', durationDays: 1, reason: '' })
 const hasKnownTotal = computed(() => isFiniteAmount(booking.value?.totalAmount))
 const verifiedAmount = computed(() => Number(booking.value?.verifiedPaymentAmount || 0) + Number(booking.value?.appliedCreditAmount || 0))
 const pendingAmount = computed(() => Number(booking.value?.pendingPaymentAmount || 0))
-const remainingAmount = computed(() => Math.max(0, Number(booking.value?.totalAmount || 0) - verifiedAmount.value))
+const amountPaid = computed(() => verifiedAmount.value + pendingAmount.value)
+const remainingAmount = computed(() => Math.max(0, Number(booking.value?.totalAmount || 0) - verifiedAmount.value - pendingAmount.value))
 const amountDue = computed(() => {
   if (!hasKnownTotal.value || pendingAmount.value > 0 || remainingAmount.value <= 0) return 0
   return verifiedAmount.value > 0
@@ -42,6 +43,8 @@ const canUploadProof = computed(() => {
   return Boolean(
     booking.value?.id &&
       booking.value.paymentRequired &&
+      booking.value.paymentMode !== 'pay_at_office' &&
+      booking.value.paymentMethod !== 'cash' &&
       hasKnownTotal.value &&
       amountDue.value > 0 &&
       pendingAmount.value === 0 &&
@@ -55,6 +58,9 @@ const proofStatusLabel = computed(() => {
 const canRequestDateChange = computed(() => !['declined', 'cancelled', 'expired'].includes(booking.value?.bookingStatus))
 const nextSteps = computed(() => {
   if (!booking.value) return ''
+  if (booking.value.paymentMode === 'pay_at_office' || booking.value.paymentMethod === 'cash') {
+    return `Pay the full amount in cash at the Tourism Office by ${formatDisplayDate(booking.value.depositDueAt)}. Staff will record payment before approving this booking.`
+  }
   if (!hasKnownTotal.value) {
     return 'The Tourism Office will coordinate pricing and next steps using your submitted contact details.'
   }
@@ -240,11 +246,10 @@ function formatDisplayDate(value) {
               <div><dt>End date</dt><dd>{{ formatDisplayDate(booking.endDate) }}</dd></div>
               <div><dt>Duration</dt><dd>{{ booking.durationDays || 1 }} day(s)</dd></div>
               <div><dt>Estimated total</dt><dd>{{ formatCurrency(booking.totalAmount) }}</dd></div>
-              <div><dt>Payment plan</dt><dd>{{ formatStatusLabel(booking.paymentPlan) }}</dd></div>
+              <div><dt>Payment mode</dt><dd>{{ booking.paymentMode === 'pay_at_office' ? 'Walk-in payment' : 'Pay online' }}</dd></div>
               <div><dt>Payment method</dt><dd>{{ formatStatusLabel(booking.paymentMethod) }}</dd></div>
-              <div><dt>Verified / credited</dt><dd>{{ formatCurrency(verifiedAmount) }}</dd></div>
+              <div><dt>Amount paid</dt><dd>{{ formatCurrency(amountPaid) }}</dd></div>
               <div><dt>Remaining balance</dt><dd>{{ formatCurrency(remainingAmount) }}</dd></div>
-              <div><dt>Deposit deadline</dt><dd>{{ formatDisplayDate(booking.depositDueAt) }}</dd></div>
               <div><dt>Balance deadline</dt><dd>{{ booking.balanceDueAt ? formatDisplayDate(booking.balanceDueAt) : 'Not applicable' }}</dd></div>
               <div><dt>Booking status</dt><dd>{{ formatStatusLabel(booking.bookingStatus) }}</dd></div>
               <div><dt>Payment status</dt><dd>{{ formatStatusLabel(booking.paymentStatus) }}</dd></div>

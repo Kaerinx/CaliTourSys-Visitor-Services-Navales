@@ -2,6 +2,7 @@ const repository = require('./public.repository')
 const { getPagination, buildPaginationMeta } = require('../../utils/pagination')
 const { createPublicSessionToken } = require('../../utils/token')
 const {
+  addDateOnlyDays,
   buildSchedule,
   calculatePaymentTerms,
   requireCurrentOrFutureStartDate,
@@ -37,6 +38,8 @@ function createValidationError(message) {
 
 const DEFAULT_PAYMENT_INSTRUCTIONS =
   'Manual payment instructions will be provided by the Calabanga Tourism Office after review. Upload proof of payment here after sending the payment.'
+const PAY_AT_OFFICE_INSTRUCTIONS =
+  'Pay the full amount in cash at the Calabanga Tourism Office no later than one day before departure. Staff will record the payment before approving the booking.'
 
 function toFiniteNumber(value) {
   if (value === null || value === undefined || value === '') return null
@@ -81,6 +84,19 @@ function normalizePhoneForLookup(value) {
 
 function buildPublicBookingLookupResponse(request) {
   const hasComputedTotal = isFiniteAmount(request.totalAmount)
+  const totalAmount = Number(request.totalAmount || 0)
+  const verifiedAndCreditedAmount = Number(request.verifiedPaymentAmount || 0) + Number(request.appliedCreditAmount || 0)
+  const initialPaymentAmount = Number(request.initialPaymentAmount || 0)
+  const rawPendingPaymentAmount = Number(request.pendingPaymentAmount || 0)
+  const pendingPaymentCap = request.paymentPlan === 'deposit_50' && verifiedAndCreditedAmount <= 0
+    ? initialPaymentAmount || Math.round(totalAmount * 50) / 100
+    : Math.max(0, totalAmount - verifiedAndCreditedAmount)
+  const pendingPaymentAmount = hasComputedTotal
+    ? Math.min(rawPendingPaymentAmount, Math.max(0, pendingPaymentCap))
+    : rawPendingPaymentAmount
+  const balanceDueAt = request.paymentPlan === 'deposit_50' && request.endDate
+    ? new Date(`${addDateOnlyDays(request.endDate, -1)}T23:59:59+08:00`).toISOString()
+    : request.balanceDueAt
   const proof = request.proofOfPayment
     ? {
         originalFilename: request.proofOfPayment.originalFilename,
@@ -107,15 +123,21 @@ function buildPublicBookingLookupResponse(request) {
     paymentStatus: request.paymentStatus,
     paymentRequired: request.paymentRequired,
     paymentPlan: request.paymentPlan,
+    paymentMode: request.paymentMode,
     initialPaymentAmount: request.initialPaymentAmount,
     verifiedPaymentAmount: request.verifiedPaymentAmount || 0,
-    pendingPaymentAmount: request.pendingPaymentAmount || 0,
+    pendingPaymentAmount,
     appliedCreditAmount: request.appliedCreditAmount || 0,
     remainingAmount: hasComputedTotal
-      ? Math.max(0, Number(request.totalAmount) - Number(request.verifiedPaymentAmount || 0) - Number(request.appliedCreditAmount || 0))
+      ? Math.max(
+          0,
+          totalAmount -
+            verifiedAndCreditedAmount -
+            pendingPaymentAmount,
+        )
       : null,
     depositDueAt: request.depositDueAt,
-    balanceDueAt: request.balanceDueAt,
+    balanceDueAt,
     depositStatus: request.depositStatus,
     paymentMethod: request.paymentMethod,
     paymentInstruction: request.paymentRequired && hasComputedTotal ? request.paymentInstruction : '',
@@ -238,14 +260,19 @@ async function createPackageBookingRequest(body, context = {}) {
   }
 
   const pricing = buildPackageBookingPricing(tourismPackage, selectedPax)
-  const paymentRequired = Boolean(tourismPackage.payment_required)
   const hasComputedTotal = isFiniteAmount(pricing.computedTotalAmount)
+  const paymentRequired = Boolean(tourismPackage.payment_required) || hasComputedTotal
   const representative = body.representativeContact || {
     fullName: body.fullName,
     email: body.email,
     phoneNumber: body.phoneNumber,
   }
   const bookingSource = context.bookingSource || 'online'
+  const paymentMode = body.paymentMode || (body.paymentMethod === 'cash' ? 'pay_at_office' : 'online')
+  const paymentPlan = paymentMode === 'pay_at_office' ? 'full_payment' : body.paymentPlan
+  const paymentMethod = paymentMode === 'pay_at_office'
+    ? 'cash'
+    : body.paymentMethod || (bookingSource === 'walk_in' ? 'cash' : 'qr_instapay')
   const schedule = buildSchedule({
     startDate: body.startDate || body.preferredBookingDate,
     durationDays: body.durationDays || tourismPackage.duration_days || 1,
@@ -256,13 +283,16 @@ async function createPackageBookingRequest(body, context = {}) {
     ? calculatePaymentTerms({
         totalAmount: pricing.computedTotalAmount,
         paymentRequired,
-        paymentPlan: body.paymentPlan,
+        paymentPlan,
+        paymentMode,
         bookingSource,
-        paymentMethod: body.paymentMethod || (bookingSource === 'walk_in' ? 'cash' : 'qr_instapay'),
+        paymentMethod,
         startDate: schedule.startDate,
+        endDate: schedule.endDate,
       })
     : {
         paymentPlan: null,
+        paymentMode,
         paymentMethod: null,
         initialPaymentAmount: null,
         depositDueAt: null,
@@ -290,7 +320,11 @@ async function createPackageBookingRequest(body, context = {}) {
     message: body.message || '',
     touristAccountId: context.touristAccountId || null,
     paymentRequiredSnapshot: paymentRequired,
-    paymentInstructionSnapshot: paymentRequired && hasComputedTotal ? DEFAULT_PAYMENT_INSTRUCTIONS : null,
+    paymentInstructionSnapshot: paymentRequired && hasComputedTotal
+      ? paymentMode === 'pay_at_office'
+        ? PAY_AT_OFFICE_INSTRUCTIONS
+        : DEFAULT_PAYMENT_INSTRUCTIONS
+      : null,
     bookingStatus: 'pending',
     paymentStatus: paymentRequired && hasComputedTotal ? 'unpaid' : 'pending_inquiry',
   })
@@ -313,10 +347,17 @@ async function uploadPackageBookingPaymentProof(requestId, proof, body = {}, con
     throw createValidationError('This booking request is still inquiry-based and does not accept payment proof yet.')
   }
 
+  if (request.payment_mode === 'pay_at_office' || request.selected_payment_method === 'cash') {
+    throw createValidationError('Walk-in cash payments must be recorded by Tourism Office staff.')
+  }
+
   const paymentMethod = validatePaymentMethod(
     request.booking_source || 'online',
     body.paymentMethod || request.selected_payment_method || 'qr_instapay',
   )
+  if (paymentMethod === 'credit_debit_card') {
+    throw createValidationError('Card payments must be completed through the secure card checkout. Card details and payment proof cannot be submitted through this upload form.')
+  }
   const paymentReferenceNumber = optionalText(body.paymentReferenceNumber, 120, 'Payment reference number')
   validateElectronicPaymentEvidence({
     paymentMethod,
@@ -496,6 +537,7 @@ async function listMapLocations(filters) {
         },
         properties: {
           id: location.id,
+          targetId: location.targetId,
           locationType: location.locationType,
           slug: location.slug,
           label: location.label,
@@ -638,8 +680,46 @@ async function deleteItineraryItem(sessionToken, itemId) {
   if (!wasDeleted) throw createNotFoundError('Itinerary item not found.')
 }
 
-async function createInquiry(body) {
-  return repository.createInquiry(body)
+async function getReviews(filters) {
+  const target = await repository.resolveReviewTarget(filters)
+  if (!target) throw createNotFoundError('Review target not found.')
+  return repository.listReviews(target)
+}
+
+async function upsertReview(body, context) {
+  const target = await repository.resolveReviewTarget(body)
+  if (!target) throw createNotFoundError('Review target not found.')
+
+  return repository.upsertReview({
+    target,
+    touristAccountId: context.touristAccountId,
+    rating: body.rating,
+    comment: body.comment || null,
+  })
+}
+
+async function createInquiry(body, context = {}) {
+  const tourist = context.tourist || null
+  let productTarget = null
+
+  if (body.productId) {
+    productTarget = await repository.getProductInquiryTarget(body.productId)
+    if (!productTarget) throw createNotFoundError('Product not found.')
+    if (!productTarget.businessProfileId) {
+      throw createValidationError('This producer is not connected to a business-owner account yet.')
+    }
+  }
+
+  return repository.createInquiry({
+    ...body,
+    fullName: tourist?.fullName || body.fullName,
+    email: tourist?.email || body.email,
+    contactNumber: tourist?.phoneNumber || body.contactNumber,
+    touristAccountId: tourist?.id || null,
+    productId: productTarget?.productId || null,
+    businessId: productTarget?.businessId || null,
+    businessProfileId: productTarget?.businessProfileId || null,
+  })
 }
 
 async function createNewsletterSubscription(body) {
@@ -689,6 +769,8 @@ module.exports = {
   getItineraryByToken,
   addItineraryItem,
   deleteItineraryItem,
+  getReviews,
+  upsertReview,
   createInquiry,
   createNewsletterSubscription,
 }

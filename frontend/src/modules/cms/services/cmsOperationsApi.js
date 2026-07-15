@@ -25,6 +25,9 @@ export const cmsOperationsApi = {
   createWalkInPackageBooking(payload) {
     return http.postAuth('/cms/package-bookings', payload)
   },
+  deletePackageBookingRequest(id) {
+    return http.deleteAuth(`/cms/package-bookings/${id}`)
+  },
   updatePackageBookingSchedule(id, payload) {
     return http.patchAuth(`/cms/package-bookings/${id}/schedule`, payload)
   },

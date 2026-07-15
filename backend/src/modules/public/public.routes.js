@@ -1,7 +1,7 @@
 const express = require('express')
 const controller = require('./public.controller')
 const { paymentProofUpload } = require('./paymentProofUploads')
-const { authenticateTourist } = require('../../middleware/authenticateTourist')
+const { authenticateTourist, optionalTourist } = require('../../middleware/authenticateTourist')
 const {
   bookingLookupRateLimiter,
   bookingRequestRateLimiter,
@@ -9,6 +9,7 @@ const {
   itineraryWriteRateLimiter,
   newsletterRateLimiter,
   paymentProofRateLimiter,
+  reviewRateLimiter,
 } = require('../../middleware/rateLimiters')
 
 const router = express.Router()
@@ -45,6 +46,9 @@ router.get('/museum/categories', controller.listMuseumCategories)
 router.get('/museum/artifacts', controller.listMuseumArtifacts)
 router.get('/museum/artifacts/:slug', controller.getMuseumArtifactBySlug)
 
+router.get('/reviews', controller.getReviews)
+router.post('/reviews', reviewRateLimiter, authenticateTourist, controller.upsertReview)
+
 router.post('/itinerary/sessions', itineraryWriteRateLimiter, controller.createItinerarySession)
 router.get('/itinerary/:sessionToken', controller.getItinerary)
 router.post('/itinerary/:sessionToken/items', itineraryWriteRateLimiter, controller.addItineraryItem)
@@ -63,7 +67,7 @@ router.post(
   paymentProofUpload.single('proof'),
   controller.uploadPackageBookingPaymentProof,
 )
-router.post('/inquiries', inquiryRateLimiter, controller.createInquiry)
+router.post('/inquiries', inquiryRateLimiter, optionalTourist, controller.createInquiry)
 router.post('/newsletter-subscriptions', newsletterRateLimiter, controller.createNewsletterSubscription)
 
 module.exports = router

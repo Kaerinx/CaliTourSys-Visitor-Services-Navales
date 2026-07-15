@@ -18,6 +18,7 @@
     "test:public-map-content": "node --test test/publicMapContent.test.js",
     "test:map-content-validators": "node --test test/mapContentValidators.test.js",
     "test:map-content-schema": "node scripts/smoke-map-experience-schema.js",
+    "test:engagement": "node --test test/engagementValidators.test.js",
     "test:booking-integration": "node scripts/smoke-package-booking-business.js",
     "expire:package-bookings": "node scripts/expire-package-bookings.js",
     "create:cms-user": "node scripts/create-cms-user.js"

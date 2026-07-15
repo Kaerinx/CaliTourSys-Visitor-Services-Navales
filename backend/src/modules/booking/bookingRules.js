@@ -1,8 +1,10 @@
 const DAY_MS = 24 * 60 * 60 * 1000
 
 const BOOKING_SOURCES = Object.freeze(['online', 'walk_in'])
+const PAYMENT_MODES = Object.freeze(['pay_at_office', 'online'])
 const PAYMENT_PLANS = Object.freeze(['deposit_50', 'full_payment', 'not_required'])
-const PAYMENT_METHODS = Object.freeze(['cash', 'qr_instapay', 'bank_transfer'])
+// bank_transfer remains accepted so historical bookings can still be read and maintained.
+const PAYMENT_METHODS = Object.freeze(['cash', 'qr_instapay', 'credit_debit_card', 'bank_transfer'])
 const GENDERS = Object.freeze(['M', 'F'])
 const ACTIVE_CAPACITY_STATUSES = Object.freeze(['pending', 'reviewed', 'approved', 'rescheduled'])
 
@@ -111,10 +113,7 @@ function validatePaymentMethod(bookingSource, paymentMethod) {
     throw businessRuleError('Booking source must be Online or Walk-in.')
   }
   if (!PAYMENT_METHODS.includes(paymentMethod)) {
-    throw businessRuleError('Select Cash, QR/InstaPay, or Bank Transfer.')
-  }
-  if (bookingSource === 'online' && paymentMethod === 'cash') {
-    throw businessRuleError('Cash is available only for walk-in bookings.')
+    throw businessRuleError('Select Cash, QR/InstaPay, or Credit/Debit Card.')
   }
   return paymentMethod
 }
@@ -125,7 +124,9 @@ function calculatePaymentTerms({
   paymentPlan = 'full_payment',
   bookingSource = 'online',
   paymentMethod = bookingSource === 'walk_in' ? 'cash' : 'qr_instapay',
+  paymentMode = paymentMethod === 'cash' ? 'pay_at_office' : 'online',
   startDate,
+  endDate,
   createdAt = new Date(),
 }) {
   const total = roundMoney(totalAmount || 0)
@@ -133,6 +134,7 @@ function calculatePaymentTerms({
   if (!paymentRequired) {
     return {
       paymentPlan: 'not_required',
+      paymentMode,
       paymentMethod: null,
       initialPaymentAmount: 0,
       depositDueAt: null,
@@ -144,29 +146,51 @@ function calculatePaymentTerms({
   if (!PAYMENT_PLANS.includes(paymentPlan) || paymentPlan === 'not_required') {
     throw businessRuleError('Select a 50% deposit or Full payment.')
   }
+  if (!PAYMENT_MODES.includes(paymentMode)) {
+    throw businessRuleError('Select Walk-in payment or Pay online.')
+  }
   validatePaymentMethod(bookingSource, paymentMethod)
+  if (paymentMode === 'pay_at_office' && paymentMethod !== 'cash') {
+    throw businessRuleError('Walk-in payment must be paid in cash at the Tourism Office.')
+  }
+  if (paymentMode === 'online' && paymentMethod === 'cash') {
+    throw businessRuleError('Pay online requires QR/InstaPay or Credit/Debit Card.')
+  }
+  if (paymentMode === 'pay_at_office' && paymentPlan !== 'full_payment') {
+    throw businessRuleError('Walk-in payment requires full payment no later than one day before departure.')
+  }
   parseDateOnly(startDate, 'Start date')
+  const balanceReferenceDate = endDate || startDate
+  parseDateOnly(balanceReferenceDate, 'End date')
 
   const created = createdAt instanceof Date ? createdAt : new Date(createdAt)
   if (Number.isNaN(created.getTime())) throw businessRuleError('Booking creation time is invalid.')
   const daysUntilDeparture = calendarDayDifference(manilaDateString(created), startDate)
 
+  if (paymentMode === 'pay_at_office' && daysUntilDeparture < 1) {
+    throw businessRuleError('Walk-in payment is available only when booking at least one day before departure.')
+  }
+
   if (daysUntilDeparture <= 3 && paymentPlan !== 'full_payment') {
     throw businessRuleError('Bookings within three days of departure require full payment.')
   }
 
-  const onlineDeadline = bookingSource === 'online'
+  const onlineDeadline = paymentMode === 'online'
     ? new Date(created.getTime() + 3 * DAY_MS).toISOString()
     : null
+  const officePaymentDeadline = paymentMode === 'pay_at_office'
+    ? new Date(`${addDateOnlyDays(startDate, -1)}T23:59:59+08:00`).toISOString()
+    : null
   const balanceDueAt = paymentPlan === 'deposit_50'
-    ? new Date(`${addDateOnlyDays(startDate, -3)}T00:00:00+08:00`).toISOString()
-    : onlineDeadline
+    ? new Date(`${addDateOnlyDays(balanceReferenceDate, -1)}T23:59:59+08:00`).toISOString()
+    : officePaymentDeadline || onlineDeadline
 
   return {
     paymentPlan,
+    paymentMode,
     paymentMethod,
     initialPaymentAmount: paymentPlan === 'deposit_50' ? roundMoney(total * 0.5) : total,
-    depositDueAt: onlineDeadline,
+    depositDueAt: officePaymentDeadline || onlineDeadline,
     balanceDueAt,
     depositStatus: total > 0 ? 'pending' : 'paid',
   }
@@ -193,6 +217,7 @@ function validateElectronicPaymentEvidence({ paymentMethod, transactionReference
   if (!String(transactionReference || '').trim()) {
     throw businessRuleError('Electronic payments require a transaction reference.')
   }
+  if (paymentMethod === 'credit_debit_card') return true
   if (!String(proofFileUrl || '').trim()) {
     throw businessRuleError('Electronic payments require proof of payment.')
   }
@@ -202,6 +227,7 @@ function validateElectronicPaymentEvidence({ paymentMethod, transactionReference
 module.exports = {
   ACTIVE_CAPACITY_STATUSES,
   BOOKING_SOURCES,
+  PAYMENT_MODES,
   GENDERS,
   PAYMENT_METHODS,
   PAYMENT_PLANS,
