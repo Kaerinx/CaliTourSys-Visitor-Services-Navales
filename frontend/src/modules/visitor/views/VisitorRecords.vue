@@ -5,7 +5,7 @@
         <p class="eyebrow">{{ isReceptionist ? 'Receptionist Desk' : 'Tourism Staff' }}</p>
         <h1>{{ recordsTitle }}</h1>
         <p class="muted">
-          {{ isReceptionist ? 'Records assigned to your establishment.' : 'Records submitted by assigned receptionists and establishments.' }}
+          {{ recordsSubtitle }}
         </p>
         <p v-if="isReceptionist" class="assigned-line">
           Assigned establishment: <strong>{{ auth.user?.assigned_establishment_name || 'Assigned Establishment' }}</strong>
@@ -21,23 +21,40 @@
 
     <section class="panel filter-panel">
       <div class="filter-title">
-        <h2>Search and Filter Visitor Records</h2>
-        <p>Find records by visitor, date, source, type, or review status.</p>
+        <h2>{{ filterTitle }}</h2>
+        <p>{{ filterDescription }}</p>
       </div>
       <form class="record-filters" @submit.prevent="applyFilters">
-        <label class="field">
+        <label v-if="!isReceptionist" class="field">
+          <span>Search Establishment</span>
+          <input v-model="draftFilters.search" placeholder="Search by establishment name" />
+        </label>
+        <label v-if="!isReceptionist" class="field">
+          <span>Date</span>
+          <input v-model="draftFilters.date" type="date" />
+        </label>
+        <label v-if="!isReceptionist" class="field">
+          <span>Tourist Type</span>
+          <select v-model="draftFilters.tourist_type">
+            <option value="">All Tourist Types</option>
+            <option value="local">Local</option>
+            <option value="domestic">Domestic</option>
+            <option value="international">International</option>
+          </select>
+        </label>
+        <label v-if="isReceptionist" class="field">
           <span>Search</span>
           <input v-model="draftFilters.search" placeholder="Name, contact number, or establishment" />
         </label>
-        <label class="field">
+        <label v-if="isReceptionist" class="field">
           <span>Date From</span>
           <input v-model="draftFilters.date_from" type="date" />
         </label>
-        <label class="field">
+        <label v-if="isReceptionist" class="field">
           <span>Date To</span>
           <input v-model="draftFilters.date_to" type="date" />
         </label>
-        <label class="field">
+        <label v-if="isReceptionist" class="field">
           <span>Visitor Type</span>
           <select v-model="draftFilters.visitor_type">
             <option value="">All Types</option>
@@ -46,7 +63,7 @@
             <option value="international">International</option>
           </select>
         </label>
-        <label class="field">
+        <label v-if="isReceptionist" class="field">
           <span>Source Type</span>
           <select v-model="draftFilters.source_type" :disabled="isReceptionist">
             <option value="">All Sources</option>
@@ -55,7 +72,7 @@
             <option value="tourism_office">Tourism Office</option>
           </select>
         </label>
-        <label class="field">
+        <label v-if="isReceptionist" class="field">
           <span>Status</span>
           <select v-model="draftFilters.status">
             <option value="">All Statuses</option>
@@ -81,11 +98,52 @@
       <div class="section-header compact">
         <div>
           <h2>{{ recordsTitle }}</h2>
-          <p>{{ isReceptionist ? 'Records assigned to your establishment.' : 'Records submitted by assigned receptionists and establishments.' }}</p>
+          <p>{{ recordsSubtitle }}</p>
         </div>
         <span class="record-count">Showing {{ filteredRecords.length }} of {{ records.length }} records</span>
       </div>
-      <VisitorTable :records="filteredRecords" />
+      <VisitorTable v-if="isReceptionist" :records="filteredRecords" />
+      <div v-else class="tourist-log-table-wrap">
+        <table class="tourist-log-table">
+          <thead>
+            <tr>
+              <th>Establishment</th>
+              <th>Reporting Date</th>
+              <th>Adults</th>
+              <th>Senior Citizens</th>
+              <th>Children</th>
+              <th>Total Tourists</th>
+              <th>Local Tourists</th>
+              <th>Domestic Tourists</th>
+              <th>International Tourists</th>
+              <th>Visit Context</th>
+              <th>Status</th>
+              <th>Submitted By</th>
+              <th>Date Submitted</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="record in filteredRecords" :key="record.id">
+              <td>{{ record.establishment_name || '-' }}</td>
+              <td>{{ formatDate(record.log_date) }}</td>
+              <td>{{ countValue(record.adult_count) }}</td>
+              <td>{{ countValue(record.senior_count) }}</td>
+              <td>{{ countValue(record.children_count) }}</td>
+              <td>{{ countValue(record.total_count) }}</td>
+              <td>{{ countValue(record.local_count) }}</td>
+              <td>{{ countValue(record.domestic_count) }}</td>
+              <td>{{ countValue(record.international_count) }}</td>
+              <td>{{ record.visit_context || '-' }}</td>
+              <td><span class="status-pill record-status" :class="recordStatusClass(record.status)">{{ recordStatusLabel(record.status) }}</span></td>
+              <td>{{ record.submitted_by || '-' }}</td>
+              <td>{{ formatDate(record.created_at) }}</td>
+            </tr>
+            <tr v-if="!filteredRecords.length">
+              <td colspan="13" class="empty-table-cell">No tourist log records found.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <div v-if="showRecordModal" class="modal-backdrop" @click.self="closeRecordModal">
@@ -193,7 +251,7 @@ import VisitorTable from '../components/VisitorTable.vue'
 import { receptionistNav, tourismNav } from './nav'
 import { visitorApi } from '../services/visitorApi'
 import { useAuthStore } from '../stores/authStore'
-import { formatSourceType, formatStatus, formatVisitorType } from '../utils/format'
+import { formatDate, formatSourceType, formatStatus, formatVisitorType } from '../utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -206,8 +264,13 @@ const modalError = ref('')
 const savingRecord = ref(false)
 const showRecordModal = ref(false)
 const isReceptionist = computed(() => auth.user?.role === 'receptionist' || route.meta.sourceType === 'resort')
-const recordsTitle = computed(() =>
-  isReceptionist.value ? 'Recorded Visitor Data' : 'Tourists Log Records',
+const recordsTitle = computed(() => (isReceptionist.value ? 'Recorded Visitor Data' : 'Tourists Log Records'))
+const recordsSubtitle = computed(() =>
+  isReceptionist.value ? 'Records assigned to your establishment.' : 'Records submitted by registered tourism establishments.',
+)
+const filterTitle = computed(() => (isReceptionist.value ? 'Search and Filter Visitor Records' : 'Search and Filter Tourist Logs'))
+const filterDescription = computed(() =>
+  isReceptionist.value ? 'Find records by visitor, date, source, type, or review status.' : 'Find submitted logs by establishment, reporting date, or tourist type.',
 )
 const canAddRecord = computed(() => false)
 
@@ -216,6 +279,8 @@ const draftFilters = reactive(defaultFilters())
 const recordForm = reactive(defaultRecordForm())
 
 const filteredRecords = computed(() => {
+  if (!isReceptionist.value) return records.value
+
   const keyword = appliedFilters.search.trim().toLowerCase()
   return records.value.filter((record) => {
     const text = [record.full_name, record.contact_number, record.establishment_name, record.group_id, record.id].join(' ').toLowerCase()
@@ -232,21 +297,29 @@ const filteredRecords = computed(() => {
 })
 
 const activeFilterChips = computed(() =>
-  [
-    appliedFilters.search && { key: 'search', label: `Search: ${appliedFilters.search}` },
-    appliedFilters.date_from && { key: 'date_from', label: `From: ${appliedFilters.date_from}` },
-    appliedFilters.date_to && { key: 'date_to', label: `To: ${appliedFilters.date_to}` },
-    appliedFilters.visitor_type && { key: 'visitor_type', label: `Type: ${formatVisitorType(appliedFilters.visitor_type)}` },
-    appliedFilters.source_type && { key: 'source_type', label: `Source: ${formatSourceType(appliedFilters.source_type)}` },
-    appliedFilters.status && { key: 'status', label: `Status: ${recordStatusLabel(appliedFilters.status)}` },
-  ].filter(Boolean),
+  isReceptionist.value
+    ? [
+        appliedFilters.search && { key: 'search', label: `Search: ${appliedFilters.search}` },
+        appliedFilters.date_from && { key: 'date_from', label: `From: ${appliedFilters.date_from}` },
+        appliedFilters.date_to && { key: 'date_to', label: `To: ${appliedFilters.date_to}` },
+        appliedFilters.visitor_type && { key: 'visitor_type', label: `Type: ${formatVisitorType(appliedFilters.visitor_type)}` },
+        appliedFilters.source_type && { key: 'source_type', label: `Source: ${formatSourceType(appliedFilters.source_type)}` },
+        appliedFilters.status && { key: 'status', label: `Status: ${recordStatusLabel(appliedFilters.status)}` },
+      ].filter(Boolean)
+    : [
+        appliedFilters.search && { key: 'search', label: `Establishment: ${appliedFilters.search}` },
+        appliedFilters.date && { key: 'date', label: `Date: ${appliedFilters.date}` },
+        appliedFilters.tourist_type && { key: 'tourist_type', label: `Type: ${formatVisitorType(appliedFilters.tourist_type)}` },
+      ].filter(Boolean),
 )
 
 function defaultFilters() {
   return {
     search: '',
+    date: '',
     date_from: '',
     date_to: '',
+    tourist_type: '',
     visitor_type: '',
     source_type: '',
     status: '',
@@ -273,6 +346,16 @@ function defaultRecordForm() {
 }
 
 async function load() {
+  error.value = ''
+  if (!isReceptionist.value) {
+    records.value = await visitorApi.touristCountLogs({
+      search: appliedFilters.search || undefined,
+      date: appliedFilters.date || undefined,
+      tourist_type: appliedFilters.tourist_type || undefined,
+    })
+    return
+  }
+
   const sourceType = route.meta.sourceType || ''
   const params = sourceType ? { source_type: sourceType } : {}
   records.value = await visitorApi.visitors(params)
@@ -285,20 +368,37 @@ async function loadEstablishments() {
   establishments.value = await visitorApi.getEstablishments()
 }
 
-function applyFilters() {
+async function applyFilters() {
   Object.assign(appliedFilters, draftFilters)
+  if (!isReceptionist.value) {
+    try {
+      await load()
+    } catch (err) {
+      error.value = 'Unable to load tourist log records.'
+    }
+  }
 }
 
 function resetFilters() {
   const sourceType = route.meta.sourceType || ''
   Object.assign(draftFilters, defaultFilters(), { source_type: sourceType })
   Object.assign(appliedFilters, defaultFilters(), { source_type: sourceType })
+  if (!isReceptionist.value) {
+    void load().catch((err) => {
+      error.value = 'Unable to load tourist log records.'
+    })
+  }
 }
 
 function removeFilter(key) {
   if (key === 'source_type' && isReceptionist.value) return
   draftFilters[key] = ''
   appliedFilters[key] = ''
+  if (!isReceptionist.value) {
+    void load().catch((err) => {
+      error.value = 'Unable to load tourist log records.'
+    })
+  }
 }
 
 function recordStatusKey(status) {
@@ -311,7 +411,20 @@ function recordStatusKey(status) {
 function recordStatusLabel(status) {
   if (status === 'pending_review') return 'Pending Review'
   if (status === 'recorded') return 'Recorded'
+  if (status === 'submitted') return 'Submitted'
   return formatStatus(status)
+}
+
+function recordStatusClass(status) {
+  if (status === 'archived' || status === 'cancelled') return 'archived'
+  if (status === 'verified') return 'verified'
+  if (status === 'pending_review') return 'pending-review'
+  return 'recorded'
+}
+
+function countValue(value) {
+  const count = Number(value)
+  return Number.isFinite(count) ? count : 0
 }
 
 function openRecordModal() {
@@ -382,7 +495,7 @@ onMounted(async () => {
   try {
     await Promise.all([load(), loadEstablishments()])
   } catch (err) {
-    error.value = err.message
+    error.value = isReceptionist.value ? err.message : 'Unable to load tourist log records.'
   }
 })
 </script>
@@ -530,6 +643,61 @@ onMounted(async () => {
   padding: 0.35rem 0.75rem;
   font-weight: 800;
   font-size: 0.85rem;
+}
+
+.tourist-log-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tourist-log-table {
+  min-width: 1480px;
+}
+
+.tourist-log-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.tourist-log-table td {
+  color: #0f172a;
+  font-size: 0.92rem;
+}
+
+.tourist-log-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.record-status {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.record-status.verified {
+  background: #020617;
+  color: #fff;
+}
+
+.record-status.pending-review {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.record-status.archived {
+  background: #e5e7eb;
+  color: #475569;
+}
+
+.empty-table-cell {
+  text-align: center;
+  color: #64748b;
+  font-weight: 800;
 }
 
 .modal-backdrop {

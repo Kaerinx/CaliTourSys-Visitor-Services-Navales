@@ -38,6 +38,10 @@ exports.listVisitors = asyncHandler(async (req, res) => {
   res.json(await service.listVisitors(req.query, req.user));
 });
 
+exports.listTouristCountLogs = asyncHandler(async (req, res) => {
+  res.json(await service.listTouristCountLogs(req.query));
+});
+
 exports.getVisitor = asyncHandler(async (req, res) => {
   res.json(await service.getVisitor(req.params.id, req.user));
 });

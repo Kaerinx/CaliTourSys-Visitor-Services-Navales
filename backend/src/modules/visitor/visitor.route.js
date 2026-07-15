@@ -52,6 +52,7 @@ router.get(
 
 router.post('/visitors', authenticate, visitorAuthorize('admin', 'tourism_staff', 'receptionist'), controller.createVisitor);
 router.get('/visitors', authenticate, visitorAuthorize('admin', 'tourism_staff', 'receptionist'), controller.listVisitors);
+router.get('/tourist-count-logs', authenticate, visitorAuthorize('admin', 'tourism_staff'), controller.listTouristCountLogs);
 router.get('/visitors/:id', authenticate, visitorAuthorize('admin', 'tourism_staff', 'receptionist'), controller.getVisitor);
 router.patch('/visitors/:id', authenticate, visitorAuthorize('admin', 'tourism_staff', 'receptionist'), controller.updateVisitor);
 router.patch(

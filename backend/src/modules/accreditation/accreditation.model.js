@@ -381,6 +381,87 @@ async function getBusinessProfile(ownerId) {
   return result.rows[0];
 }
 
+async function listTouristCountLogs(businessProfileId) {
+  const result = await db.query(
+    `SELECT tcl.*,
+       (tcl.adult_count + tcl.senior_count + tcl.children_count) AS total_count
+     FROM tourist_count_logs tcl
+     WHERE tcl.business_profile_id = $1
+     ORDER BY tcl.log_date DESC, tcl.created_at DESC`,
+    [businessProfileId]
+  );
+  return result.rows;
+}
+
+async function createTouristCountLog(businessProfileId, submittedByUserId, log) {
+  const result = await db.query(
+    `INSERT INTO tourist_count_logs (
+       business_profile_id, accreditation_record_id, submitted_by_user_id, log_date,
+       adult_count, senior_count, children_count, local_count, domestic_count,
+       international_count, visit_context, notes
+     ) VALUES (
+       $1,
+       (
+         SELECT id FROM accreditation_records
+         WHERE business_profile_id = $1
+           AND status = 'active'
+           AND (expires_at IS NULL OR expires_at >= CURRENT_DATE)
+         ORDER BY issued_at DESC
+         LIMIT 1
+       ),
+       $2,$3,$4,$5,$6,$7,$8,$9,$10,$11
+     )
+     RETURNING *, (adult_count + senior_count + children_count) AS total_count`,
+    [
+      businessProfileId,
+      submittedByUserId,
+      log.logDate,
+      log.adultCount,
+      log.seniorCount,
+      log.childrenCount,
+      log.localCount,
+      log.domesticCount,
+      log.internationalCount,
+      log.visitContext,
+      log.notes,
+    ]
+  );
+  return result.rows[0];
+}
+
+async function updateTouristCountLog(id, businessProfileId, log) {
+  const result = await db.query(
+    `UPDATE tourist_count_logs
+     SET log_date = $3,
+       adult_count = $4,
+       senior_count = $5,
+       children_count = $6,
+       local_count = $7,
+       domestic_count = $8,
+       international_count = $9,
+       visit_context = $10,
+       notes = $11
+     WHERE id = $1
+       AND business_profile_id = $2
+       AND status IN ('submitted', 'returned')
+     RETURNING *, (adult_count + senior_count + children_count) AS total_count`,
+    [
+      id,
+      businessProfileId,
+      log.logDate,
+      log.adultCount,
+      log.seniorCount,
+      log.childrenCount,
+      log.localCount,
+      log.domesticCount,
+      log.internationalCount,
+      log.visitContext,
+      log.notes,
+    ]
+  );
+  return result.rows[0];
+}
+
 async function updateBusinessProfile(ownerId, profile) {
   const result = await db.query(
     `UPDATE business_profiles
@@ -1499,6 +1580,7 @@ module.exports = {
   getDocumentById,
   getRegistrationDocumentById,
   getBusinessProfile,
+  listTouristCountLogs,
   listBusinessProfileImages,
   listAccreditationRecords,
   listApplications,
@@ -1508,12 +1590,14 @@ module.exports = {
   listOwnerProductInquiries,
   listUsers,
   markNotificationRead,
+  createTouristCountLog,
   submitApplication,
   updateAccountProfile,
   updateApplicationReview,
   updateApplicationDraft,
   updateBusinessProfile,
   updateBusinessProfileById,
+  updateTouristCountLog,
   updateLastLogin,
   updatePasswordHash,
   updateOwnerProductInquiryStatus,

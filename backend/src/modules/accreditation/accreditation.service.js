@@ -144,6 +144,114 @@ const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
 ]);
+const TOURIST_COUNT_VISIT_CONTEXTS = new Set([
+  "Regular Visit",
+  "Walk-in",
+  "Event-related",
+  "Package Tour",
+  "Group Tour",
+  "Other",
+]);
+
+function touristCountError(message, statusCode = 400) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+function touristCountValue(value, label) {
+  const count = Number(value ?? 0);
+  if (!Number.isInteger(count) || count < 0) {
+    throw touristCountError(`${label} must be a non-negative whole number.`);
+  }
+  return count;
+}
+
+function isValidIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function normalizeTouristCountLog(payload = {}) {
+  const logDate = String(payload.logDate || payload.log_date || "").trim();
+  if (!isValidIsoDate(logDate)) {
+    throw touristCountError("Reporting date is required and must be a valid date.");
+  }
+
+  const adultCount = touristCountValue(payload.adultCount ?? payload.adult_count, "Adults");
+  const seniorCount = touristCountValue(payload.seniorCount ?? payload.senior_count, "Senior Citizens");
+  const childrenCount = touristCountValue(payload.childrenCount ?? payload.children_count, "Children");
+  const domesticCount = touristCountValue(payload.domesticCount ?? payload.domestic_count, "Domestic Tourists");
+  const internationalCount = touristCountValue(
+    payload.internationalCount ?? payload.international_count,
+    "International Tourists"
+  );
+  const totalCount = adultCount + seniorCount + childrenCount;
+  if (domesticCount + internationalCount > totalCount) {
+    throw touristCountError("Domestic and International Tourists cannot exceed Total Visitors.");
+  }
+
+  const visitContext = String(payload.visitContext || payload.visit_context || "").trim() || null;
+  if (visitContext && !TOURIST_COUNT_VISIT_CONTEXTS.has(visitContext)) {
+    throw touristCountError("Visit Context is invalid.");
+  }
+
+  return {
+    logDate,
+    adultCount,
+    seniorCount,
+    childrenCount,
+    localCount: totalCount - domesticCount - internationalCount,
+    domesticCount,
+    internationalCount,
+    visitContext,
+    notes: String(payload.notes || "").trim() || null,
+  };
+}
+
+async function touristCountBusinessProfile(ownerId) {
+  const profile = await model.getBusinessProfile(ownerId);
+  if (!profile) {
+    throw touristCountError("Complete your Business Profile before submitting tourist count logs.", 404);
+  }
+  return profile;
+}
+
+async function listTouristCountLogs(ownerId) {
+  const profile = await model.getBusinessProfile(ownerId);
+  if (!profile) return { businessProfile: null, logs: [] };
+  const logs = await model.listTouristCountLogs(profile.id);
+  return { businessProfile: profile, logs };
+}
+
+async function createTouristCountLog(ownerId, payload) {
+  const profile = await touristCountBusinessProfile(ownerId);
+  try {
+    return await model.createTouristCountLog(profile.id, ownerId, normalizeTouristCountLog(payload));
+  } catch (error) {
+    if (error.code === "23505") {
+      throw touristCountError("A tourist count log already exists for this Reporting Date.", 409);
+    }
+    throw error;
+  }
+}
+
+async function updateTouristCountLog(ownerId, id, payload) {
+  const profile = await touristCountBusinessProfile(ownerId);
+  try {
+    const log = await model.updateTouristCountLog(id, profile.id, normalizeTouristCountLog(payload));
+    if (!log) {
+      throw touristCountError("Tourist count log was not found or can no longer be edited.", 404);
+    }
+    return log;
+  } catch (error) {
+    if (error.code === "23505") {
+      throw touristCountError("A tourist count log already exists for this Reporting Date.", 409);
+    }
+    throw error;
+  }
+}
 
 function getRequiredDocumentsForBusinessType(businessType) {
   const selectedTypes = Array.isArray(businessType)
@@ -850,13 +958,16 @@ module.exports = {
   changePassword,
   createManagedUser,
   createApplication,
+  createTouristCountLog,
   deleteDraftApplication,
   getCurrentUser,
   login,
+  listTouristCountLogs,
   registerBusinessOwner,
   reviewApplication,
   saveApplicationDraft,
   submitApplication,
   updateAccountProfile,
+  updateTouristCountLog,
   verifyEmail,
 };

@@ -66,6 +66,11 @@ const visitorApi = {
     return listFrom(response, ['visitors', 'visitor_records'])
   },
 
+  async getTouristCountLogs(params) {
+    const response = await http.getAuth(visitorPath('/tourist-count-logs'), params)
+    return listFrom(response, ['tourist_count_logs', 'touristCountLogs', 'records'])
+  },
+
   getVisitor(id) {
     return http.getAuth(visitorPath(`/visitors/${id}`))
   },
@@ -179,6 +184,10 @@ visitorApi.visitors = Object.assign((params) => visitorApi.getVisitors(params), 
   update: visitorApi.updateVisitor,
   updateStatus: visitorApi.updateVisitorStatus,
   delete: visitorApi.deleteVisitor,
+})
+
+visitorApi.touristCountLogs = Object.assign((params) => visitorApi.getTouristCountLogs(params), {
+  list: visitorApi.getTouristCountLogs,
 })
 
 visitorApi.inquiries = Object.assign((params) => visitorApi.getInquiries(params), {

@@ -118,6 +118,7 @@ import {
   BarChart3,
   Bell,
   Building2,
+  ClipboardList,
   FileCheck,
   FileText,
   LayoutDashboard,
@@ -256,6 +257,11 @@ const menu = computed(() => {
       label: "My Applications",
       path: "/accreditation/app/applications",
       icon: FileCheck,
+    },
+    {
+      label: "Tourist Log",
+      path: "/accreditation/app/tourist-count-log",
+      icon: ClipboardList,
     },
     {
       label: "Ratings & Reviews",
