@@ -189,6 +189,22 @@ function buildTouristCountLogWhere(filters = {}) {
   if (filters.date) {
     where.push(`tcl.log_date = ${placeholder(params, filters.date)}::date`);
   }
+  if (filters.dateFrom) {
+    where.push(`tcl.log_date >= ${placeholder(params, filters.dateFrom)}::date`);
+  }
+  if (filters.dateTo) {
+    where.push(`tcl.log_date <= ${placeholder(params, filters.dateTo)}::date`);
+  }
+  if (filters.establishmentId) {
+    where.push(`tcl.business_profile_id = ${placeholder(params, filters.establishmentId)}::uuid`);
+  }
+  if (filters.visitContext) {
+    where.push(`EXISTS (
+      SELECT 1 FROM tourist_count_log_entries filtered_entry
+      WHERE filtered_entry.tourist_count_log_id = tcl.id
+        AND filtered_entry.visit_context = ${placeholder(params, filters.visitContext)}
+    )`);
+  }
 
   const touristType = String(filters.touristType || filters.tourist_type || 'all').toLowerCase();
   if (touristType === 'local') {
@@ -221,6 +237,18 @@ async function listTouristCountLogs(filters = {}) {
        tcl.domestic_count,
        tcl.international_count,
        tcl.visit_context,
+       COALESCE(
+         ARRAY(
+           SELECT DISTINCT entry.visit_context
+           FROM tourist_count_log_entries entry
+           WHERE entry.tourist_count_log_id = tcl.id
+             AND entry.visit_context IS NOT NULL
+           ORDER BY entry.visit_context
+         ),
+         ARRAY[]::VARCHAR[]
+       ) AS visit_contexts,
+       (SELECT COUNT(*)::INTEGER FROM tourist_count_log_entries entry
+        WHERE entry.tourist_count_log_id = tcl.id) AS entry_count,
        tcl.status,
        tcl.submitted_by_user_id,
        COALESCE(u.display_name, NULLIF(CONCAT_WS(' ', u.first_name, u.last_name), ''), u.email) AS submitted_by,
@@ -233,6 +261,96 @@ async function listTouristCountLogs(filters = {}) {
      ORDER BY tcl.log_date DESC, tcl.created_at DESC`,
     params
   );
+}
+
+async function listTouristCountLogEntries(id) {
+  return query(
+    `SELECT entry.*,
+       (entry.adult_count + entry.senior_count + entry.children_count) AS total_count
+     FROM tourist_count_log_entries entry
+     WHERE entry.tourist_count_log_id = $1
+     ORDER BY entry.entry_time DESC, entry.created_at DESC`,
+    [id]
+  );
+}
+
+function touristCountExpression(alias, touristType) {
+  if (touristType === 'local') return `${alias}.local_count`;
+  if (touristType === 'domestic') return `${alias}.domestic_count`;
+  if (touristType === 'international') return `${alias}.international_count`;
+  return `(${alias}.adult_count + ${alias}.senior_count + ${alias}.children_count)`;
+}
+
+async function touristLogAnalytics(filters = {}) {
+  const { whereSql, params } = buildTouristCountLogWhere(filters);
+  const contextWhereSql = filters.visitContext
+    ? `${whereSql} AND entry.visit_context = $${params.length}`
+    : whereSql;
+  const countExpression = touristCountExpression('tcl', filters.touristType);
+  const periodExpression = filters.viewBy === 'year'
+    ? `TO_CHAR(tcl.log_date, 'YYYY')`
+    : filters.viewBy === 'month'
+      ? `TO_CHAR(DATE_TRUNC('month', tcl.log_date), 'YYYY-MM')`
+      : `TO_CHAR(tcl.log_date, 'YYYY-MM-DD')`;
+
+  const [trend, totalsRows, contexts, establishments] = await Promise.all([
+    query(
+      `SELECT ${periodExpression} AS period, SUM(${countExpression})::INTEGER AS total
+       FROM tourist_count_logs tcl
+       JOIN business_profiles bp ON bp.id = tcl.business_profile_id
+       ${whereSql}
+       GROUP BY 1
+       ORDER BY 1`,
+      params
+    ),
+    query(
+      `SELECT
+         COALESCE(SUM(tcl.local_count), 0)::INTEGER AS local,
+         COALESCE(SUM(tcl.domestic_count), 0)::INTEGER AS domestic,
+         COALESCE(SUM(tcl.international_count), 0)::INTEGER AS international,
+         COALESCE(SUM(tcl.adult_count), 0)::INTEGER AS adults,
+         COALESCE(SUM(tcl.senior_count), 0)::INTEGER AS seniors,
+         COALESCE(SUM(tcl.children_count), 0)::INTEGER AS children
+       FROM tourist_count_logs tcl
+       JOIN business_profiles bp ON bp.id = tcl.business_profile_id
+       ${whereSql}`,
+      params
+    ),
+    query(
+      `SELECT COALESCE(entry.visit_context, 'Other') AS context,
+         SUM(${touristCountExpression('entry', filters.touristType)})::INTEGER AS total
+       FROM tourist_count_log_entries entry
+       JOIN tourist_count_logs tcl ON tcl.id = entry.tourist_count_log_id
+       JOIN business_profiles bp ON bp.id = tcl.business_profile_id
+       ${contextWhereSql}
+       GROUP BY COALESCE(entry.visit_context, 'Other')
+       ORDER BY total DESC, context ASC`,
+      params
+    ),
+    query(
+      `SELECT DISTINCT bp.id, bp.business_name AS name
+       FROM business_profiles bp
+       JOIN tourist_count_logs tcl ON tcl.business_profile_id = bp.id
+       ORDER BY bp.business_name`
+    ),
+  ]);
+
+  const totals = totalsRows[0] || {};
+  return {
+    trend,
+    touristTypes: [
+      { label: 'Local', total: totals.local || 0 },
+      { label: 'Domestic', total: totals.domestic || 0 },
+      { label: 'International', total: totals.international || 0 },
+    ],
+    ageGroups: [
+      { label: 'Adults', total: totals.adults || 0 },
+      { label: 'Senior Citizens', total: totals.seniors || 0 },
+      { label: 'Children', total: totals.children || 0 },
+    ],
+    contexts,
+    establishments,
+  };
 }
 
 async function companionsFor(visitorId) {
@@ -686,7 +804,9 @@ module.exports = {
   createUser,
   updateUser,
   createVisitor,
+  listTouristCountLogEntries,
   listTouristCountLogs,
+  touristLogAnalytics,
   listVisitors,
   getVisitor,
   updateVisitor,

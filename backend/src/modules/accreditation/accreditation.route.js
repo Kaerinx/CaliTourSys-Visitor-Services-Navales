@@ -153,6 +153,18 @@ router
   .route("/tourist-count-logs")
   .get(authenticate, authorize("business_owner"), controller.listTouristCountLogs)
   .post(authenticate, authorize("business_owner"), controller.createTouristCountLog);
+router.post(
+  "/tourist-count-logs/entries",
+  authenticate,
+  authorize("business_owner"),
+  controller.addTouristCountLogEntry
+);
+router.get(
+  "/tourist-count-logs/:id/entries",
+  authenticate,
+  authorize("business_owner"),
+  controller.listTouristCountLogEntries
+);
 router.patch(
   "/tourist-count-logs/:id",
   authenticate,

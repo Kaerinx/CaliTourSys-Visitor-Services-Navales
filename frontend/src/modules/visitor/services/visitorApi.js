@@ -71,6 +71,14 @@ const visitorApi = {
     return listFrom(response, ['tourist_count_logs', 'touristCountLogs', 'records'])
   },
 
+  getTouristCountLogEntries(id) {
+    return http.getAuth(visitorPath(`/tourist-count-logs/${id}/entries`))
+  },
+
+  touristLogAnalytics(params) {
+    return http.getAuth(visitorPath('/reports/tourist-log-analytics'), params)
+  },
+
   getVisitor(id) {
     return http.getAuth(visitorPath(`/visitors/${id}`))
   },
@@ -175,6 +183,7 @@ visitorApi.reports = {
   visitorTrend: visitorApi.visitorTrend,
   classification: visitorApi.classification,
   exportSummary: visitorApi.exportVisitorSummary,
+  touristLogAnalytics: visitorApi.touristLogAnalytics,
 }
 
 visitorApi.visitors = Object.assign((params) => visitorApi.getVisitors(params), {
@@ -188,6 +197,7 @@ visitorApi.visitors = Object.assign((params) => visitorApi.getVisitors(params), 
 
 visitorApi.touristCountLogs = Object.assign((params) => visitorApi.getTouristCountLogs(params), {
   list: visitorApi.getTouristCountLogs,
+  entries: visitorApi.getTouristCountLogEntries,
 })
 
 visitorApi.inquiries = Object.assign((params) => visitorApi.getInquiries(params), {

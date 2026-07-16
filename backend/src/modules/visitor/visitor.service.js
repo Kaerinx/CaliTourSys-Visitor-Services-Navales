@@ -5,6 +5,10 @@ const { query: pgQuery } = require('../../config/db');
 const { hashPassword } = require('../../utils/password');
 const { requireGender } = require('../booking/bookingRules');
 
+const TOURIST_VISIT_CONTEXTS = new Set([
+  'Regular Visit', 'Walk-in', 'Event-related', 'Package Tour', 'Group Tour', 'Other',
+]);
+
 function httpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -28,10 +32,24 @@ function normalizeTouristCountLogFilters(filters = {}) {
     throw httpError(422, 'Invalid tourist type filter.');
   }
 
+  const viewBy = normalizeType(filters.viewBy || filters.view_by || 'day') || 'day';
+  if (!['day', 'month', 'year'].includes(viewBy)) {
+    throw httpError(422, 'Invalid report grouping.');
+  }
+  const visitContext = String(filters.visitContext || filters.visit_context || '').trim();
+  if (visitContext && !TOURIST_VISIT_CONTEXTS.has(visitContext)) {
+    throw httpError(422, 'Invalid visit context filter.');
+  }
+
   return {
     search: String(filters.search || '').trim(),
     date: String(filters.date || '').trim(),
+    dateFrom: String(filters.dateFrom || filters.date_from || '').trim(),
+    dateTo: String(filters.dateTo || filters.date_to || '').trim(),
+    establishmentId: String(filters.establishmentId || filters.establishment_id || '').trim(),
+    visitContext,
     touristType,
+    viewBy,
   };
 }
 
@@ -386,6 +404,14 @@ async function listTouristCountLogs(filters) {
   return model.listTouristCountLogs(normalizeTouristCountLogFilters(filters));
 }
 
+async function listTouristCountLogEntries(id) {
+  return model.listTouristCountLogEntries(id);
+}
+
+async function touristLogAnalytics(filters) {
+  return model.touristLogAnalytics(normalizeTouristCountLogFilters(filters));
+}
+
 async function getVisitor(id, user) {
   const visitor = await model.getVisitor(id);
   if (!visitor) throw httpError(404, 'Visitor record not found.');
@@ -614,6 +640,7 @@ module.exports = {
   receptionistSummary,
   createVisitor,
   listTouristCountLogs,
+  listTouristCountLogEntries,
   listVisitors,
   getVisitor,
   updateVisitor,
@@ -627,6 +654,7 @@ module.exports = {
   visitorSummary,
   visitorTrend,
   classification,
+  touristLogAnalytics,
   exportVisitorSummary,
   listEstablishments,
   createEstablishment,

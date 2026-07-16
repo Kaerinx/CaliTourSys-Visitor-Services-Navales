@@ -225,6 +225,16 @@ async function listTouristCountLogs(ownerId) {
   return { businessProfile: profile, logs };
 }
 
+async function listTouristCountLogEntries(ownerId, id) {
+  const profile = await touristCountBusinessProfile(ownerId);
+  return model.listTouristCountLogEntries(id, profile.id);
+}
+
+async function addTouristCountLogEntry(ownerId, payload) {
+  const profile = await touristCountBusinessProfile(ownerId);
+  return model.addTouristCountLogEntry(profile.id, ownerId, normalizeTouristCountLog(payload));
+}
+
 async function createTouristCountLog(ownerId, payload) {
   const profile = await touristCountBusinessProfile(ownerId);
   try {
@@ -955,6 +965,7 @@ async function createManagedUser(payload) {
 
 module.exports = {
   addDocument,
+  addTouristCountLogEntry,
   changePassword,
   createManagedUser,
   createApplication,
@@ -963,6 +974,7 @@ module.exports = {
   getCurrentUser,
   login,
   listTouristCountLogs,
+  listTouristCountLogEntries,
   registerBusinessOwner,
   reviewApplication,
   saveApplicationDraft,

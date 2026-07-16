@@ -105,6 +105,16 @@ export async function updateTouristCountLog(id, payload) {
   return data;
 }
 
+export async function addTouristCountLogEntry(payload) {
+  const { data } = await http.post("/accreditation/tourist-count-logs/entries", payload);
+  return data;
+}
+
+export async function getTouristCountLogEntries(id) {
+  const { data } = await http.get(`/accreditation/tourist-count-logs/${id}/entries`);
+  return data;
+}
+
 export async function getApplications(params = {}) {
   const { data } = await http.get("/accreditation/applications", { params });
   return data;

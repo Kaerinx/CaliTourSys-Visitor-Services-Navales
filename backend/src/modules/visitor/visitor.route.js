@@ -53,6 +53,7 @@ router.get(
 router.post('/visitors', authenticate, visitorAuthorize('admin', 'tourism_staff', 'receptionist'), controller.createVisitor);
 router.get('/visitors', authenticate, visitorAuthorize('admin', 'tourism_staff', 'receptionist'), controller.listVisitors);
 router.get('/tourist-count-logs', authenticate, visitorAuthorize('admin', 'tourism_staff'), controller.listTouristCountLogs);
+router.get('/tourist-count-logs/:id/entries', authenticate, visitorAuthorize('admin', 'tourism_staff'), controller.listTouristCountLogEntries);
 router.get('/visitors/:id', authenticate, visitorAuthorize('admin', 'tourism_staff', 'receptionist'), controller.getVisitor);
 router.patch('/visitors/:id', authenticate, visitorAuthorize('admin', 'tourism_staff', 'receptionist'), controller.updateVisitor);
 router.patch(
@@ -72,6 +73,7 @@ router.patch('/inquiries/:id/status', authenticate, visitorAuthorize('admin', 't
 router.get('/reports/visitor-summary', authenticate, visitorAuthorize('admin', 'tourism_staff'), controller.visitorSummary);
 router.get('/reports/visitor-trend', authenticate, visitorAuthorize('admin', 'tourism_staff'), controller.visitorTrend);
 router.get('/reports/classification', authenticate, visitorAuthorize('admin', 'tourism_staff'), controller.classification);
+router.get('/reports/tourist-log-analytics', authenticate, visitorAuthorize('admin', 'tourism_staff'), controller.touristLogAnalytics);
 router.get(
   '/reports/visitor-summary/export',
   authenticate,

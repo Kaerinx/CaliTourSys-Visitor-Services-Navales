@@ -165,6 +165,15 @@ async function listProductInquiries(req, res, next) {
   }
 }
 
+async function listTouristCountLogEntries(req, res, next) {
+  try {
+    const entries = await service.listTouristCountLogEntries(req.user.id, req.params.id);
+    return res.json({ entries });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function updateProductInquiryStatus(req, res, next) {
   try {
     const status = String(req.body?.status || "").trim().toLowerCase();
@@ -198,6 +207,23 @@ async function updateProductInquiryStatus(req, res, next) {
   }
 }
 
+async function addTouristCountLogEntry(req, res, next) {
+  try {
+    const result = await service.addTouristCountLogEntry(req.user.id, req.body);
+    await audit(req, {
+      action: "Added tourist arrival entry",
+      module: "Tourist Count Log",
+      referenceId: result.log.id,
+      details: `Reporting date: ${result.log.log_date}`,
+    });
+    return res.status(201).json({
+      ...result,
+      message: "Arrival entry added successfully.",
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
 async function createTouristCountLog(req, res, next) {
   try {
     const log = await service.createTouristCountLog(req.user.id, req.body);
@@ -686,6 +712,7 @@ async function downloadRegistrationDocument(req, res, next) {
 }
 
 module.exports = {
+  addTouristCountLogEntry,
   changePassword,
   createApplication,
   createTouristCountLog,
@@ -704,6 +731,7 @@ module.exports = {
   listProductInquiries,
   listRecords,
   listTouristCountLogs,
+  listTouristCountLogEntries,
   listUsers,
   login,
   markNotificationRead,

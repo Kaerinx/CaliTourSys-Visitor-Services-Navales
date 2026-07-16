@@ -54,7 +54,7 @@
         <div class="card-header">
           <div>
             <h2>Tourist Count Log</h2>
-            <p class="muted">Counts will be recorded for {{ displayBusinessName }}.</p>
+            <p class="muted">Record arrivals throughout the day for {{ displayBusinessName }}.</p>
           </div>
         </div>
 
@@ -168,29 +168,6 @@
             </div>
           </section>
 
-          <section class="form-section span-all">
-            <div class="section-heading">
-              <h3>Summary</h3>
-            </div>
-            <div class="summary-grid">
-              <div class="summary-item">
-                <span>Total Tourists</span>
-                <strong>{{ totalVisitors }}</strong>
-              </div>
-              <div class="summary-item">
-                <span>Local Tourists</span>
-                <strong>{{ localVisitors }}</strong>
-              </div>
-              <div class="summary-item">
-                <span>Domestic Tourists</span>
-                <strong>{{ countValue(form.domesticCount) }}</strong>
-              </div>
-              <div class="summary-item">
-                <span>International Tourists</span>
-                <strong>{{ countValue(form.internationalCount) }}</strong>
-              </div>
-            </div>
-          </section>
         </div>
 
         <p v-if="classificationExceedsTotal" class="inline-error" role="alert">
@@ -199,9 +176,10 @@
 
         <div class="form-actions">
           <button class="btn primary" type="submit" :disabled="submitDisabled">
-            {{ submitting ? "Submitting..." : "Submit Tourist Count" }}
+            {{ submitting ? "Saving..." : "Save Tourist Count" }}
           </button>
         </div>
+
       </form>
 
       <div v-else class="card compact records-card">
@@ -216,34 +194,34 @@
             <thead>
               <tr>
                 <th>Reporting Date</th>
-                <th>Adults</th>
-                <th>Senior Citizens</th>
-                <th>Children</th>
                 <th>Total Tourists</th>
                 <th>Local Tourists</th>
                 <th>Domestic Tourists</th>
                 <th>International Tourists</th>
-                <th>Visit Context</th>
                 <th>Status</th>
-                <th>Date Submitted</th>
+                <th>Last Updated</th>
+                <th>View Entries</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="log in logs" :key="log.id">
-                <td><strong>{{ formatReportingDate(log.log_date) }}</strong></td>
-                <td>{{ log.adult_count }}</td>
-                <td>{{ log.senior_count }}</td>
-                <td>{{ log.children_count }}</td>
-                <td>{{ log.total_count }}</td>
-                <td>{{ log.local_count }}</td>
-                <td>{{ log.domestic_count }}</td>
-                <td>{{ log.international_count }}</td>
-                <td>{{ log.visit_context || "-" }}</td>
-                <td><StatusBadge :status="log.status" /></td>
-                <td>{{ formatDateTime(log.created_at) }}</td>
-              </tr>
+              <template v-for="log in logs" :key="log.id">
+                <tr>
+                  <td><strong>{{ formatReportingDate(log.log_date) }}</strong></td>
+                  <td>{{ log.total_count }}</td><td>{{ log.local_count }}</td><td>{{ log.domestic_count }}</td><td>{{ log.international_count }}</td>
+                  <td><StatusBadge :status="log.status" /></td><td>{{ formatDateTime(log.updated_at) }}</td>
+                  <td><button class="btn secondary" type="button" @click="toggleLogEntries(log)">{{ expandedLogId === log.id ? 'Hide Entries' : 'View Entries' }}</button></td>
+                </tr>
+                <tr v-if="expandedLogId === log.id" class="expanded-entry-row">
+                  <td colspan="8">
+                    <div class="table-scroll"><table class="entry-table"><thead><tr><th>Time</th><th>Total Tourists</th><th>Local</th><th>Domestic</th><th>International</th><th>Visit Context</th></tr></thead><tbody>
+                      <tr v-for="entry in entriesByLog[log.id] || []" :key="entry.id"><td>{{ formatTime(entry.entry_time) }}</td><td>{{ entry.total_count }}</td><td>{{ entry.local_count }}</td><td>{{ entry.domestic_count }}</td><td>{{ entry.international_count }}</td><td>{{ entry.visit_context || '-' }}</td></tr>
+                      <tr v-if="!(entriesByLog[log.id] || []).length"><td colspan="6" class="empty-state">No child entries. This may be a legacy daily summary.</td></tr>
+                    </tbody></table></div>
+                  </td>
+                </tr>
+              </template>
               <tr v-if="logs.length === 0">
-                <td colspan="11" class="empty-state">No tourist count logs have been submitted yet.</td>
+                <td colspan="8" class="empty-state">No tourist count logs have been submitted yet.</td>
               </tr>
             </tbody>
           </table>
@@ -257,8 +235,9 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import StatusBadge from "@/modules/accreditation/components/StatusBadge.vue";
 import {
-  createTouristCountLog,
+  addTouristCountLogEntry,
   getBusinessProfile,
+  getTouristCountLogEntries,
   getTouristCountLogs,
 } from "@/modules/accreditation/services/accreditationApi";
 
@@ -286,6 +265,8 @@ const loading = ref(true);
 const submitting = ref(false);
 const businessProfile = ref(null);
 const logs = ref([]);
+const entriesByLog = reactive({});
+const expandedLogId = ref("");
 const errorMessage = ref("");
 const recordsWarning = ref("");
 const successMessage = ref("");
@@ -406,19 +387,51 @@ async function submitLog() {
 
   submitting.value = true;
   try {
-    const result = await createTouristCountLog({
+    const result = await addTouristCountLogEntry({
       ...form,
       localCount: localVisitors.value,
       notes: "",
     });
-    logs.value = [result.log, ...logs.value];
-    Object.assign(form, emptyForm());
-    successMessage.value = result.message || "Tourist count log submitted successfully.";
-    activeTab.value = "records";
+    const existingIndex = logs.value.findIndex((log) => log.id === result.log.id);
+    if (existingIndex >= 0) logs.value.splice(existingIndex, 1, result.log);
+    else logs.value.unshift(result.log);
+    delete entriesByLog[result.log.id];
+    resetCounters();
+    try {
+      await refreshLogs();
+    } catch (_refreshError) {
+      recordsWarning.value = "Arrival saved, but the latest daily summary could not be refreshed. Reload to verify the total.";
+    }
+    successMessage.value = result.message || "Arrival entry added successfully.";
   } catch (error) {
     errorMessage.value = apiMessage(error, "Unable to submit the tourist count log.");
   } finally {
     submitting.value = false;
+  }
+}
+
+async function refreshLogs() {
+  const result = await getTouristCountLogs();
+  businessProfile.value = result.businessProfile || businessProfile.value;
+  logs.value = Array.isArray(result.logs) ? result.logs : [];
+}
+
+function resetCounters() {
+  Object.assign(form, {
+    adultCount: 0, seniorCount: 0, childrenCount: 0,
+    domesticCount: 0, internationalCount: 0, visitContext: "",
+  });
+}
+
+async function toggleLogEntries(log) {
+  if (expandedLogId.value === log.id) {
+    expandedLogId.value = "";
+    return;
+  }
+  expandedLogId.value = log.id;
+  if (!entriesByLog[log.id]) {
+    const result = await getTouristCountLogEntries(log.id);
+    entriesByLog[log.id] = Array.isArray(result.entries) ? result.entries : [];
   }
 }
 
@@ -444,6 +457,11 @@ function formatDateTime(value) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function formatTime(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 </script>
 
@@ -769,8 +787,11 @@ function formatDateTime(value) {
 }
 
 .table-scroll table {
-  min-width: 1320px;
+  min-width: 980px;
 }
+
+.entry-table { min-width: 900px !important; }
+.expanded-entry-row > td { background: #f8fafc; padding: 16px; }
 
 @media (max-width: 900px) {
   .counter-grid {

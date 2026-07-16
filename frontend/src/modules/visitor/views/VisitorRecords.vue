@@ -108,43 +108,41 @@
           <thead>
             <tr>
               <th>Establishment</th>
-              <th>Reporting Date</th>
-              <th>Adults</th>
-              <th>Senior Citizens</th>
-              <th>Children</th>
+              <th>Date</th>
               <th>Total Tourists</th>
-              <th>Local Tourists</th>
-              <th>Domestic Tourists</th>
-              <th>International Tourists</th>
-              <th>Visit Context</th>
               <th>Status</th>
-              <th>Submitted By</th>
-              <th>Date Submitted</th>
+              <th>Visit Context</th>
+              <th>Last Updated</th>
+              <th>View Entries</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="record in filteredRecords" :key="record.id">
               <td>{{ record.establishment_name || '-' }}</td>
               <td>{{ formatDate(record.log_date) }}</td>
-              <td>{{ countValue(record.adult_count) }}</td>
-              <td>{{ countValue(record.senior_count) }}</td>
-              <td>{{ countValue(record.children_count) }}</td>
               <td>{{ countValue(record.total_count) }}</td>
-              <td>{{ countValue(record.local_count) }}</td>
-              <td>{{ countValue(record.domestic_count) }}</td>
-              <td>{{ countValue(record.international_count) }}</td>
-              <td>{{ record.visit_context || '-' }}</td>
               <td><span class="status-pill record-status" :class="recordStatusClass(record.status)">{{ recordStatusLabel(record.status) }}</span></td>
-              <td>{{ record.submitted_by || '-' }}</td>
-              <td>{{ formatDate(record.created_at) }}</td>
+              <td><div class="context-chips"><span v-for="context in recordContexts(record)" :key="context">{{ context }}</span><span v-if="!recordContexts(record).length">-</span></div></td>
+              <td>{{ formatDateTime(record.updated_at) }}</td>
+              <td><button class="secondary-button compact-button" type="button" @click="viewStaffEntries(record)">View Entries</button></td>
             </tr>
             <tr v-if="!filteredRecords.length">
-              <td colspan="13" class="empty-table-cell">No tourist log records found.</td>
+              <td colspan="7" class="empty-table-cell">No tourist log records found.</td>
             </tr>
           </tbody>
         </table>
       </div>
     </section>
+
+    <div v-if="selectedStaffLog" class="modal-backdrop" @click.self="selectedStaffLog = null">
+      <section class="record-modal entry-modal">
+        <div class="modal-header"><div><h2>Arrival Entries</h2><p>{{ selectedStaffLog.establishment_name }} · {{ formatDate(selectedStaffLog.log_date) }}</p></div><button class="icon-close" type="button" aria-label="Close" @click="selectedStaffLog = null">x</button></div>
+        <div class="tourist-log-table-wrap"><table class="entry-breakdown-table"><thead><tr><th>Time</th><th>Total Tourists</th><th>Local Tourists</th><th>Domestic Tourists</th><th>International Tourists</th><th>Visit Context</th></tr></thead><tbody>
+          <tr v-for="entry in staffEntries" :key="entry.id"><td>{{ formatTime(entry.entry_time) }}</td><td>{{ countValue(entry.total_count) }}</td><td>{{ countValue(entry.local_count) }}</td><td>{{ countValue(entry.domestic_count) }}</td><td>{{ countValue(entry.international_count) }}</td><td>{{ entry.visit_context || '-' }}</td></tr>
+          <tr v-if="!staffEntries.length"><td colspan="6" class="empty-table-cell">{{ loadingEntries ? 'Loading entries...' : 'No child entries. This may be a legacy daily summary.' }}</td></tr>
+        </tbody></table></div>
+      </section>
+    </div>
 
     <div v-if="showRecordModal" class="modal-backdrop" @click.self="closeRecordModal">
       <form class="record-modal" @submit.prevent="saveRecord">
@@ -263,6 +261,9 @@ const success = ref('')
 const modalError = ref('')
 const savingRecord = ref(false)
 const showRecordModal = ref(false)
+const selectedStaffLog = ref(null)
+const staffEntries = ref([])
+const loadingEntries = ref(false)
 const isReceptionist = computed(() => auth.user?.role === 'receptionist' || route.meta.sourceType === 'resort')
 const recordsTitle = computed(() => (isReceptionist.value ? 'Recorded Visitor Data' : 'Tourists Log Records'))
 const recordsSubtitle = computed(() =>
@@ -425,6 +426,35 @@ function recordStatusClass(status) {
 function countValue(value) {
   const count = Number(value)
   return Number.isFinite(count) ? count : 0
+}
+
+function recordContexts(record) {
+  if (Array.isArray(record.visit_contexts) && record.visit_contexts.length) return record.visit_contexts
+  return record.visit_context ? [record.visit_context] : []
+}
+
+async function viewStaffEntries(record) {
+  selectedStaffLog.value = record
+  staffEntries.value = []
+  loadingEntries.value = true
+  try {
+    const result = await visitorApi.getTouristCountLogEntries(record.id)
+    staffEntries.value = Array.isArray(result) ? result : []
+  } catch (err) {
+    error.value = err.message || 'Unable to load arrival entries.'
+  } finally {
+    loadingEntries.value = false
+  }
+}
+
+function formatTime(value) {
+  if (!value) return '-'
+  return new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+
+function formatDateTime(value) {
+  if (!value) return '-'
+  return new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 function openRecordModal() {
@@ -653,8 +683,14 @@ onMounted(async () => {
 }
 
 .tourist-log-table {
-  min-width: 1480px;
+  min-width: 920px;
 }
+
+.context-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.context-chips span { border-radius: 999px; background: #dcfce7; color: #166534; padding: 0.25rem 0.55rem; font-size: 0.8rem; font-weight: 800; white-space: nowrap; }
+.compact-button { min-height: 36px; width: auto; white-space: nowrap; }
+.entry-breakdown-table { min-width: 800px; }
+.entry-modal { width: min(1000px, 100%); }
 
 .tourist-log-table th {
   background: #f8fafc;

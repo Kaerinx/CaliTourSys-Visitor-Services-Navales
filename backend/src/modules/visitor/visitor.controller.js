@@ -42,6 +42,14 @@ exports.listTouristCountLogs = asyncHandler(async (req, res) => {
   res.json(await service.listTouristCountLogs(req.query));
 });
 
+exports.listTouristCountLogEntries = asyncHandler(async (req, res) => {
+  res.json(await service.listTouristCountLogEntries(req.params.id));
+});
+
+exports.touristLogAnalytics = asyncHandler(async (req, res) => {
+  res.json(await service.touristLogAnalytics(req.query));
+});
+
 exports.getVisitor = asyncHandler(async (req, res) => {
   res.json(await service.getVisitor(req.params.id, req.user));
 });

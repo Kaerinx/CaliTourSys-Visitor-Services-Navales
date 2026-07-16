@@ -384,13 +384,119 @@ async function getBusinessProfile(ownerId) {
 async function listTouristCountLogs(businessProfileId) {
   const result = await db.query(
     `SELECT tcl.*,
-       (tcl.adult_count + tcl.senior_count + tcl.children_count) AS total_count
+       (tcl.adult_count + tcl.senior_count + tcl.children_count) AS total_count,
+       COALESCE(
+         ARRAY(
+           SELECT DISTINCT entry.visit_context
+           FROM tourist_count_log_entries entry
+           WHERE entry.tourist_count_log_id = tcl.id
+             AND entry.visit_context IS NOT NULL
+           ORDER BY entry.visit_context
+         ),
+         ARRAY[]::VARCHAR[]
+       ) AS visit_contexts
      FROM tourist_count_logs tcl
      WHERE tcl.business_profile_id = $1
      ORDER BY tcl.log_date DESC, tcl.created_at DESC`,
     [businessProfileId]
   );
   return result.rows;
+}
+
+async function listTouristCountLogEntries(id, businessProfileId) {
+  const result = await db.query(
+    `SELECT entry.*,
+       (entry.adult_count + entry.senior_count + entry.children_count) AS total_count
+     FROM tourist_count_log_entries entry
+     JOIN tourist_count_logs log ON log.id = entry.tourist_count_log_id
+     WHERE entry.tourist_count_log_id = $1
+       AND log.business_profile_id = $2
+     ORDER BY entry.entry_time DESC, entry.created_at DESC`,
+    [id, businessProfileId]
+  );
+  return result.rows;
+}
+
+async function addTouristCountLogEntry(businessProfileId, submittedByUserId, entry) {
+  const client = await db.pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO tourist_count_logs (
+         business_profile_id, accreditation_record_id, submitted_by_user_id, log_date
+       ) VALUES (
+         $1,
+         (
+           SELECT id FROM accreditation_records
+           WHERE business_profile_id = $1
+             AND status = 'active'
+             AND (expires_at IS NULL OR expires_at >= CURRENT_DATE)
+           ORDER BY issued_at DESC
+           LIMIT 1
+         ),
+         $2, $3
+       )
+       ON CONFLICT (business_profile_id, log_date) DO NOTHING`,
+      [businessProfileId, submittedByUserId, entry.logDate]
+    );
+
+    const parentResult = await client.query(
+      `SELECT * FROM tourist_count_logs
+       WHERE business_profile_id = $1 AND log_date = $2
+       FOR UPDATE`,
+      [businessProfileId, entry.logDate]
+    );
+    const parent = parentResult.rows[0];
+
+    const entryResult = await client.query(
+      `INSERT INTO tourist_count_log_entries (
+         tourist_count_log_id, adult_count, senior_count, children_count, local_count,
+         domestic_count, international_count, visit_context
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING *, (adult_count + senior_count + children_count) AS total_count`,
+      [
+        parent.id,
+        entry.adultCount,
+        entry.seniorCount,
+        entry.childrenCount,
+        entry.localCount,
+        entry.domesticCount,
+        entry.internationalCount,
+        entry.visitContext,
+      ]
+    );
+
+    const logResult = await client.query(
+      `UPDATE tourist_count_logs
+       SET adult_count = adult_count + $2,
+         senior_count = senior_count + $3,
+         children_count = children_count + $4,
+         local_count = local_count + $5,
+         domestic_count = domestic_count + $6,
+         international_count = international_count + $7,
+         visit_context = COALESCE(visit_context, $8)
+       WHERE id = $1
+       RETURNING *, (adult_count + senior_count + children_count) AS total_count`,
+      [
+        parent.id,
+        entry.adultCount,
+        entry.seniorCount,
+        entry.childrenCount,
+        entry.localCount,
+        entry.domesticCount,
+        entry.internationalCount,
+        entry.visitContext,
+      ]
+    );
+
+    await client.query("COMMIT");
+    return { log: logResult.rows[0], entry: entryResult.rows[0] };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function createTouristCountLog(businessProfileId, submittedByUserId, log) {
@@ -1580,6 +1686,8 @@ module.exports = {
   getDocumentById,
   getRegistrationDocumentById,
   getBusinessProfile,
+  addTouristCountLogEntry,
+  listTouristCountLogEntries,
   listTouristCountLogs,
   listBusinessProfileImages,
   listAccreditationRecords,
